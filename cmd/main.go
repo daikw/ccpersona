@@ -103,6 +103,12 @@ and behavioral patterns for your AI assistant.`,
 				Usage:  "Install the UserPromptSubmit hook",
 				Action: handleInstallHook,
 			},
+			{
+				Name:   "hook",
+				Usage:  "Handle Claude Code session start (called by hook script)",
+				Action: handleHook,
+				Hidden: true, // Hidden because it's mainly for hook usage
+			},
 		},
 		Before: func(ctx context.Context, c *cli.Command) error {
 			if c.Bool("verbose") {
@@ -318,6 +324,16 @@ func handleApply(ctx context.Context, c *cli.Command) error {
 	// Apply persona based on current project configuration
 	if err := persona.ApplyProjectPersona("."); err != nil {
 		return err
+	}
+	return nil
+}
+
+func handleHook(ctx context.Context, c *cli.Command) error {
+	// Handle Claude Code session start
+	if err := persona.HandleSessionStart(); err != nil {
+		// Log error but don't fail the hook
+		log.Error().Err(err).Msg("Failed to handle session start")
+		return nil
 	}
 	return nil
 }
