@@ -50,13 +50,20 @@ ccpersona list
 ccpersona set zundamon
 ```
 
-3. **フックをインストール**
+3. **Claude Code でフックを設定**
 
-```bash
-ccpersona install-hook
+Claude Code の設定で UserPromptSubmit フックとして `ccpersona hook` を登録します。
+
+```json
+// Claude Code 設定例
+{
+  "hooks": {
+    "user-prompt-submit": "ccpersona hook"
+  }
+}
 ```
 
-これで、次回の Claude Code セッション開始時に自動的に人格が適用されます。
+これで、Claude Code セッション開始時に自動的に人格が適用されます。
 
 ## 使い方
 
@@ -84,8 +91,8 @@ ccpersona create <persona-name>
 # 人格を編集
 ccpersona edit <persona-name>
 
-# フックをインストール
-ccpersona install-hook
+# Claude Code でフックとして使用
+ccpersona hook
 ```
 
 ### 人格の作成
@@ -183,13 +190,13 @@ make build-all
 
 ccpersona は Claude Code の UserPromptSubmit フックとして動作します：
 
-1. `ccpersona install-hook` でフックをインストール
-2. フックは `~/.claude/hooks/user-prompt-submit` に ccpersona へのシンボリックリンクを作成
-3. Claude Code がフックを呼び出すと、ccpersona が直接実行される
-4. ccpersona がセッション管理とペルソナ適用を処理
+1. Claude Code の設定で `ccpersona hook` をフックコマンドとして登録
+2. Claude Code セッション開始時に `ccpersona hook` が実行される
+3. ccpersona がプロジェクトの `.claude/persona.json` を読み込み
+4. 設定された人格を自動的に適用
 
 この設計により：
-- 最小限のインダイレクション（直接実行）
+- シンプルな設定（brew install 後すぐ使える）
 - クロスプラットフォーム対応（Windows/Mac/Linux）
 - 堅牢なエラーハンドリング
 - セッション追跡機能

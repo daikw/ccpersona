@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/daikw/ccpersona/internal/persona"
 	"github.com/rs/zerolog"
@@ -22,18 +21,7 @@ func main() {
 	// Setup logger
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	// Check if we're being called as a hook
-	if isCalledAsHook() {
-		// Suppress normal output when running as hook
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-		
-		// Run hook logic directly
-		if err := persona.HandleSessionStart(); err != nil {
-			log.Error().Err(err).Msg("Hook execution failed")
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
+	// Simple CLI setup - no special hook detection needed
 
 	app := &cli.Command{
 		Name:  "ccpersona",
@@ -106,26 +94,9 @@ and behavioral patterns for your AI assistant.`,
 				},
 			},
 			{
-				Name:   "apply",
-				Usage:  "Apply the configured persona for current project (used by hooks)",
-				Action: handleApply,
-				Hidden: true, // Hidden because it's mainly for hook usage
-			},
-			{
-				Name:   "install-hook",
-				Usage:  "Install the UserPromptSubmit hook",
-				Action: handleInstallHook,
-			},
-			{
-				Name:   "uninstall-hook",
-				Usage:  "Remove the UserPromptSubmit hook",
-				Action: handleUninstallHook,
-			},
-			{
 				Name:   "hook",
-				Usage:  "Handle Claude Code session start (called by hook script)",
+				Usage:  "Execute as Claude Code UserPromptSubmit hook",
 				Action: handleHook,
-				Hidden: true, // Hidden because it's mainly for hook usage
 			},
 		},
 		Before: func(ctx context.Context, c *cli.Command) error {
@@ -338,63 +309,15 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-func handleApply(ctx context.Context, c *cli.Command) error {
-	// Apply persona based on current project configuration
-	if err := persona.ApplyProjectPersona("."); err != nil {
-		return err
-	}
-	return nil
-}
-
 func handleHook(ctx context.Context, c *cli.Command) error {
 	// Handle Claude Code session start
+	// Suppress normal output when running as hook
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	
 	if err := persona.HandleSessionStart(); err != nil {
 		// Log error but don't fail the hook
 		log.Error().Err(err).Msg("Failed to handle session start")
 		return nil
 	}
-	return nil
-}
-
-// isCalledAsHook checks if ccpersona is being called as a Claude Code hook
-func isCalledAsHook() bool {
-	// Check if we're called with the hook name (without .sh extension)
-	baseName := filepath.Base(os.Args[0])
-	if baseName == "user-prompt-submit" {
-		return true
-	}
-	
-	// Check environment variable (Claude Code might set this)
-	if os.Getenv("CLAUDE_HOOK_NAME") == "user-prompt-submit" {
-		return true
-	}
-	
-	// Check if first argument is "hook" (fallback for testing)
-	if len(os.Args) > 1 && os.Args[1] == "hook" {
-		return true
-	}
-	
-	return false
-}
-
-func handleInstallHook(ctx context.Context, c *cli.Command) error {
-	// Create symlink to ccpersona as the hook
-	if err := persona.SetupHookSymlink(); err != nil {
-		return err
-	}
-
-	fmt.Println("UserPromptSubmit hook installed successfully")
-	fmt.Println("The hook will automatically apply personas when you start Claude Code sessions")
-	fmt.Println("\nNote: Make sure 'ccpersona' is in your PATH (e.g., installed via brew)")
-	return nil
-}
-
-func handleUninstallHook(ctx context.Context, c *cli.Command) error {
-	// Remove the hook symlink
-	if err := persona.RemoveHookSymlink(); err != nil {
-		return err
-	}
-
-	fmt.Println("UserPromptSubmit hook removed successfully")
 	return nil
 }
