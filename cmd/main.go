@@ -22,6 +22,19 @@ func main() {
 	// Setup logger
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
+	// Check if we're being called as a hook
+	if isCalledAsHook() {
+		// Suppress normal output when running as hook
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+		
+		// Run hook logic directly
+		if err := persona.HandleSessionStart(); err != nil {
+			log.Error().Err(err).Msg("Hook execution failed")
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	app := &cli.Command{
 		Name:  "ccpersona",
 		Usage: "Claude Code Persona System - manage personas for Claude Code sessions",
@@ -338,30 +351,34 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-func handleInstallHook(ctx context.Context, c *cli.Command) error {
-	// Get the path to the hook script
-	execPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to get executable path: %w", err)
+// isCalledAsHook checks if ccpersona is being called as a Claude Code hook
+func isCalledAsHook() bool {
+	// Check if we're called with the hook name
+	if filepath.Base(os.Args[0]) == "user-prompt-submit.sh" {
+		return true
 	}
 	
-	execDir := filepath.Dir(execPath)
-	hookPath := filepath.Join(execDir, "..", "hooks", "persona_router.sh")
-	
-	// Check if hook exists in the expected location
-	if _, err := os.Stat(hookPath); os.IsNotExist(err) {
-		// Try relative to current directory (development mode)
-		hookPath = filepath.Join(".", "hooks", "persona_router.sh")
-		if _, err := os.Stat(hookPath); os.IsNotExist(err) {
-			return fmt.Errorf("hook script not found")
-		}
+	// Check environment variable (Claude Code might set this)
+	if os.Getenv("CLAUDE_HOOK_NAME") == "user-prompt-submit" {
+		return true
 	}
+	
+	// Check if first argument is "hook" (fallback)
+	if len(os.Args) > 1 && os.Args[1] == "hook" {
+		return true
+	}
+	
+	return false
+}
 
-	if err := persona.SetupHook(hookPath); err != nil {
+func handleInstallHook(ctx context.Context, c *cli.Command) error {
+	// Use the minimal hook approach for better compatibility
+	if err := persona.SetupMinimalHook(); err != nil {
 		return err
 	}
 
 	fmt.Println("UserPromptSubmit hook installed successfully")
 	fmt.Println("The hook will automatically apply personas when you start Claude Code sessions")
+	fmt.Println("\nNote: Make sure 'ccpersona' is in your PATH (e.g., installed via brew)")
 	return nil
 }

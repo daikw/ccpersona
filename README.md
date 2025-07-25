@@ -11,6 +11,13 @@ Claude Code のセッションごとに異なる「人格」を自動的に適�
 
 ## インストール
 
+### Homebrew (推奨)
+
+```bash
+brew tap daikw/tap
+brew install ccpersona
+```
+
 ### Go でビルド
 
 ```bash
@@ -169,6 +176,23 @@ make test
 ```bash
 make build-all
 ```
+
+## 技術的な詳細
+
+### フックの仕組み
+
+ccpersona は Claude Code の UserPromptSubmit フックとして動作します：
+
+1. `ccpersona install-hook` でフックをインストール
+2. フックは最小限のシェルスクリプト (`~/.claude/hooks/user-prompt-submit.sh`) を作成
+3. このスクリプトは単に `ccpersona hook` を実行
+4. ccpersona バイナリがセッション管理とペルソナ適用を処理
+
+この設計により：
+- クロスプラットフォーム対応（Windows/Mac/Linux）
+- 堅牢なエラーハンドリング
+- セッション追跡機能
+- 高度なカスタマイズが可能
 
 ## ライセンス
 
