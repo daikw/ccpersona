@@ -117,6 +117,11 @@ and behavioral patterns for your AI assistant.`,
 				Action: handleInstallHook,
 			},
 			{
+				Name:   "uninstall-hook",
+				Usage:  "Remove the UserPromptSubmit hook",
+				Action: handleUninstallHook,
+			},
+			{
 				Name:   "hook",
 				Usage:  "Handle Claude Code session start (called by hook script)",
 				Action: handleHook,
@@ -353,8 +358,9 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 
 // isCalledAsHook checks if ccpersona is being called as a Claude Code hook
 func isCalledAsHook() bool {
-	// Check if we're called with the hook name
-	if filepath.Base(os.Args[0]) == "user-prompt-submit.sh" {
+	// Check if we're called with the hook name (without .sh extension)
+	baseName := filepath.Base(os.Args[0])
+	if baseName == "user-prompt-submit" {
 		return true
 	}
 	
@@ -363,7 +369,7 @@ func isCalledAsHook() bool {
 		return true
 	}
 	
-	// Check if first argument is "hook" (fallback)
+	// Check if first argument is "hook" (fallback for testing)
 	if len(os.Args) > 1 && os.Args[1] == "hook" {
 		return true
 	}
@@ -372,13 +378,23 @@ func isCalledAsHook() bool {
 }
 
 func handleInstallHook(ctx context.Context, c *cli.Command) error {
-	// Use the minimal hook approach for better compatibility
-	if err := persona.SetupMinimalHook(); err != nil {
+	// Create symlink to ccpersona as the hook
+	if err := persona.SetupHookSymlink(); err != nil {
 		return err
 	}
 
 	fmt.Println("UserPromptSubmit hook installed successfully")
 	fmt.Println("The hook will automatically apply personas when you start Claude Code sessions")
 	fmt.Println("\nNote: Make sure 'ccpersona' is in your PATH (e.g., installed via brew)")
+	return nil
+}
+
+func handleUninstallHook(ctx context.Context, c *cli.Command) error {
+	// Remove the hook symlink
+	if err := persona.RemoveHookSymlink(); err != nil {
+		return err
+	}
+
+	fmt.Println("UserPromptSubmit hook removed successfully")
 	return nil
 }

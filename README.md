@@ -184,11 +184,12 @@ make build-all
 ccpersona は Claude Code の UserPromptSubmit フックとして動作します：
 
 1. `ccpersona install-hook` でフックをインストール
-2. フックは最小限のシェルスクリプト (`~/.claude/hooks/user-prompt-submit.sh`) を作成
-3. このスクリプトは単に `ccpersona hook` を実行
-4. ccpersona バイナリがセッション管理とペルソナ適用を処理
+2. フックは `~/.claude/hooks/user-prompt-submit` に ccpersona へのシンボリックリンクを作成
+3. Claude Code がフックを呼び出すと、ccpersona が直接実行される
+4. ccpersona がセッション管理とペルソナ適用を処理
 
 この設計により：
+- 最小限のインダイレクション（直接実行）
 - クロスプラットフォーム対応（Windows/Mac/Linux）
 - 堅牢なエラーハンドリング
 - セッション追跡機能
