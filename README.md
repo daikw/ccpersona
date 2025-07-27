@@ -93,6 +93,12 @@ ccpersona edit <persona-name>
 
 # Claude Code でフックとして使用
 ccpersona hook
+
+# 音声読み上げ（最新のアシスタントメッセージを読み上げ）
+ccpersona voice
+
+# 音声読み上げオプション
+ccpersona voice --mode full_text --engine voicevox
 ```
 
 ### 人格の作成

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/daikw/ccpersona/internal/persona"
+	"github.com/daikw/ccpersona/internal/voice"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
@@ -97,6 +99,38 @@ and behavioral patterns for your AI assistant.`,
 				Name:   "hook",
 				Usage:  "Execute as Claude Code UserPromptSubmit hook",
 				Action: handleHook,
+			},
+			{
+				Name:   "voice",
+				Usage:  "Read the latest Claude Code assistant message with voice synthesis",
+				Action: handleVoice,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "mode",
+						Usage: "Reading mode: first_line, line_limit, after_first, full_text, char_limit",
+						Value: "first_line",
+					},
+					&cli.StringFlag{
+						Name:  "engine",
+						Usage: "Voice engine priority: voicevox, aivisspeech",
+						Value: "aivisspeech",
+					},
+					&cli.IntFlag{
+						Name:  "lines",
+						Usage: "Max lines for line_limit mode",
+						Value: 3,
+					},
+					&cli.IntFlag{
+						Name:  "chars",
+						Usage: "Max characters for char_limit mode",
+						Value: 500,
+					},
+					&cli.BoolFlag{
+						Name:  "uuid",
+						Usage: "Use UUID mode for complete message extraction",
+						Value: false,
+					},
+				},
 			},
 		},
 		Before: func(ctx context.Context, c *cli.Command) error {
@@ -300,12 +334,67 @@ func handleEdit(ctx context.Context, c *cli.Command) error {
 }
 
 func handleConfig(ctx context.Context, c *cli.Command) error {
+	var configPath string
+	var config *persona.Config
+	var err error
+
 	if c.Bool("global") {
-		log.Info().Msg("Opening global configuration")
+		// Global configuration
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		configDir := filepath.Join(homeDir, ".claude")
+		configPath = filepath.Join(configDir, "persona.json")
+		
+		// Ensure directory exists
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			return fmt.Errorf("failed to create config directory: %w", err)
+		}
+		
+		// Load or create global config
+		config, err = persona.LoadConfig(homeDir)
+		if err != nil || config == nil {
+			config = persona.GetDefaultConfig()
+			if err := persona.SaveConfig(homeDir, config); err != nil {
+				return fmt.Errorf("failed to create global config: %w", err)
+			}
+		}
 	} else {
-		log.Info().Msg("Opening project configuration")
+		// Project configuration
+		configPath = filepath.Join(".claude", "persona.json")
+		
+		// Load or create project config
+		config, err = persona.LoadConfig(".")
+		if err != nil {
+			return err
+		}
+		if config == nil {
+			return fmt.Errorf("no project configuration found. Run 'ccpersona init' first")
+		}
 	}
-	// TODO: Implement configuration management
+
+	// Get editor from environment
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi" // Default to vi
+	}
+
+	// Open editor
+	cmd := exec.Command(editor, configPath)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to open editor: %w", err)
+	}
+
+	if c.Bool("global") {
+		fmt.Println("Edited global configuration")
+	} else {
+		fmt.Println("Edited project configuration")
+	}
 	return nil
 }
 
@@ -319,5 +408,57 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 		log.Error().Err(err).Msg("Failed to handle session start")
 		return nil
 	}
+	return nil
+}
+
+func handleVoice(ctx context.Context, c *cli.Command) error {
+	// Create voice config from flags
+	config := voice.DefaultConfig()
+	config.ReadingMode = c.String("mode")
+	config.EnginePriority = c.String("engine")
+	config.MaxLines = int(c.Int("lines"))
+	config.MaxChars = int(c.Int("chars"))
+	config.UUIDMode = c.Bool("uuid")
+
+	// Create transcript reader
+	reader := voice.NewTranscriptReader(config)
+
+	// Find latest transcript
+	transcriptPath, err := reader.FindLatestTranscript()
+	if err != nil {
+		return fmt.Errorf("failed to find transcript: %w", err)
+	}
+
+	log.Debug().Str("path", transcriptPath).Msg("Using transcript file")
+
+	// Get latest assistant message
+	text, err := reader.GetLatestAssistantMessage(transcriptPath)
+	if err != nil {
+		return fmt.Errorf("failed to get assistant message: %w", err)
+	}
+
+	// Process text according to reading mode
+	text = reader.ProcessText(text)
+
+	// Strip markdown if mdstrip is available
+	text = voice.StripMarkdown(text)
+
+	fmt.Fprintf(os.Stderr, "📢 Reading text: %s\n", text)
+
+	// Create voice engine
+	engine := voice.NewVoiceEngine(config)
+
+	// Synthesize voice
+	audioFile, err := engine.Synthesize(text)
+	if err != nil {
+		return fmt.Errorf("failed to synthesize voice: %w", err)
+	}
+
+	// Play audio
+	if err := engine.Play(audioFile); err != nil {
+		return fmt.Errorf("failed to play audio: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "✅ Voice synthesis complete\n")
 	return nil
 }
