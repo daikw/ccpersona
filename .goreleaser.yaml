@@ -2,8 +2,8 @@ version: 2
 
 before:
   hooks:
-    - go mod tidy
-    - go mod download
+    - bash -c 'export GOPATH=$HOME/go && go mod tidy'
+    - bash -c 'export GOPATH=$HOME/go && go mod download'
 
 builds:
   - id: ccpersona
@@ -27,7 +27,8 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    formats:
+      - tar.gz
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -35,9 +36,10 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # Only use zip for Windows
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
@@ -58,6 +60,7 @@ changelog:
       - '^style:'
       - '^refactor:'
 
+# Homebrew tap configuration
 brews:
   - repository:
       owner: daikw
