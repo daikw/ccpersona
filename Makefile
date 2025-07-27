@@ -70,3 +70,22 @@ dev:
 generate:
 	@echo "Generating code..."
 	@go generate ./...
+
+# Build a snapshot with goreleaser (requires goreleaser)
+snapshot:
+	@echo "Building snapshot with goreleaser..."
+	@goreleaser release --snapshot --clean
+
+# Test release build locally (requires goreleaser)
+release-test:
+	@echo "Testing release build..."
+	@goreleaser release --skip=publish --clean
+
+# Create a new release tag
+tag:
+	@echo "Current tags:"
+	@git tag -l
+	@echo ""
+	@read -p "Enter new version (e.g., v1.0.0): " version; \
+	git tag -a $$version -m "Release $$version"
+	@echo "Tag created. Run 'git push origin --tags' to trigger the release."
