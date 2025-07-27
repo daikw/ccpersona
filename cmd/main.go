@@ -6,7 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 
+	"github.com/daikw/ccpersona/internal/hook"
 	"github.com/daikw/ccpersona/internal/persona"
 	"github.com/daikw/ccpersona/internal/voice"
 	"github.com/rs/zerolog"
@@ -96,14 +99,16 @@ and behavioral patterns for your AI assistant.`,
 				},
 			},
 			{
-				Name:   "hook",
-				Usage:  "Execute as Claude Code UserPromptSubmit hook",
-				Action: handleHook,
+				Name:    "hook",
+				Aliases: []string{"user_prompt_submit_hook"},
+				Usage:   "Execute as Claude Code UserPromptSubmit hook",
+				Action:  handleHook,
 			},
 			{
-				Name:   "voice",
-				Usage:  "Read the latest Claude Code assistant message with voice synthesis",
-				Action: handleVoice,
+				Name:    "voice",
+				Aliases: []string{"stop_hook"},
+				Usage:   "Read the latest Claude Code assistant message with voice synthesis",
+				Action:  handleVoice,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "mode",
@@ -129,6 +134,24 @@ and behavioral patterns for your AI assistant.`,
 						Name:  "uuid",
 						Usage: "Use UUID mode for complete message extraction",
 						Value: false,
+					},
+				},
+			},
+			{
+				Name:    "notify",
+				Aliases: []string{"notification_hook"},
+				Usage:   "Handle Claude Code notifications and alert the user",
+				Action:  handleNotify,
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "voice",
+						Usage: "Use voice synthesis for notifications",
+						Value: true,
+					},
+					&cli.BoolFlag{
+						Name:  "desktop",
+						Usage: "Show desktop notifications",
+						Value: true,
 					},
 				},
 			},
@@ -399,9 +422,25 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 }
 
 func handleHook(ctx context.Context, c *cli.Command) error {
-	// Handle Claude Code session start
 	// Suppress normal output when running as hook
 	zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	
+	// Try to read hook event data from stdin
+	event, err := hook.ReadUserPromptSubmitEvent()
+	if err != nil {
+		// Fallback to legacy behavior if no stdin data
+		log.Debug().Err(err).Msg("No hook event data from stdin, using legacy mode")
+	} else {
+		// Use session ID from hook event if available
+		if event.SessionID != "" {
+			_ = os.Setenv("CLAUDE_SESSION_ID", event.SessionID)
+		}
+		log.Debug().
+			Str("session_id", event.SessionID).
+			Str("prompt", event.Prompt).
+			Str("cwd", event.CWD).
+			Msg("Received UserPromptSubmit hook event")
+	}
 	
 	if err := persona.HandleSessionStart(); err != nil {
 		// Log error but don't fail the hook
@@ -420,16 +459,31 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	config.MaxChars = int(c.Int("chars"))
 	config.UUIDMode = c.Bool("uuid")
 
-	// Create transcript reader
-	reader := voice.NewTranscriptReader(config)
-
-	// Find latest transcript
-	transcriptPath, err := reader.FindLatestTranscript()
+	// Try to read Stop hook event data from stdin
+	var transcriptPath string
+	event, err := hook.ReadStopEvent()
 	if err != nil {
-		return fmt.Errorf("failed to find transcript: %w", err)
+		// Fallback to finding latest transcript
+		log.Debug().Err(err).Msg("No hook event data from stdin, finding latest transcript")
+		reader := voice.NewTranscriptReader(config)
+		transcriptPath, err = reader.FindLatestTranscript()
+		if err != nil {
+			return fmt.Errorf("failed to find transcript: %w", err)
+		}
+	} else {
+		// Use transcript path from hook event
+		transcriptPath = event.TranscriptPath
+		log.Debug().
+			Str("session_id", event.SessionID).
+			Str("transcript_path", transcriptPath).
+			Bool("stop_hook_active", event.StopHookActive).
+			Msg("Received Stop hook event")
 	}
 
 	log.Debug().Str("path", transcriptPath).Msg("Using transcript file")
+
+	// Create transcript reader
+	reader := voice.NewTranscriptReader(config)
 
 	// Get latest assistant message
 	text, err := reader.GetLatestAssistantMessage(transcriptPath)
@@ -461,4 +515,114 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 
 	fmt.Fprintf(os.Stderr, "✅ Voice synthesis complete\n")
 	return nil
+}
+
+func handleNotify(ctx context.Context, c *cli.Command) error {
+	// Read notification event from stdin
+	event, err := hook.ReadNotificationEvent()
+	if err != nil {
+		return fmt.Errorf("failed to read notification event: %w", err)
+	}
+
+	log.Info().
+		Str("session_id", event.SessionID).
+		Str("message", event.Message).
+		Msg("Received notification")
+
+	// Determine notification urgency based on message content
+	urgency := "normal"
+	
+	// Analyze message content for urgency level only
+	switch {
+	case strings.Contains(strings.ToLower(event.Message), "permission"):
+		urgency = "critical"
+		
+	case strings.Contains(strings.ToLower(event.Message), "idle"):
+		urgency = "low"
+		
+	case strings.Contains(strings.ToLower(event.Message), "error"):
+		urgency = "high"
+	}
+
+	// Desktop notification (if enabled)
+	if c.Bool("desktop") {
+		if err := showDesktopNotification(event.Message, urgency); err != nil {
+			log.Warn().Err(err).Msg("Failed to show desktop notification")
+		}
+	}
+
+	// Voice notification (if enabled)
+	if c.Bool("voice") {
+		// Load persona config to get voice settings
+		config, _ := persona.LoadConfig(".")
+		voiceConfig := voice.DefaultConfig()
+		
+		if config != nil && config.Voice != nil {
+			if config.Voice.Engine != "" {
+				voiceConfig.EnginePriority = config.Voice.Engine
+			}
+			if config.Voice.SpeakerID > 0 {
+				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+			}
+		}
+
+		// Synthesize and play voice with original message
+		engine := voice.NewVoiceEngine(voiceConfig)
+		audioFile, err := engine.Synthesize(event.Message)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to synthesize voice")
+		} else {
+			if err := engine.Play(audioFile); err != nil {
+				log.Warn().Err(err).Msg("Failed to play audio")
+			}
+		}
+	}
+
+	return nil
+}
+
+func showDesktopNotification(message, urgency string) error {
+	title := "Claude Code"
+	
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS notification using osascript
+		script := fmt.Sprintf(`display notification "%s" with title "%s"`, message, title)
+		cmd := exec.Command("osascript", "-e", script)
+		return cmd.Run()
+		
+	case "linux":
+		// Linux notification using notify-send
+		cmd := exec.Command("notify-send", "-u", urgency, title, message)
+		return cmd.Run()
+		
+	case "windows":
+		// Windows notification using PowerShell
+		script := fmt.Sprintf(`
+			[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+			[Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+			[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+			
+			$template = @"
+			<toast>
+				<visual>
+					<binding template="ToastText02">
+						<text id="1">%s</text>
+						<text id="2">%s</text>
+					</binding>
+				</visual>
+			</toast>
+"@
+			
+			$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+			$xml.LoadXml($template)
+			$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+			[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Claude Code").Show($toast)
+		`, title, message)
+		cmd := exec.Command("powershell", "-Command", script)
+		return cmd.Run()
+		
+	default:
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
 }
