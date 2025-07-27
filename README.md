@@ -1,24 +1,25 @@
 # ccpersona - Claude Code Persona System
 
-Claude Code のセッションごとに異なる「人格」を自動的に適用するシステムです。プロジェクトの特性に応じて、適切な人格（口調、考え方、専門性など）を自動的に選択・適用します。
+A system that automatically applies different "personas" to Claude Code sessions based on project configuration. It allows you to maintain consistent interaction styles, expertise levels, and behavioral patterns across different projects.
 
-## 特徴
+## Features
 
-- 🎭 **プロジェクトごとの人格設定** - 各プロジェクトに最適な人格を設定
-- 🔄 **自動適用** - Claude Code セッション開始時に自動的に人格を適用
-- 📝 **カスタマイズ可能** - 独自の人格を簡単に作成・編集
-- 🎯 **一貫性のある対話** - プロジェクト全体で統一された応答スタイル
+- 🎭 **Per-project persona configuration** - Set optimal personas for each project
+- 🔄 **Automatic application** - Personas are applied automatically when you start working
+- 📝 **Customizable** - Create and edit custom personas easily
+- 🎯 **Consistent interactions** - Maintain unified response styles throughout projects
+- 🔊 **Voice synthesis** - Optional text-to-speech for assistant messages
 
-## インストール
+## Installation
 
-### Homebrew (推奨)
+### Homebrew (Recommended)
 
 ```bash
 brew tap daikw/tap
 brew install ccpersona
 ```
 
-### Go でビルド
+### Build from Source
 
 ```bash
 git clone https://github.com/daikw/ccpersona.git
@@ -27,126 +28,138 @@ make build
 make install
 ```
 
-### リリースバイナリ
+### Download Binary
 
-[Releases](https://github.com/daikw/ccpersona/releases) ページから最新のバイナリをダウンロードしてください。
+Download the latest binary from the [Releases](https://github.com/daikw/ccpersona/releases) page.
 
-## クイックスタート
+## Quick Start
 
-1. **プロジェクトで初期化**
+1. **Initialize in your project**
 
 ```bash
 cd your-project
 ccpersona init
 ```
 
-2. **人格を設定**
+2. **Set a persona**
 
 ```bash
-# 利用可能な人格を確認
+# List available personas
 ccpersona list
 
-# 人格を設定
+# Set active persona
 ccpersona set zundamon
 ```
 
-3. **Claude Code でフックを設定**
+3. **Configure Claude Code hook**
 
-Claude Code の設定で UserPromptSubmit フックとして `ccpersona hook` を登録します。
+Add the following to your Claude Code settings file (e.g., `~/.claude/settings.json`):
 
 ```json
-// Claude Code 設定例
 {
   "hooks": {
-    "user-prompt-submit": "ccpersona hook"
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ccpersona hook"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-これで、Claude Code セッション開始時に自動的に人格が適用されます。
+Now the persona will be applied automatically when you submit prompts in Claude Code.
 
-## 使い方
+## Usage
 
-### 基本コマンド
+### Basic Commands
 
 ```bash
-# プロジェクトで人格設定を初期化
+# Initialize persona configuration in current project
 ccpersona init
 
-# 利用可能な人格一覧を表示
+# List available personas
 ccpersona list
 
-# 現在の人格を表示
+# Show current active persona
 ccpersona current
 
-# 人格を設定
+# Set active persona
 ccpersona set <persona-name>
 
-# 人格の詳細を表示
+# Show persona details
 ccpersona show <persona-name>
 
-# 新しい人格を作成
+# Create a new persona
 ccpersona create <persona-name>
 
-# 人格を編集
+# Edit an existing persona
 ccpersona edit <persona-name>
 
-# Claude Code でフックとして使用
+# Edit configuration
+ccpersona config        # Edit project config
+ccpersona config -g     # Edit global config
+
+# Execute as Claude Code hook
 ccpersona hook
 
-# 音声読み上げ（最新のアシスタントメッセージを読み上げ）
+# Voice synthesis (read latest assistant message)
 ccpersona voice
 
-# 音声読み上げオプション
+# Voice synthesis with options
 ccpersona voice --mode full_text --engine voicevox
 ```
 
-### 人格の作成
+### Creating Personas
 
-新しい人格を作成するには：
+To create a new persona:
 
 ```bash
 ccpersona create my-persona
 ccpersona edit my-persona
 ```
 
-エディタが開いて、人格の定義を編集できます。
+Your editor will open for you to define the persona.
 
-## 人格定義ファイルの構造
+## Persona Definition Structure
 
-人格は Markdown ファイルで定義され、以下の要素を含みます：
+Personas are defined as Markdown files with the following sections:
 
 ```markdown
-# 人格: 名前
+# Persona: Name
 
-## 口調
-話し方のスタイルを定義
+## Communication Style
+Define speaking patterns and tone
 
-## 考え方
-問題解決のアプローチを定義
+## Thinking Approach
+Define problem-solving methodology
 
-## 価値観
-重視する価値観を定義
+## Values
+Define prioritized values
 
-## 専門性・得意分野
-特定の技術や分野への専門性
+## Expertise
+Define technical specialties and strengths
 
-## 対話スタイル
-質問への答え方、説明の仕方
+## Interaction Style
+Define how to respond to questions and explain concepts
 
-## 感情表現パターン
-喜怒哀楽の表現方法（オプション）
+## Emotional Expression (Optional)
+Define patterns for expressing emotions
 ```
 
-### サンプル人格
+### Sample Personas
 
-- **default** - 標準的で丁寧な技術者
-- **zundamon** - 明るく元気なずんだもん
-- **strict_engineer** - 厳格で効率重視のエンジニア
+- **default** - Standard, polite technical professional
+- **zundamon** - Cheerful and energetic character
+- **strict_engineer** - Strict, efficiency-focused engineer
 
-## プロジェクト設定
+## Project Configuration
 
-各プロジェクトの `.claude/persona.json` で設定を管理：
+Manage settings in `.claude/persona.json` for each project:
 
 ```json
 {
@@ -156,67 +169,84 @@ ccpersona edit my-persona
     "speaker_id": 3
   },
   "override_global": true,
-  "custom_instructions": "このプロジェクト固有の追加指示"
+  "custom_instructions": "Additional project-specific instructions"
 }
 ```
 
-## 人格ファイルの保存場所
+### Voice Configuration
 
-- グローバル人格: `~/.claude/personas/`
-- プロジェクト設定: `<project>/.claude/persona.json`
+The voice synthesis feature supports:
+- **VOICEVOX** - Local voice engine (default port: 50021)
+- **AivisSpeech** - Alternative voice engine (default port: 10101)
 
-## 開発
+Reading modes:
+- `first_line` - Read only the first line
+- `line_limit` - Read up to N lines
+- `after_first` - Skip first line, read the rest
+- `full_text` - Read entire message
+- `char_limit` - Read up to N characters
 
-### 必要な環境
+## File Locations
 
-- Go 1.21 以上
+- Global personas: `~/.claude/personas/`
+- Project configuration: `<project>/.claude/persona.json`
+- Session tracking: `/tmp/ccpersona-sessions/`
+
+## Development
+
+### Requirements
+
+- Go 1.21 or later
 - Make
 
-### ビルド
+### Build
 
 ```bash
+# Build for current platform
 make build
-```
 
-### テスト
-
-```bash
+# Run tests
 make test
-```
 
-### リリース
-
-```bash
+# Build for all platforms
 make build-all
 ```
 
-## 技術的な詳細
+## Technical Details
 
-### フックの仕組み
+### How Hooks Work
 
-ccpersona は Claude Code の UserPromptSubmit フックとして動作します：
+ccpersona integrates with Claude Code through the UserPromptSubmit hook:
 
-1. Claude Code の設定で `ccpersona hook` をフックコマンドとして登録
-2. Claude Code セッション開始時に `ccpersona hook` が実行される
-3. ccpersona がプロジェクトの `.claude/persona.json` を読み込み
-4. 設定された人格を自動的に適用
+1. Configure Claude Code to run `ccpersona hook` on each prompt submission
+2. When you submit a prompt, ccpersona checks for `.claude/persona.json` in the current directory
+3. If found and it's a new session, the persona instructions are output
+4. Claude Code receives these instructions and adjusts its behavior accordingly
 
-この設計により：
-- シンプルな設定（brew install 後すぐ使える）
-- クロスプラットフォーム対応（Windows/Mac/Linux）
-- 堅牢なエラーハンドリング
-- セッション追跡機能
-- 高度なカスタマイズが可能
+This design provides:
+- Simple setup (works immediately after brew install)
+- Cross-platform compatibility (Windows/Mac/Linux)
+- Robust error handling (silent failures to avoid disrupting Claude Code)
+- Session tracking (prevents duplicate persona applications)
+- Advanced customization options
 
-## ライセンス
+### Security Notes
+
+- Hooks execute with your user permissions
+- Only install personas from trusted sources
+- Review persona content before applying
+
+## License
 
 MIT License
 
-## 貢献
+## Contributing
 
-Issue や Pull Request を歓迎します！
+Issues and Pull Requests are welcome!
 
 ## Acknowledgments
 
 - [urfave/cli](https://github.com/urfave/cli) - CLI framework
 - [zerolog](https://github.com/rs/zerolog) - Structured logging
+- [VOICEVOX](https://voicevox.hiroshiba.jp/) - Voice synthesis engine
+- [AivisSpeech](https://aivis-project.com/) - Alternative voice engine
