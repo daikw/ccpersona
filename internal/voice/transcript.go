@@ -72,7 +72,9 @@ func (tr *TranscriptReader) GetLatestAssistantMessage(transcriptPath string) (st
 	if err != nil {
 		return "", fmt.Errorf("failed to open transcript: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	if tr.config.UUIDMode {
 		return tr.getMessageWithUUID(file)

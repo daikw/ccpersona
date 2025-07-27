@@ -36,7 +36,7 @@ func (ve *VoiceEngine) CheckEngines() (voicevoxAvailable, aivisSpeechAvailable b
 	resp, err := ve.httpClient.Get(VoicevoxURL + "/version")
 	if err == nil && resp.StatusCode == http.StatusOK {
 		voicevoxAvailable = true
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		log.Debug().Msg("VOICEVOX ENGINE is available")
 	}
 
@@ -44,7 +44,7 @@ func (ve *VoiceEngine) CheckEngines() (voicevoxAvailable, aivisSpeechAvailable b
 	resp, err = ve.httpClient.Get(AivisSpeechURL + "/speakers")
 	if err == nil && resp.StatusCode == http.StatusOK {
 		aivisSpeechAvailable = true
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		log.Debug().Msg("AivisSpeech is available")
 	}
 
@@ -103,7 +103,9 @@ func (ve *VoiceEngine) synthesizeVoicevox(text string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create audio query: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("audio query failed: status %d", resp.StatusCode)
@@ -121,7 +123,9 @@ func (ve *VoiceEngine) synthesizeVoicevox(text string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to synthesize: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("synthesis failed: status %d", resp.StatusCode)
@@ -132,11 +136,13 @@ func (ve *VoiceEngine) synthesizeVoicevox(text string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer tmpFile.Close()
+	defer func() {
+		_ = tmpFile.Close()
+	}()
 
 	_, err = io.Copy(tmpFile, resp.Body)
 	if err != nil {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to save audio: %w", err)
 	}
 
@@ -153,7 +159,9 @@ func (ve *VoiceEngine) synthesizeAivisSpeech(text string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create audio query: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -172,7 +180,9 @@ func (ve *VoiceEngine) synthesizeAivisSpeech(text string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to synthesize: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -184,11 +194,13 @@ func (ve *VoiceEngine) synthesizeAivisSpeech(text string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer tmpFile.Close()
+	defer func() {
+		_ = tmpFile.Close()
+	}()
 
 	_, err = io.Copy(tmpFile, resp.Body)
 	if err != nil {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("failed to save audio: %w", err)
 	}
 
@@ -225,7 +237,7 @@ func (ve *VoiceEngine) Play(audioFile string) error {
 	// Clean up the file after a delay
 	go func() {
 		time.Sleep(10 * time.Second)
-		os.Remove(audioFile)
+		_ = os.Remove(audioFile)
 	}()
 
 	return nil

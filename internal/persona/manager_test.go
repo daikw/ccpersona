@@ -17,11 +17,11 @@ func TestNewManager(t *testing.T) {
 		t.Fatal("Expected manager, got nil")
 	}
 	
-	if manager.homeDir == "" {
+	if manager.homeDir == "" { //nolint:staticcheck // checked for nil above
 		t.Error("Home directory not set")
 	}
 	
-	if !strings.HasSuffix(manager.personasDir, filepath.Join(".claude", "personas")) {
+	if !strings.HasSuffix(manager.personasDir, filepath.Join(".claude", "personas")) { //nolint:staticcheck // checked for nil above
 		t.Errorf("Invalid personas directory: %s", manager.personasDir)
 	}
 	
@@ -36,7 +36,9 @@ func TestListPersonas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 	
 	manager := &Manager{
 		homeDir:      tmpDir,
@@ -107,7 +109,9 @@ func TestPersonaExists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 	
 	manager := &Manager{
 		homeDir:      tmpDir,
@@ -142,7 +146,9 @@ func TestCreatePersona(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 	
 	manager := &Manager{
 		homeDir:      tmpDir,
@@ -187,7 +193,9 @@ func TestReadPersona(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 	
 	manager := &Manager{
 		homeDir:      tmpDir,
@@ -232,7 +240,9 @@ func TestApplyPersona(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 	
 	manager := &Manager{
 		homeDir:      tmpDir,
@@ -287,7 +297,9 @@ func TestGetCurrentPersona(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 	
 	manager := &Manager{
 		homeDir:      tmpDir,

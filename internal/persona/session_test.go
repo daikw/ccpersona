@@ -13,16 +13,22 @@ func TestSessionManager(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Override home directory for testing
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	// Set test session ID
-	os.Setenv("CLAUDE_SESSION_ID", "test-session-123")
-	defer os.Unsetenv("CLAUDE_SESSION_ID")
+	_ = os.Setenv("CLAUDE_SESSION_ID", "test-session-123")
+	defer func() {
+		_ = os.Unsetenv("CLAUDE_SESSION_ID")
+	}()
 
 	t.Run("NewSessionManager", func(t *testing.T) {
 		sm, err := NewSessionManager()
@@ -109,7 +115,9 @@ func TestHandleSessionStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Create a test project directory
 	projectDir := filepath.Join(tmpDir, "project")
@@ -119,17 +127,23 @@ func TestHandleSessionStart(t *testing.T) {
 
 	// Change to project directory
 	originalWd, _ := os.Getwd()
-	os.Chdir(projectDir)
-	defer os.Chdir(originalWd)
+	_ = os.Chdir(projectDir)
+	defer func() {
+		_ = os.Chdir(originalWd)
+	}()
 
 	// Override home directory
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	// Set unique session ID
-	os.Setenv("CLAUDE_SESSION_ID", "test-handle-start")
-	defer os.Unsetenv("CLAUDE_SESSION_ID")
+	_ = os.Setenv("CLAUDE_SESSION_ID", "test-handle-start")
+	defer func() {
+		_ = os.Unsetenv("CLAUDE_SESSION_ID")
+	}()
 
 	t.Run("NoPersonaConfig", func(t *testing.T) {
 		// Should complete without error even without config
@@ -163,7 +177,7 @@ func TestHandleSessionStart(t *testing.T) {
 		}
 
 		// Reset session marker
-		os.Setenv("CLAUDE_SESSION_ID", "test-with-config")
+		_ = os.Setenv("CLAUDE_SESSION_ID", "test-with-config")
 		
 		// Handle session start
 		if err := HandleSessionStart(); err != nil {

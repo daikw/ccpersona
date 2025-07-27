@@ -13,7 +13,9 @@ func TestLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Test case 1: No config file exists
 	t.Run("NoConfigFile", func(t *testing.T) {
@@ -63,7 +65,7 @@ func TestLoadConfig(t *testing.T) {
 		if config == nil {
 			t.Fatal("Expected config, got nil")
 		}
-		if config.Name != testConfig.Name {
+		if config.Name != testConfig.Name { //nolint:staticcheck // checked for nil above
 			t.Errorf("Expected name %s, got %s", testConfig.Name, config.Name)
 		}
 		if config.Voice == nil || config.Voice.Engine != testConfig.Voice.Engine {
@@ -98,7 +100,9 @@ func TestSaveConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	t.Run("SaveNewConfig", func(t *testing.T) {
 		config := &Config{
@@ -200,7 +204,7 @@ func TestGetDefaultConfig(t *testing.T) {
 		t.Fatal("Expected default config, got nil")
 	}
 	
-	if config.Name != "default" {
+	if config.Name != "default" { //nolint:staticcheck // checked for nil above
 		t.Errorf("Expected default name 'default', got %s", config.Name)
 	}
 	

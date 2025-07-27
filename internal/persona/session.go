@@ -57,7 +57,7 @@ func (sm *SessionManager) MarkSessionStarted() error {
 	if err != nil {
 		return fmt.Errorf("failed to create session marker: %w", err)
 	}
-	file.Close()
+	_ = file.Close()
 
 	log.Debug().Str("session_id", sm.sessionID).Msg("Session marked as started")
 	return nil
