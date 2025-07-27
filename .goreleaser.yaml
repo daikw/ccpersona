@@ -1,0 +1,129 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: ccpersona
+    main: ./cmd/main.go
+    binary: ccpersona
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - "6"
+      - "7"
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.revision={{.ShortCommit}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - examples/personas/*.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - '^style:'
+      - '^refactor:'
+
+brews:
+  - repository:
+      owner: daikw
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/daikw/ccpersona"
+    description: "Claude Code Persona System - Automatically apply different personas to Claude Code sessions"
+    license: "MIT"
+    test: |
+      system "#{bin}/ccpersona", "--version"
+    install: |
+      bin.install "ccpersona"
+
+release:
+  github:
+    owner: daikw
+    name: ccpersona
+  prerelease: auto
+  draft: false
+
+nfpms:
+  - id: packages
+    package_name: ccpersona
+    file_name_template: >-
+      {{ .PackageName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    homepage: https://github.com/daikw/ccpersona
+    description: Claude Code Persona System - Automatically apply different personas to Claude Code sessions
+    maintainer: daikw
+    license: MIT
+    vendor: daikw
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: ./examples/personas/*.md
+        dst: /usr/share/ccpersona/personas/
+        type: config
+    overrides:
+      deb:
+        dependencies:
+          - git
+      rpm:
+        dependencies:
+          - git
+
+# sboms:
+#   - artifacts: archive
+
+# signs:
+#   - cmd: cosign
+#     env:
+#       - COSIGN_EXPERIMENTAL=1
+#     certificate: '${artifact}.pem'
+#     args:
+#       - sign-blob
+#       - '--output-certificate=${certificate}'
+#       - '--output-signature=${signature}'
+#       - '${artifact}'
+#       - '--yes'
+#     artifacts: all
+#     output: true
