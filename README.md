@@ -67,6 +67,26 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ccpersona voice"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ccpersona notify"
+          }
+        ]
+      }
     ]
   }
 }
@@ -104,14 +124,16 @@ ccpersona edit <persona-name>
 ccpersona config        # Edit project config
 ccpersona config -g     # Edit global config
 
-# Execute as Claude Code hook
-ccpersona hook
+# Execute as Claude Code hooks
+ccpersona hook                    # UserPromptSubmit hook (alias: user_prompt_submit_hook)
+ccpersona voice                   # Stop hook (alias: stop_hook)
+ccpersona notify                  # Notification hook (alias: notification_hook)
 
-# Voice synthesis (read latest assistant message)
-ccpersona voice
-
-# Voice synthesis with options
+# Voice synthesis (can be used standalone or as Stop hook)
 ccpersona voice --mode full_text --engine voicevox
+
+# Notification handling
+ccpersona notify --voice --desktop  # Show desktop notification and speak
 ```
 
 ### Creating Personas
