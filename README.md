@@ -212,6 +212,23 @@ make test
 make build-all
 ```
 
+### Release
+
+This project uses [GoReleaser](https://goreleaser.com/) for automated releases.
+
+```bash
+# Create a snapshot build locally
+make snapshot
+
+# Test the release process without publishing
+make release-test
+
+# Create a new version tag
+make tag
+# Then push the tag to trigger the release
+git push origin --tags
+```
+
 ## Technical Details
 
 ### How Hooks Work
