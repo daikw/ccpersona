@@ -124,7 +124,8 @@ func (tr *TranscriptReader) getMessageWithUUID(file *os.File) (string, error) {
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			continue
 		}
-		if msg.Type == "assistant" {
+
+		if msg.Type == "assistant" && msg.UUID != "" {
 			latestUUID = msg.UUID
 			break
 		}
@@ -151,6 +152,10 @@ func (tr *TranscriptReader) getMessageWithUUID(file *os.File) (string, error) {
 		}
 	}
 
+	if len(texts) == 0 {
+		return "", fmt.Errorf("no assistant message found")
+	}
+
 	// Reverse to get original order
 	for i := len(texts)/2 - 1; i >= 0; i-- {
 		opp := len(texts) - 1 - i
@@ -171,6 +176,11 @@ func (tr *TranscriptReader) getMessageWithUUID(file *os.File) (string, error) {
 func (tr *TranscriptReader) readLinesReverse(file *os.File) ([]string, error) {
 	var lines []string
 	scanner := bufio.NewScanner(file)
+	
+	// Increase buffer size to handle very long lines (1MB instead of default 64KB)
+	const maxScanTokenSize = 1024 * 1024 // 1MB
+	buf := make([]byte, maxScanTokenSize)
+	scanner.Buffer(buf, maxScanTokenSize)
 	
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())

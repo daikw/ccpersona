@@ -1,9 +1,5 @@
 package voice
 
-import (
-	"time"
-)
-
 // Config represents voice synthesis configuration
 type Config struct {
 	// Engine settings
@@ -35,16 +31,15 @@ func DefaultConfig() *Config {
 
 // TranscriptMessage represents a message in Claude Code transcript
 type TranscriptMessage struct {
-	Type    string    `json:"type"`
-	UUID    string    `json:"uuid"`
-	Time    time.Time `json:"time"`
+	Type    string `json:"type"`
+	UUID    string `json:"uuid,omitempty"`
 	Message struct {
 		Role    string `json:"role"`
 		Content []struct {
 			Type string `json:"type"`
-			Text string `json:"text"`
+			Text string `json:"text,omitempty"`
 		} `json:"content"`
-	} `json:"message"`
+	} `json:"message,omitempty"`
 }
 
 // AudioQuery represents the audio query for voice synthesis
