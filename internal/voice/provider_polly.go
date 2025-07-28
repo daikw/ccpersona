@@ -107,34 +107,3 @@ func (p *PollyProvider) GetSupportedLanguages() []string {
 	}
 }
 
-// convertFormat converts our AudioFormat to Polly format string
-func (p *PollyProvider) convertFormat(format AudioFormat) string {
-	switch format {
-	case FormatMP3:
-		return "mp3"
-	case FormatOGG:
-		return "ogg_vorbis"
-	case FormatWAV:
-		return "pcm"
-	default:
-		return "mp3"
-	}
-}
-
-// validateVoice checks if the voice is valid for the selected language
-func (p *PollyProvider) validateVoice(voice, language string) bool {
-	voiceLanguageMap := map[string]string{
-		"Joanna": "en-US", "Matthew": "en-US", "Ivy": "en-US", "Justin": "en-US",
-		"Kendra": "en-US", "Kimberly": "en-US", "Salli": "en-US", "Joey": "en-US",
-		"Amy": "en-GB", "Emma": "en-GB", "Brian": "en-GB",
-		"Mizuki": "ja-JP", "Takumi": "ja-JP",
-		"Celine": "fr-FR", "Mathieu": "fr-FR",
-		"Marlene": "de-DE", "Hans": "de-DE",
-	}
-
-	if expectedLang, exists := voiceLanguageMap[voice]; exists {
-		return strings.HasPrefix(expectedLang, language) || strings.HasPrefix(language, expectedLang)
-	}
-
-	return false
-}

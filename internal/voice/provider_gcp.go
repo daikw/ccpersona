@@ -128,16 +128,3 @@ func (p *GCPProvider) GetSupportedLanguages() []string {
 	}
 }
 
-// convertFormat converts our AudioFormat to GCP format string
-func (p *GCPProvider) convertFormat(format AudioFormat) string {
-	switch format {
-	case FormatMP3:
-		return "MP3"
-	case FormatWAV:
-		return "LINEAR16"
-	case FormatOGG:
-		return "OGG_OPUS"
-	default:
-		return "MP3"
-	}
-}

@@ -305,9 +305,12 @@ func (vm *VoiceManager) WriteToOutput(ctx context.Context, text, providerName, o
 		defer outFile.Close()
 
 		_, err = io.Copy(outFile, audioStream)
+		if err != nil {
+			return fmt.Errorf("failed to copy audio data: %w", err)
+		}
 	}
 
-	return err
+	return nil
 }
 
 // getEnvWithDefault returns environment variable value or default
