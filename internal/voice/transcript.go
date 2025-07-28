@@ -32,7 +32,7 @@ func (tr *TranscriptReader) FindLatestTranscript() (string, error) {
 	}
 
 	projectsDir := filepath.Join(homeDir, ".claude", "projects")
-	
+
 	var transcriptFiles []string
 	err = filepath.Walk(projectsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -43,7 +43,7 @@ func (tr *TranscriptReader) FindLatestTranscript() (string, error) {
 		}
 		return nil
 	})
-	
+
 	if err != nil {
 		return "", fmt.Errorf("failed to walk projects directory: %w", err)
 	}
@@ -168,7 +168,7 @@ func (tr *TranscriptReader) getMessageWithUUID(file *os.File) (string, error) {
 		Int("text_count", len(texts)).
 		Int("total_length", len(result)).
 		Msg("Found assistant message with UUID")
-	
+
 	return result, nil
 }
 
@@ -176,16 +176,16 @@ func (tr *TranscriptReader) getMessageWithUUID(file *os.File) (string, error) {
 func (tr *TranscriptReader) readLinesReverse(file *os.File) ([]string, error) {
 	var lines []string
 	scanner := bufio.NewScanner(file)
-	
+
 	// Increase buffer size to handle very long lines (1MB instead of default 64KB)
 	const maxScanTokenSize = 1024 * 1024 // 1MB
 	buf := make([]byte, maxScanTokenSize)
 	scanner.Buffer(buf, maxScanTokenSize)
-	
+
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-	
+
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
@@ -207,7 +207,7 @@ func (tr *TranscriptReader) ProcessText(text string) string {
 		if idx := strings.Index(text, "\n"); idx != -1 {
 			text = text[:idx]
 		}
-		
+
 	case ModeLineLimit:
 		// Limited number of lines
 		lines := strings.Split(text, "\n")
@@ -215,18 +215,18 @@ func (tr *TranscriptReader) ProcessText(text string) string {
 			lines = lines[:tr.config.MaxLines]
 		}
 		text = strings.Join(lines, " ")
-		
+
 	case ModeAfterFirst:
 		// Skip first line
 		if idx := strings.Index(text, "\n"); idx != -1 && idx < len(text)-1 {
 			text = text[idx+1:]
 		}
 		text = strings.ReplaceAll(text, "\n", " ")
-		
+
 	case ModeFullText:
 		// Full text with newlines replaced by spaces
 		text = strings.ReplaceAll(text, "\n", " ")
-		
+
 	case ModeCharLimit:
 		// Character limit
 		text = strings.ReplaceAll(text, "\n", " ")
