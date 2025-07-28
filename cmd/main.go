@@ -128,7 +128,7 @@ and behavioral patterns for your AI assistant.`,
 					},
 					&cli.StringFlag{
 						Name:  "engine",
-						Usage: "Voice engine priority: voicevox, aivisspeech",
+						Usage: "Voice engine priority: voicevox, aivisspeech (legacy)",
 						Value: "aivisspeech",
 					},
 					&cli.IntFlag{
@@ -144,6 +144,53 @@ and behavioral patterns for your AI assistant.`,
 					&cli.BoolFlag{
 						Name:  "uuid",
 						Usage: "Use UUID mode for complete message extraction",
+						Value: false,
+					},
+					// New cloud provider flags
+					&cli.StringFlag{
+						Name:  "provider",
+						Usage: "TTS provider: local, openai, elevenlabs, polly, gcp",
+						Value: "local",
+					},
+					&cli.StringFlag{
+						Name:  "api-key",
+						Usage: "API key for cloud providers (or use environment variables)",
+					},
+					&cli.StringFlag{
+						Name:  "voice",
+						Usage: "Voice ID or name (provider-specific)",
+					},
+					&cli.StringFlag{
+						Name:  "format",
+						Usage: "Audio format: mp3, wav, ogg, flac, aac",
+					},
+					&cli.StringFlag{
+						Name:  "region",
+						Usage: "AWS region for Polly (default: us-east-1)",
+						Value: "us-east-1",
+					},
+					&cli.StringFlag{
+						Name:  "project-id",
+						Usage: "Google Cloud project ID for GCP TTS",
+					},
+					&cli.StringFlag{
+						Name:  "output",
+						Aliases: []string{"o"},
+						Usage: "Output file path (default: play audio)",
+					},
+					&cli.BoolFlag{
+						Name:  "stdout",
+						Usage: "Stream audio to stdout instead of playing",
+						Value: false,
+					},
+					&cli.Float64Flag{
+						Name:  "speed",
+						Usage: "Speech speed (0.25-4.0, provider dependent)",
+						Value: 1.0,
+					},
+					&cli.BoolFlag{
+						Name:  "list-voices",
+						Usage: "List available voices for the selected provider",
 						Value: false,
 					},
 				},
@@ -462,13 +509,34 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 }
 
 func handleVoice(ctx context.Context, c *cli.Command) error {
+	// Handle list-voices flag first
+	if c.Bool("list-voices") {
+		return handleListVoices(ctx, c)
+	}
+
 	// Create voice config from flags
 	config := voice.DefaultConfig()
 	config.ReadingMode = c.String("mode")
-	config.EnginePriority = c.String("engine")
 	config.MaxLines = int(c.Int("lines"))
 	config.MaxChars = int(c.Int("chars"))
 	config.UUIDMode = c.Bool("uuid")
+
+	// Configure provider based on flags
+	providerName := c.String("provider")
+	if err := configureProvider(config, c, providerName); err != nil {
+		return fmt.Errorf("failed to configure provider: %w", err)
+	}
+
+	// Create voice manager
+	manager, err := voice.NewVoiceManager(config)
+	if err != nil {
+		return fmt.Errorf("failed to create voice manager: %w", err)
+	}
+
+	// Check if provider is available
+	if !manager.IsAvailable(ctx) {
+		return fmt.Errorf("voice provider '%s' is not available", manager.GetProviderName())
+	}
 
 	var text string
 
@@ -549,26 +617,222 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 		text = reader.ProcessText(text)
 	}
 
-	// Strip markdown if mdstrip is available
-	text = voice.StripMarkdown(text)
+	// Strip markdown if mdstrip is available (only for local providers to maintain compatibility)
+	if providerName == "local" {
+		text = voice.StripMarkdown(text)
+	}
 
-	fmt.Fprintf(os.Stderr, "📢 Reading text: %s\n", text)
+	fmt.Fprintf(os.Stderr, "📢 Reading text with %s: %s\n", manager.GetProviderName(), text)
 
-	// Create voice engine
-	engine := voice.NewVoiceEngine(config)
+	// Create synthesis options from flags
+	options := &voice.SynthesizeOptions{
+		Voice:          c.String("voice"),
+		Speed:          float32(c.Float64("speed")),
+		Format:         voice.AudioFormat(c.String("format")),
+		StreamToStdout: c.Bool("stdout"),
+		OutputFile:     c.String("output"),
+	}
 
-	// Synthesize voice
-	audioFile, err := engine.Synthesize(text)
+	// Handle different output modes
+	if c.Bool("stdout") {
+		// Stream to stdout
+		if err := manager.SynthesizeToStdout(ctx, text, options); err != nil {
+			return fmt.Errorf("failed to synthesize to stdout: %w", err)
+		}
+	} else if outputFile := c.String("output"); outputFile != "" {
+		// Save to file
+		if err := manager.SynthesizeToFile(ctx, text, outputFile, options); err != nil {
+			return fmt.Errorf("failed to synthesize to file: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "✅ Audio saved to %s\n", outputFile)
+	} else {
+		// Play audio (default)
+		if err := manager.SynthesizeAndPlay(ctx, text, options); err != nil {
+			return fmt.Errorf("failed to synthesize and play: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "✅ Voice synthesis complete\n")
+	}
+
+	return nil
+}
+
+// configureProvider configures the TTS provider based on CLI flags
+func configureProvider(config *voice.Config, c *cli.Command, providerName string) error {
+	if config.Provider == nil {
+		config.Provider = voice.DefaultProviderConfig()
+	}
+
+	switch providerName {
+	case "local":
+		config.Provider.Provider = voice.ProviderLocal
+		if config.Provider.Local == nil {
+			config.Provider.Local = &voice.LocalConfig{}
+		}
+		// Use legacy engine setting for backward compatibility
+		config.Provider.Local.Engine = c.String("engine")
+		config.Provider.Local.VoicevoxSpeaker = config.VoicevoxSpeaker
+		config.Provider.Local.AivisSpeechSpeaker = config.AivisSpeechSpeaker
+
+	case "openai":
+		config.Provider.Provider = voice.ProviderOpenAI
+		config.Provider.APIKey = getAPIKey(c, "OPENAI_API_KEY")
+		if config.Provider.APIKey == "" {
+			return fmt.Errorf("OpenAI API key is required (use --api-key or set OPENAI_API_KEY environment variable)")
+		}
+		if config.Provider.OpenAI == nil {
+			config.Provider.OpenAI = &voice.OpenAIConfig{
+				Model:  "tts-1",
+				Voice:  "alloy",
+				Speed:  1.0,
+				Format: "mp3",
+			}
+		}
+
+	case "elevenlabs":
+		config.Provider.Provider = voice.ProviderElevenLabs
+		config.Provider.APIKey = getAPIKey(c, "ELEVENLABS_API_KEY")
+		if config.Provider.APIKey == "" {
+			return fmt.Errorf("ElevenLabs API key is required (use --api-key or set ELEVENLABS_API_KEY environment variable)")
+		}
+		if config.Provider.ElevenLabs == nil {
+			config.Provider.ElevenLabs = &voice.ElevenLabsConfig{
+				VoiceID: "21m00Tcm4TlvDq8ikWAM", // Rachel
+				Model:   "eleven_monolingual_v1",
+				VoiceSettings: &voice.VoiceSettings{
+					Stability:       0.5,
+					SimilarityBoost: 0.5,
+					Style:           0.0,
+					UseSpeakerBoost: true,
+				},
+			}
+		}
+
+	case "polly":
+		config.Provider.Provider = voice.ProviderPolly
+		config.Provider.Region = c.String("region")
+		if config.Provider.Polly == nil {
+			config.Provider.Polly = &voice.PollyConfig{
+				VoiceID:      "Joanna",
+				Engine:       "neural",
+				LanguageCode: "en-US",
+				OutputFormat: "mp3",
+				SampleRate:   "22050",
+			}
+		}
+		// AWS credentials will be loaded from environment or IAM role
+
+	case "gcp":
+		config.Provider.Provider = voice.ProviderGCP
+		config.Provider.ProjectID = c.String("project-id")
+		if config.Provider.ProjectID == "" {
+			config.Provider.ProjectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
+		}
+		if config.Provider.ProjectID == "" {
+			return fmt.Errorf("Google Cloud project ID is required (use --project-id or set GOOGLE_CLOUD_PROJECT environment variable)")
+		}
+		if config.Provider.GCP == nil {
+			config.Provider.GCP = &voice.GCPConfig{
+				VoiceName:       "en-US-Wavenet-D",
+				LanguageCode:    "en-US",
+				SsmlGender:      "NEUTRAL",
+				AudioEncoding:   "MP3",
+				SampleRateHertz: 24000,
+				SpeakingRate:    1.0,
+				Pitch:           0.0,
+				VolumeGainDb:    0.0,
+			}
+		}
+
+	default:
+		return fmt.Errorf("unknown provider: %s (supported: local, openai, elevenlabs, polly, gcp)", providerName)
+	}
+
+	return nil
+}
+
+// getAPIKey gets an API key from CLI flag or environment variable
+func getAPIKey(c *cli.Command, envVar string) string {
+	if apiKey := c.String("api-key"); apiKey != "" {
+		return apiKey
+	}
+	return os.Getenv(envVar)
+}
+
+// handleListVoices lists available voices for the selected provider
+func handleListVoices(ctx context.Context, c *cli.Command) error {
+	// Create voice config
+	config := voice.DefaultConfig()
+	providerName := c.String("provider")
+	
+	if err := configureProvider(config, c, providerName); err != nil {
+		return fmt.Errorf("failed to configure provider: %w", err)
+	}
+
+	// Create voice manager
+	manager, err := voice.NewVoiceManager(config)
 	if err != nil {
-		return fmt.Errorf("failed to synthesize voice: %w", err)
+		return fmt.Errorf("failed to create voice manager: %w", err)
 	}
 
-	// Play audio
-	if err := engine.Play(audioFile); err != nil {
-		return fmt.Errorf("failed to play audio: %w", err)
+	// Check if provider is available
+	if !manager.IsAvailable(ctx) {
+		return fmt.Errorf("voice provider '%s' is not available", manager.GetProviderName())
 	}
 
-	fmt.Fprintf(os.Stderr, "✅ Voice synthesis complete\n")
+	fmt.Printf("Available voices for %s:\n\n", manager.GetProviderName())
+
+	// Get provider-specific voice list
+	factory := voice.NewProviderFactory(config.Provider)
+	provider, err := factory.CreateProvider(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	switch p := provider.(type) {
+	case *voice.OpenAIProvider:
+		voices := p.GetSupportedVoices()
+		for _, voiceID := range voices {
+			fmt.Printf("  %s\n", voiceID)
+		}
+
+	case *voice.ElevenLabsProvider:
+		voices, err := p.GetVoices(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get ElevenLabs voices: %w", err)
+		}
+		for _, voice := range voices {
+			fmt.Printf("  %s - %s (%s)\n", voice.VoiceID, voice.Name, voice.Category)
+		}
+
+	case *voice.PollyProvider:
+		voices, err := p.GetVoices(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get Polly voices: %w", err)
+		}
+		for _, voice := range voices {
+			fmt.Printf("  %s - %s (%s, %s)\n", voice.Id, voice.Name, voice.Gender, voice.LanguageCode)
+		}
+
+	case *voice.GCPProvider:
+		voices, err := p.GetVoices(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get GCP voices: %w", err)
+		}
+		for _, voice := range voices {
+			langs := strings.Join(voice.LanguageCodes, ", ")
+			fmt.Printf("  %s (%s, %s)\n", voice.Name, langs, voice.SsmlGender)
+		}
+
+	case *voice.LocalProvider:
+		fmt.Printf("Local engines use numeric speaker IDs:\n")
+		fmt.Printf("  VOICEVOX: 3 (ずんだもん), 1 (四国めたん), etc.\n")
+		fmt.Printf("  AivisSpeech: 1512153248 (default), etc.\n")
+		fmt.Printf("Use the original voice command flags: --engine and numeric speaker IDs\n")
+
+	default:
+		fmt.Printf("Voice listing not implemented for this provider\n")
+	}
+
 	return nil
 }
 

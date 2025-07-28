@@ -2,7 +2,7 @@ package voice
 
 // Config represents voice synthesis configuration
 type Config struct {
-	// Engine settings
+	// Engine settings (legacy - for backward compatibility)
 	EnginePriority   string `json:"engine_priority"`   // "voicevox" or "aivisspeech"
 	VoicevoxSpeaker  int    `json:"voicevox_speaker"`  // VOICEVOX speaker ID
 	AivisSpeechSpeaker int64  `json:"aivisspeech_speaker"` // AivisSpeech speaker ID
@@ -14,6 +14,9 @@ type Config struct {
 	
 	// Processing settings
 	UUIDMode bool `json:"uuid_mode"` // Use UUID search mode (slower but complete)
+	
+	// Cloud provider settings (new)
+	Provider *ProviderConfig `json:"provider,omitempty"` // Cloud TTS provider configuration
 }
 
 // DefaultConfig returns the default voice configuration
@@ -26,6 +29,21 @@ func DefaultConfig() *Config {
 		MaxChars:           500,
 		MaxLines:           3,
 		UUIDMode:           false,
+		Provider:           DefaultProviderConfig(),
+	}
+}
+
+// DefaultProviderConfig returns the default provider configuration
+func DefaultProviderConfig() *ProviderConfig {
+	return &ProviderConfig{
+		Provider: ProviderLocal,
+		Local: &LocalConfig{
+			Engine:             EngineAivisSpeech,
+			VoicevoxSpeaker:    3,              // ずんだもん
+			AivisSpeechSpeaker: 1512153248,     // Default AivisSpeech speaker
+			VoicevoxURL:        VoicevoxURL,
+			AivisSpeechURL:     AivisSpeechURL,
+		},
 	}
 }
 
