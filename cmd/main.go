@@ -487,6 +487,11 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 		// Get latest assistant message
 		text, err = reader.GetLatestAssistantMessage(transcriptPath)
 		if err != nil {
+			// If no text content found (e.g., tool_use only messages), skip voice synthesis
+			if strings.Contains(err.Error(), "no assistant message found") {
+				log.Info().Msg("No text content found in latest assistant message, skipping voice synthesis")
+				return nil
+			}
 			return fmt.Errorf("failed to get assistant message: %w", err)
 		}
 		
@@ -532,6 +537,11 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 		// Get latest assistant message from transcript
 		text, err = reader.GetLatestAssistantMessage(event.TranscriptPath)
 		if err != nil {
+			// If no text content found (e.g., tool_use only messages), skip voice synthesis
+			if strings.Contains(err.Error(), "no assistant message found") {
+				log.Info().Msg("No text content found in latest assistant message, skipping voice synthesis")
+				return nil
+			}
 			return fmt.Errorf("failed to get assistant message: %w", err)
 		}
 		
