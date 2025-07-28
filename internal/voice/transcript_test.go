@@ -387,3 +387,71 @@ func TestGetMessageWithUUID(t *testing.T) {
 		t.Errorf("Expected '%s', got '%s'", expected, text)
 	}
 }
+
+// TestReadLinesWithTruncation tests reading files with extremely long lines (>1MB)
+func TestReadLinesWithTruncation(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "very_long_line.jsonl")
+	
+	// Create a very long content (2MB)
+	veryLongContent := strings.Repeat("A", 2*1024*1024)
+	
+	lines := []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}{
+		{Type: "short", Text: "Short line"},
+		{Type: "very_long", Text: veryLongContent},
+		{Type: "end", Text: "End line"},
+	}
+	
+	// Write test file
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	
+	encoder := json.NewEncoder(f)
+	for _, line := range lines {
+		if err := encoder.Encode(line); err != nil {
+			t.Fatal(err)
+		}
+	}
+	
+	// Test reading with truncation fallback
+	reader := NewTranscriptReader(DefaultConfig())
+	
+	file, err := os.Open(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	
+	readLines, err := reader.readLinesReverse(file)
+	if err != nil {
+		t.Fatalf("Failed to read file with very long lines: %v", err)
+	}
+	
+	// Verify we got lines (should have triggered truncation)
+	if len(readLines) == 0 {
+		t.Fatal("Expected to read some lines, got none")
+	}
+	
+	// Check that we can parse at least one line
+	foundValidLine := false
+	for _, line := range readLines {
+		var parsed struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal([]byte(line), &parsed); err == nil {
+			foundValidLine = true
+			break
+		}
+	}
+	
+	if !foundValidLine {
+		t.Error("Expected to find at least one valid JSON line after truncation")
+	}
+}

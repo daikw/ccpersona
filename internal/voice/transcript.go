@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -187,6 +188,11 @@ func (tr *TranscriptReader) readLinesReverse(file *os.File) ([]string, error) {
 	}
 	
 	if err := scanner.Err(); err != nil {
+		// If we hit a "token too long" error, try to read with line truncation
+		if strings.Contains(err.Error(), "token too long") {
+			log.Warn().Msg("Very long line detected, attempting to read with truncation")
+			return tr.readLinesWithTruncation(file)
+		}
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
@@ -196,6 +202,59 @@ func (tr *TranscriptReader) readLinesReverse(file *os.File) ([]string, error) {
 		lines[i], lines[opp] = lines[opp], lines[i]
 	}
 
+	return lines, nil
+}
+
+// readLinesWithTruncation reads file lines with truncation for extremely long lines
+func (tr *TranscriptReader) readLinesWithTruncation(file *os.File) ([]string, error) {
+	// Reset file position to beginning
+	if _, err := file.Seek(0, 0); err != nil {
+		return nil, fmt.Errorf("failed to reset file position: %w", err)
+	}
+	
+	var lines []string
+	const maxLineLength = 512 * 1024 // 512KB max per line
+	
+	reader := bufio.NewReader(file)
+	lineNumber := 0
+	
+	for {
+		lineNumber++
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return nil, fmt.Errorf("failed to read line %d: %w", lineNumber, err)
+		}
+		
+		// Remove trailing newline
+		line = strings.TrimRight(line, "\n\r")
+		
+		// Truncate if too long
+		if len(line) > maxLineLength {
+			originalLength := len(line)
+			line = line[:maxLineLength]
+			log.Warn().
+				Int("line_number", lineNumber).
+				Int("original_length", originalLength).
+				Int("truncated_length", maxLineLength).
+				Msg("Truncated extremely long line")
+		}
+		
+		if line != "" {
+			lines = append(lines, line)
+		}
+		
+		if err == io.EOF {
+			break
+		}
+	}
+	
+	// Reverse the lines
+	for i := len(lines)/2 - 1; i >= 0; i-- {
+		opp := len(lines) - 1 - i
+		lines[i], lines[opp] = lines[opp], lines[i]
+	}
+	
+	log.Info().Int("total_lines", len(lines)).Msg("Successfully read file with line truncation")
 	return lines, nil
 }
 
