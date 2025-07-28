@@ -16,6 +16,9 @@ make build-all                          # Build for all platforms (darwin/linux/
 # Test specific packages
 go test -v ./internal/persona/...       # Test persona package
 go test -v -run TestHandleSessionStart  # Run specific test
+
+# Test voice synthesis
+echo "テストなのだ！" | ./ccpersona voice --plain
 ```
 
 ## Architecture Overview
@@ -31,7 +34,10 @@ ccpersona is a Claude Code persona management system that automatically applies 
    - Manager handles persona CRUD operations and Claude Code integration
 
 2. **Voice Synthesis** (`internal/voice/`)
-   - Reads Claude Code transcripts from `~/.claude/projects/*.jsonl`
+   - Default: reads Stop hook JSON event from stdin (expects JSON with transcript_path)
+   - With --plain flag: reads plain text from stdin for voice synthesis
+   - With --transcript flag: reads from `~/.claude/projects/*.jsonl`
+   - As Stop hook: automatically uses transcript path from hook event
    - Supports VOICEVOX (port 50021) and AivisSpeech (port 10101) engines
    - Multiple reading modes: first_line, full_text, char_limit, etc.
    - Cross-platform audio playback (afplay/aplay/paplay/ffplay)

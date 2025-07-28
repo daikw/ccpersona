@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,9 +108,19 @@ and behavioral patterns for your AI assistant.`,
 			{
 				Name:    "voice",
 				Aliases: []string{"stop_hook"},
-				Usage:   "Read the latest Claude Code assistant message with voice synthesis",
+				Usage:   "Synthesize voice from text (stdin by default, or from transcript)",
 				Action:  handleVoice,
 				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "transcript",
+						Usage: "Read from Claude Code transcript instead of stdin",
+						Value: false,
+					},
+					&cli.BoolFlag{
+						Name:  "plain",
+						Usage: "Read plain text from stdin instead of JSON hook event",
+						Value: false,
+					},
 					&cli.StringFlag{
 						Name:  "mode",
 						Usage: "Reading mode: first_line, line_limit, after_first, full_text, char_limit",
@@ -459,40 +470,74 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	config.MaxChars = int(c.Int("chars"))
 	config.UUIDMode = c.Bool("uuid")
 
-	// Try to read Stop hook event data from stdin
-	var transcriptPath string
-	event, err := hook.ReadStopEvent()
-	if err != nil {
-		// Fallback to finding latest transcript
-		log.Debug().Err(err).Msg("No hook event data from stdin, finding latest transcript")
+	var text string
+
+	if c.Bool("transcript") {
+		// User explicitly wants to read from transcript
+		log.Debug().Msg("Reading from latest transcript (--transcript flag)")
+		
 		reader := voice.NewTranscriptReader(config)
-		transcriptPath, err = reader.FindLatestTranscript()
+		transcriptPath, err := reader.FindLatestTranscript()
 		if err != nil {
 			return fmt.Errorf("failed to find transcript: %w", err)
 		}
+		
+		log.Debug().Str("path", transcriptPath).Msg("Using transcript file")
+		
+		// Get latest assistant message
+		text, err = reader.GetLatestAssistantMessage(transcriptPath)
+		if err != nil {
+			return fmt.Errorf("failed to get assistant message: %w", err)
+		}
+		
+		// Process text according to reading mode
+		text = reader.ProcessText(text)
+		
+	} else if c.Bool("plain") {
+		// Read plain text from stdin
+		log.Debug().Msg("Reading plain text from stdin")
+		
+		textBytes, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read from stdin: %w", err)
+		}
+		
+		text = string(textBytes)
+		if text == "" {
+			return fmt.Errorf("no text provided via stdin")
+		}
+		
 	} else {
-		// Use transcript path from hook event
-		transcriptPath = event.TranscriptPath
+		// Default: try to read Stop hook event from stdin
+		log.Debug().Msg("Reading Stop hook event from stdin")
+		
+		event, err := hook.ReadStopEvent()
+		if err != nil {
+			return fmt.Errorf("failed to read Stop hook event from stdin: %w (use --plain flag for plain text input)", err)
+		}
+		
+		if event.TranscriptPath == "" {
+			return fmt.Errorf("no transcript path in Stop hook event")
+		}
+		
 		log.Debug().
 			Str("session_id", event.SessionID).
-			Str("transcript_path", transcriptPath).
+			Str("transcript_path", event.TranscriptPath).
 			Bool("stop_hook_active", event.StopHookActive).
 			Msg("Received Stop hook event")
+
+		// Create transcript reader
+		reader := voice.NewTranscriptReader(config)
+		
+		// Get latest assistant message from transcript
+		text, err = reader.GetLatestAssistantMessage(event.TranscriptPath)
+		if err != nil {
+			return fmt.Errorf("failed to get assistant message: %w", err)
+		}
+		
+		// Process text according to reading mode
+		text = reader.ProcessText(text)
 	}
-
-	log.Debug().Str("path", transcriptPath).Msg("Using transcript file")
-
-	// Create transcript reader
-	reader := voice.NewTranscriptReader(config)
-
-	// Get latest assistant message
-	text, err := reader.GetLatestAssistantMessage(transcriptPath)
-	if err != nil {
-		return fmt.Errorf("failed to get assistant message: %w", err)
-	}
-
-	// Process text according to reading mode
-	text = reader.ProcessText(text)
 
 	// Strip markdown if mdstrip is available
 	text = voice.StripMarkdown(text)

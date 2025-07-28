@@ -129,8 +129,13 @@ ccpersona hook                    # UserPromptSubmit hook (alias: user_prompt_su
 ccpersona voice                   # Stop hook (alias: stop_hook)
 ccpersona notify                  # Notification hook (alias: notification_hook)
 
-# Voice synthesis (can be used standalone or as Stop hook)
-ccpersona voice --mode full_text --engine voicevox
+# Voice synthesis (expects JSON hook event from stdin by default)
+ccpersona voice                   # Read Stop hook JSON event from stdin
+echo "こんにちは、世界！" | ccpersona voice --plain  # Read plain text
+echo "Hello, world!" | ccpersona voice --plain --mode full_text --engine voicevox
+
+# Voice synthesis from transcript
+ccpersona voice --transcript  # Read latest assistant message from transcript
 
 # Notification handling
 ccpersona notify --voice --desktop  # Show desktop notification and speak
@@ -196,6 +201,13 @@ Manage settings in `.claude/persona.json` for each project:
 ```
 
 ### Voice Configuration
+
+The voice command expects JSON hook event data from stdin by default (as sent by Claude Code's Stop hook). For plain text input, use the `--plain` flag.
+
+Input modes:
+- Default: Stop hook JSON event with `transcript_path` field
+- `--plain`: Plain text from stdin
+- `--transcript`: Read from latest transcript file
 
 The voice synthesis feature supports:
 - **VOICEVOX** - Local voice engine (default port: 50021)
