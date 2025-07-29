@@ -77,7 +77,7 @@ func TestLoadConfig(t *testing.T) {
 	t.Run("InvalidJSON", func(t *testing.T) {
 		claudeDir := filepath.Join(tmpDir, ClaudeDir)
 		configPath := filepath.Join(claudeDir, ConfigFileName)
-		
+
 		// Write invalid JSON
 		if err := os.WriteFile(configPath, []byte("invalid json"), 0644); err != nil {
 			t.Fatal(err)
@@ -199,15 +199,15 @@ func TestValidateConfig(t *testing.T) {
 
 func TestGetDefaultConfig(t *testing.T) {
 	config := GetDefaultConfig()
-	
+
 	if config == nil {
 		t.Fatal("Expected default config, got nil")
 	}
-	
+
 	if config.Name != "default" { //nolint:staticcheck // checked for nil above
 		t.Errorf("Expected default name 'default', got %s", config.Name)
 	}
-	
+
 	if config.OverrideGlobal != false {
 		t.Error("Expected OverrideGlobal to be false")
 	}

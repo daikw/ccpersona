@@ -33,7 +33,7 @@ func (tr *TranscriptReader) FindLatestTranscript() (string, error) {
 	}
 
 	projectsDir := filepath.Join(homeDir, ".claude", "projects")
-	
+
 	var transcriptFiles []string
 	err = filepath.Walk(projectsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -44,7 +44,7 @@ func (tr *TranscriptReader) FindLatestTranscript() (string, error) {
 		}
 		return nil
 	})
-	
+
 	if err != nil {
 		return "", fmt.Errorf("failed to walk projects directory: %w", err)
 	}
@@ -169,7 +169,7 @@ func (tr *TranscriptReader) getMessageWithUUID(file *os.File) (string, error) {
 		Int("text_count", len(texts)).
 		Int("total_length", len(result)).
 		Msg("Found assistant message with UUID")
-	
+
 	return result, nil
 }
 
@@ -177,16 +177,16 @@ func (tr *TranscriptReader) getMessageWithUUID(file *os.File) (string, error) {
 func (tr *TranscriptReader) readLinesReverse(file *os.File) ([]string, error) {
 	var lines []string
 	scanner := bufio.NewScanner(file)
-	
+
 	// Increase buffer size to handle very long lines (1MB instead of default 64KB)
 	const maxScanTokenSize = 1024 * 1024 // 1MB
 	buf := make([]byte, maxScanTokenSize)
 	scanner.Buffer(buf, maxScanTokenSize)
-	
+
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
-	
+
 	if err := scanner.Err(); err != nil {
 		// If we hit a "token too long" error, try to read with line truncation
 		if strings.Contains(err.Error(), "token too long") {
@@ -211,23 +211,23 @@ func (tr *TranscriptReader) readLinesWithTruncation(file *os.File) ([]string, er
 	if _, err := file.Seek(0, 0); err != nil {
 		return nil, fmt.Errorf("failed to reset file position: %w", err)
 	}
-	
+
 	var lines []string
 	const maxLineLength = 512 * 1024 // 512KB max per line
-	
+
 	reader := bufio.NewReader(file)
 	lineNumber := 0
-	
+
 	for {
 		lineNumber++
 		line, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
 			return nil, fmt.Errorf("failed to read line %d: %w", lineNumber, err)
 		}
-		
+
 		// Remove trailing newline
 		line = strings.TrimRight(line, "\n\r")
-		
+
 		// Truncate if too long
 		if len(line) > maxLineLength {
 			originalLength := len(line)
@@ -238,22 +238,22 @@ func (tr *TranscriptReader) readLinesWithTruncation(file *os.File) ([]string, er
 				Int("truncated_length", maxLineLength).
 				Msg("Truncated extremely long line")
 		}
-		
+
 		if line != "" {
 			lines = append(lines, line)
 		}
-		
+
 		if err == io.EOF {
 			break
 		}
 	}
-	
+
 	// Reverse the lines
 	for i := len(lines)/2 - 1; i >= 0; i-- {
 		opp := len(lines) - 1 - i
 		lines[i], lines[opp] = lines[opp], lines[i]
 	}
-	
+
 	log.Info().Int("total_lines", len(lines)).Msg("Successfully read file with line truncation")
 	return lines, nil
 }
@@ -266,7 +266,7 @@ func (tr *TranscriptReader) ProcessText(text string) string {
 		if idx := strings.Index(text, "\n"); idx != -1 {
 			text = text[:idx]
 		}
-		
+
 	case ModeLineLimit:
 		// Limited number of lines
 		lines := strings.Split(text, "\n")
@@ -274,18 +274,18 @@ func (tr *TranscriptReader) ProcessText(text string) string {
 			lines = lines[:tr.config.MaxLines]
 		}
 		text = strings.Join(lines, " ")
-		
+
 	case ModeAfterFirst:
 		// Skip first line
 		if idx := strings.Index(text, "\n"); idx != -1 && idx < len(text)-1 {
 			text = text[idx+1:]
 		}
 		text = strings.ReplaceAll(text, "\n", " ")
-		
+
 	case ModeFullText:
 		// Full text with newlines replaced by spaces
 		text = strings.ReplaceAll(text, "\n", " ")
-		
+
 	case ModeCharLimit:
 		// Character limit
 		text = strings.ReplaceAll(text, "\n", " ")

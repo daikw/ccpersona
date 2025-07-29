@@ -45,7 +45,7 @@ func (sm *SessionManager) IsNewSession() bool {
 // MarkSessionStarted creates a session marker file
 func (sm *SessionManager) MarkSessionStarted() error {
 	markerPath := sm.getSessionMarkerPath()
-	
+
 	// Ensure directory exists
 	dir := filepath.Dir(markerPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -66,7 +66,7 @@ func (sm *SessionManager) MarkSessionStarted() error {
 // CleanupOldSessions removes session markers older than 24 hours
 func (sm *SessionManager) CleanupOldSessions() error {
 	sessionDir := filepath.Join(sm.homeDir, ".claude")
-	
+
 	entries, err := os.ReadDir(sessionDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -158,6 +158,6 @@ func HandleSessionStart() error {
 
 	// Output success message
 	fmt.Printf("🎭 人格を適用したのだ: %s\n", config.Name)
-	
+
 	return nil
 }
