@@ -50,7 +50,7 @@ jobs:
           # assignee_trigger: "claude-bot"
           
           # Optional: Allow Claude to run specific commands
-          allowed_tools: "Bash(make:*),Bash(git:*),View,GlobTool,GrepTool,BatchTool"
+          allowed_tools: "Bash(make:*),Bash(go:*),Bash(git:*),Bash(gh:*),View,GlobTool,GrepTool,BatchTool"
           
           # Optional: Add custom instructions for Claude to customize its behavior for your project
           # custom_instructions: |
