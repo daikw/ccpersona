@@ -38,6 +38,10 @@ type SynthesizeOptions struct {
 	Language string  `json:"language,omitempty"` // Language code
 	Model    string  `json:"model,omitempty"`    // Model to use (tts-1, tts-1-hd)
 
+	// Provider-specific options
+	Engine     string `json:"engine,omitempty"`      // Engine type (neural, standard, etc.)
+	SampleRate string `json:"sample_rate,omitempty"` // Audio sample rate
+
 	// ElevenLabs-specific settings
 	Stability       float64 `json:"stability,omitempty"`         // Voice stability (0.0-1.0)
 	SimilarityBoost float64 `json:"similarity_boost,omitempty"`  // Similarity boost (0.0-1.0)
