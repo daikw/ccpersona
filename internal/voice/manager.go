@@ -38,6 +38,12 @@ type VoiceOptions struct {
 	APIKey   string
 	Model    string
 
+	// ElevenLabs-specific options
+	Stability       float64
+	SimilarityBoost float64
+	Style           float64
+	UseSpeakerBoost bool
+
 	// Output options
 	OutputPath string
 	PlayAudio  bool
@@ -179,11 +185,15 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 
 	// Set synthesis options
 	synthOptions := provider.SynthesizeOptions{
-		Voice:   options.Voice,
-		Speed:   options.Speed,
-		Format:  options.Format,
-		Quality: options.Quality,
-		Model:   options.Model,
+		Voice:           options.Voice,
+		Speed:           options.Speed,
+		Format:          options.Format,
+		Quality:         options.Quality,
+		Model:           options.Model,
+		Stability:       options.Stability,
+		SimilarityBoost: options.SimilarityBoost,
+		Style:           options.Style,
+		UseSpeakerBoost: options.UseSpeakerBoost,
 	}
 
 	// Synthesize

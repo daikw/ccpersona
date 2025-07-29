@@ -37,6 +37,12 @@ type SynthesizeOptions struct {
 	Quality  string  `json:"quality,omitempty"`  // Quality setting (hd, standard)
 	Language string  `json:"language,omitempty"` // Language code
 	Model    string  `json:"model,omitempty"`    // Model to use (tts-1, tts-1-hd)
+
+	// ElevenLabs-specific settings
+	Stability       float64 `json:"stability,omitempty"`         // Voice stability (0.0-1.0)
+	SimilarityBoost float64 `json:"similarity_boost,omitempty"`  // Similarity boost (0.0-1.0)
+	Style           float64 `json:"style,omitempty"`             // Style setting (0.0-1.0)
+	UseSpeakerBoost bool    `json:"use_speaker_boost,omitempty"` // Use speaker boost for ElevenLabs
 }
 
 // Config contains provider-specific configuration
