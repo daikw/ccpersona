@@ -31,9 +31,9 @@ func TestReadLinesReverseLongLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		_ = f.Close()
-	}()
+	})
 	
 	encoder := json.NewEncoder(f)
 	for _, line := range lines {
@@ -49,9 +49,9 @@ func TestReadLinesReverseLongLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		_ = file.Close()
-	}()
+	})
 	
 	readLines, err := reader.readLinesReverse(file)
 	if err != nil {
@@ -149,9 +149,9 @@ func TestGetLatestAssistantMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		_ = f.Close()
-	}()
+	})
 	
 	encoder := json.NewEncoder(f)
 	for _, msg := range messages {
@@ -208,9 +208,9 @@ func TestGetLatestAssistantMessageNoText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		_ = f.Close()
-	}()
+	})
 	
 	encoder := json.NewEncoder(f)
 	for _, msg := range messages {
@@ -370,9 +370,9 @@ func TestGetMessageWithUUID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		_ = f.Close()
-	}()
+	})
 	
 	encoder := json.NewEncoder(f)
 	for _, msg := range messages {
@@ -420,9 +420,9 @@ func TestReadLinesWithTruncation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		_ = f.Close()
-	}()
+	})
 	
 	encoder := json.NewEncoder(f)
 	for _, line := range lines {
@@ -438,9 +438,9 @@ func TestReadLinesWithTruncation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		_ = file.Close()
-	}()
+	})
 	
 	readLines, err := reader.readLinesReverse(file)
 	if err != nil {
