@@ -44,6 +44,11 @@ type VoiceOptions struct {
 	Style           float64
 	UseSpeakerBoost bool
 
+	// Amazon Polly-specific options
+	Region     string
+	Engine     string
+	SampleRate string
+
 	// Output options
 	OutputPath string
 	PlayAudio  bool
@@ -173,6 +178,13 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 		config["api_key"] = options.APIKey
 	}
 
+	// Add Polly-specific config
+	if options.Provider == "polly" {
+		if options.Region != "" {
+			config["region"] = options.Region
+		}
+	}
+
 	// Create provider
 	prov, err := vm.providerFactory.CreateProvider(options.Provider, config)
 	if err != nil {
@@ -194,6 +206,16 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 		SimilarityBoost: options.SimilarityBoost,
 		Style:           options.Style,
 		UseSpeakerBoost: options.UseSpeakerBoost,
+	}
+
+	// Add Polly-specific options
+	if options.Provider == "polly" {
+		if options.Engine != "" {
+			synthOptions.Model = options.Engine // Use Model field for engine
+		}
+		if options.SampleRate != "" {
+			synthOptions.Quality = options.SampleRate // Use Quality field for sample rate
+		}
 	}
 
 	// Synthesize

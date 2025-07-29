@@ -20,6 +20,8 @@ func (f *DefaultFactory) CreateProvider(providerName string, config map[string]i
 		return f.createOpenAIProvider(config)
 	case "elevenlabs":
 		return f.createElevenLabsProvider(config)
+	case "polly":
+		return f.createPollyProvider(config)
 	default:
 		return nil, fmt.Errorf("unknown provider: %s", providerName)
 	}
@@ -27,7 +29,7 @@ func (f *DefaultFactory) CreateProvider(providerName string, config map[string]i
 
 // ListProviders returns available provider names
 func (f *DefaultFactory) ListProviders() []string {
-	return []string{"openai", "elevenlabs"}
+	return []string{"openai", "elevenlabs", "polly"}
 }
 
 // createOpenAIProvider creates an OpenAI provider with configuration
@@ -70,6 +72,12 @@ func (f *DefaultFactory) createElevenLabsProvider(config map[string]interface{})
 	return ElevenLabsProviderFromConfig(config)
 }
 
+// createPollyProvider creates an Amazon Polly provider with configuration
+func (f *DefaultFactory) createPollyProvider(config map[string]interface{}) (Provider, error) {
+	// Region is optional, defaults to us-east-1 in the provider
+	return PollyProviderFromConfig(config)
+}
+
 // GetProviderWithDefaults creates a provider with default configuration
 func (f *DefaultFactory) GetProviderWithDefaults(providerName string) (Provider, error) {
 	config := make(map[string]interface{})
@@ -90,6 +98,13 @@ func (f *DefaultFactory) GetProviderWithDefaults(providerName string) (Provider,
 		config["similarity_boost"] = 0.5
 		config["style"] = 0.0
 		config["use_speaker_boost"] = true
+	case "polly":
+		// Amazon Polly defaults - uses AWS credentials from environment/profile
+		config["region"] = "us-east-1"
+		config["voice"] = "Joanna"
+		config["model"] = "neural" // neural engine
+		config["format"] = "mp3"
+		config["quality"] = "22050" // sample rate
 	}
 
 	return f.CreateProvider(providerName, config)
