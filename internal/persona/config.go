@@ -17,9 +17,9 @@ const (
 // LoadConfig loads persona configuration from the project's .claude directory
 func LoadConfig(projectPath string) (*Config, error) {
 	configPath := filepath.Join(projectPath, ClaudeDir, ConfigFileName)
-	
+
 	log.Debug().Str("path", configPath).Msg("Loading persona config")
-	
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -41,14 +41,14 @@ func LoadConfig(projectPath string) (*Config, error) {
 // SaveConfig saves persona configuration to the project's .claude directory
 func SaveConfig(projectPath string, config *Config) error {
 	claudeDir := filepath.Join(projectPath, ClaudeDir)
-	
+
 	// Ensure .claude directory exists
 	if err := os.MkdirAll(claudeDir, 0755); err != nil {
 		return fmt.Errorf("failed to create .claude directory: %w", err)
 	}
 
 	configPath := filepath.Join(claudeDir, ConfigFileName)
-	
+
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)

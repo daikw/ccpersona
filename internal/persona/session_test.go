@@ -35,7 +35,7 @@ func TestSessionManager(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session manager: %v", err)
 		}
-		
+
 		if sm.sessionID != "test-session-123" {
 			t.Errorf("Expected session ID 'test-session-123', got '%s'", sm.sessionID)
 		}
@@ -79,7 +79,7 @@ func TestSessionManager(t *testing.T) {
 		if err := os.WriteFile(oldMarker, []byte("old"), 0644); err != nil {
 			t.Fatal(err)
 		}
-		
+
 		// Modify time to be 25 hours ago
 		oldTime := time.Now().Add(-25 * time.Hour)
 		if err := os.Chtimes(oldMarker, oldTime, oldTime); err != nil {
@@ -178,7 +178,7 @@ func TestHandleSessionStart(t *testing.T) {
 
 		// Reset session marker
 		_ = os.Setenv("CLAUDE_SESSION_ID", "test-with-config")
-		
+
 		// Handle session start
 		if err := HandleSessionStart(); err != nil {
 			t.Errorf("Failed to handle session start: %v", err)

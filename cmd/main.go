@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/daikw/ccpersona/internal/hook"
@@ -128,7 +129,7 @@ and behavioral patterns for your AI assistant.`,
 					},
 					&cli.StringFlag{
 						Name:  "engine",
-						Usage: "Voice engine priority: voicevox, aivisspeech",
+						Usage: "Voice engine priority: voicevox, aivisspeech (legacy local engines)",
 						Value: "aivisspeech",
 					},
 					&cli.IntFlag{
@@ -144,6 +145,52 @@ and behavioral patterns for your AI assistant.`,
 					&cli.BoolFlag{
 						Name:  "uuid",
 						Usage: "Use UUID mode for complete message extraction",
+						Value: false,
+					},
+					// Cloud provider flags
+					&cli.StringFlag{
+						Name:  "provider",
+						Usage: "TTS provider: openai, voicevox, aivisspeech",
+						Value: "",
+					},
+					&cli.StringFlag{
+						Name:  "api-key",
+						Usage: "API key for cloud providers (or use environment variables)",
+						Value: "",
+					},
+					&cli.StringFlag{
+						Name:  "voice",
+						Usage: "Voice ID (e.g., alloy, echo, fable for OpenAI)",
+						Value: "",
+					},
+					&cli.StringFlag{
+						Name:  "model",
+						Usage: "Model to use (e.g., tts-1, tts-1-hd for OpenAI)",
+						Value: "tts-1",
+					},
+					&cli.StringFlag{
+						Name:  "format",
+						Usage: "Audio format: mp3, wav, ogg, flac, aac",
+						Value: "mp3",
+					},
+					&cli.StringFlag{
+						Name:  "speed",
+						Usage: "Speech speed (0.25-4.0)",
+						Value: "1.0",
+					},
+					&cli.StringFlag{
+						Name:  "output",
+						Usage: "Output file path (default: temp file)",
+						Value: "",
+					},
+					&cli.BoolFlag{
+						Name:  "stdout",
+						Usage: "Stream audio to stdout instead of playing",
+						Value: false,
+					},
+					&cli.BoolFlag{
+						Name:  "list-voices",
+						Usage: "List available voices for the specified provider",
 						Value: false,
 					},
 				},
@@ -184,13 +231,13 @@ and behavioral patterns for your AI assistant.`,
 
 func handleInit(ctx context.Context, c *cli.Command) error {
 	log.Info().Msg("Initializing persona configuration...")
-	
+
 	// Check if persona.json already exists
 	config, err := persona.LoadConfig(".")
 	if err != nil {
 		return err
 	}
-	
+
 	if config != nil {
 		log.Warn().Msg("Persona configuration already exists")
 		return nil
@@ -198,7 +245,7 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 
 	// Create default configuration
 	defaultConfig := persona.GetDefaultConfig()
-	
+
 	// Save configuration
 	if err := persona.SaveConfig(".", defaultConfig); err != nil {
 		return err
@@ -229,7 +276,7 @@ func handleList(ctx context.Context, c *cli.Command) error {
 	for _, p := range personas {
 		fmt.Printf("  - %s\n", p)
 	}
-	
+
 	return nil
 }
 
@@ -346,7 +393,7 @@ func handleEdit(ctx context.Context, c *cli.Command) error {
 
 	// Get the path to the persona file
 	path := manager.GetPersonaPath(personaName)
-	
+
 	// Get editor from environment
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
@@ -380,12 +427,12 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 		}
 		configDir := filepath.Join(homeDir, ".claude")
 		configPath = filepath.Join(configDir, "persona.json")
-		
+
 		// Ensure directory exists
 		if err := os.MkdirAll(configDir, 0755); err != nil {
 			return fmt.Errorf("failed to create config directory: %w", err)
 		}
-		
+
 		// Load or create global config
 		config, err = persona.LoadConfig(homeDir)
 		if err != nil || config == nil {
@@ -397,7 +444,7 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 	} else {
 		// Project configuration
 		configPath = filepath.Join(".claude", "persona.json")
-		
+
 		// Load or create project config
 		config, err = persona.LoadConfig(".")
 		if err != nil {
@@ -435,7 +482,7 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 func handleHook(ctx context.Context, c *cli.Command) error {
 	// Suppress normal output when running as hook
 	zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	
+
 	// Try to read hook event data from stdin
 	event, err := hook.ReadUserPromptSubmitEvent()
 	if err != nil {
@@ -452,7 +499,7 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 			Str("cwd", event.CWD).
 			Msg("Received UserPromptSubmit hook event")
 	}
-	
+
 	if err := persona.HandleSessionStart(); err != nil {
 		// Log error but don't fail the hook
 		log.Error().Err(err).Msg("Failed to handle session start")
@@ -470,20 +517,43 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	config.MaxChars = int(c.Int("chars"))
 	config.UUIDMode = c.Bool("uuid")
 
+	// Create voice manager
+	manager := voice.NewVoiceManager(config)
+
+	// Handle list voices
+	if c.Bool("list-voices") {
+		providerName := c.String("provider")
+		voices, err := manager.ListVoices(ctx, providerName)
+		if err != nil {
+			return fmt.Errorf("failed to list voices: %w", err)
+		}
+
+		if len(voices) == 0 {
+			fmt.Println("No voices available")
+			return nil
+		}
+
+		fmt.Printf("Available voices for provider '%s':\n", providerName)
+		for _, v := range voices {
+			fmt.Printf("  - %s (%s) - %s\n", v.ID, v.Language, v.Description)
+		}
+		return nil
+	}
+
 	var text string
 
 	if c.Bool("transcript") {
 		// User explicitly wants to read from transcript
 		log.Debug().Msg("Reading from latest transcript (--transcript flag)")
-		
+
 		reader := voice.NewTranscriptReader(config)
 		transcriptPath, err := reader.FindLatestTranscript()
 		if err != nil {
 			return fmt.Errorf("failed to find transcript: %w", err)
 		}
-		
+
 		log.Debug().Str("path", transcriptPath).Msg("Using transcript file")
-		
+
 		// Get latest assistant message
 		text, err = reader.GetLatestAssistantMessage(transcriptPath)
 		if err != nil {
@@ -494,37 +564,37 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 			}
 			return fmt.Errorf("failed to get assistant message: %w", err)
 		}
-		
+
 		// Process text according to reading mode
 		text = reader.ProcessText(text)
-		
+
 	} else if c.Bool("plain") {
 		// Read plain text from stdin
 		log.Debug().Msg("Reading plain text from stdin")
-		
+
 		textBytes, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return fmt.Errorf("failed to read from stdin: %w", err)
 		}
-		
+
 		text = string(textBytes)
 		if text == "" {
 			return fmt.Errorf("no text provided via stdin")
 		}
-		
+
 	} else {
 		// Default: try to read Stop hook event from stdin
 		log.Debug().Msg("Reading Stop hook event from stdin")
-		
+
 		event, err := hook.ReadStopEvent()
 		if err != nil {
 			return fmt.Errorf("failed to read Stop hook event from stdin: %w (use --plain flag for plain text input)", err)
 		}
-		
+
 		if event.TranscriptPath == "" {
 			return fmt.Errorf("no transcript path in Stop hook event")
 		}
-		
+
 		log.Debug().
 			Str("session_id", event.SessionID).
 			Str("transcript_path", event.TranscriptPath).
@@ -533,7 +603,7 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 
 		// Create transcript reader
 		reader := voice.NewTranscriptReader(config)
-		
+
 		// Get latest assistant message from transcript
 		text, err = reader.GetLatestAssistantMessage(event.TranscriptPath)
 		if err != nil {
@@ -544,7 +614,7 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 			}
 			return fmt.Errorf("failed to get assistant message: %w", err)
 		}
-		
+
 		// Process text according to reading mode
 		text = reader.ProcessText(text)
 	}
@@ -554,20 +624,50 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 
 	fmt.Fprintf(os.Stderr, "📢 Reading text: %s\n", text)
 
-	// Create voice engine
-	engine := voice.NewVoiceEngine(config)
+	// Parse speed as float
+	speedStr := c.String("speed")
+	speed := 1.0
+	if speedStr != "" {
+		if parsed, err := strconv.ParseFloat(speedStr, 64); err == nil {
+			speed = parsed
+		}
+	}
+
+	// Set up voice options
+	options := voice.VoiceOptions{
+		Provider:   c.String("provider"),
+		Voice:      c.String("voice"),
+		Speed:      speed,
+		Format:     c.String("format"),
+		Model:      c.String("model"),
+		APIKey:     c.String("api-key"),
+		OutputPath: c.String("output"),
+		PlayAudio:  !c.Bool("stdout"),
+		ToStdout:   c.Bool("stdout"),
+	}
 
 	// Synthesize voice
-	audioFile, err := engine.Synthesize(text)
+	audioFile, err := manager.Synthesize(ctx, text, options)
 	if err != nil {
 		return fmt.Errorf("failed to synthesize voice: %w", err)
 	}
 
-	// Play audio
-	if err := engine.Play(audioFile); err != nil {
-		return fmt.Errorf("failed to play audio: %w", err)
+	// Handle output
+	if options.ToStdout {
+		// Audio was already streamed to stdout
+		return nil
 	}
 
+	// Play audio if requested
+	if options.PlayAudio {
+		if err := manager.PlayAudio(audioFile); err != nil {
+			return fmt.Errorf("failed to play audio: %w", err)
+		}
+	}
+
+	if audioFile != "" {
+		fmt.Fprintf(os.Stderr, "🎵 Audio saved to: %s\n", audioFile)
+	}
 	fmt.Fprintf(os.Stderr, "✅ Voice synthesis complete\n")
 	return nil
 }
@@ -586,15 +686,15 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 
 	// Determine notification urgency based on message content
 	urgency := "normal"
-	
+
 	// Analyze message content for urgency level only
 	switch {
 	case strings.Contains(strings.ToLower(event.Message), "permission"):
 		urgency = "critical"
-		
+
 	case strings.Contains(strings.ToLower(event.Message), "idle"):
 		urgency = "low"
-		
+
 	case strings.Contains(strings.ToLower(event.Message), "error"):
 		urgency = "high"
 	}
@@ -611,7 +711,7 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 		// Load persona config to get voice settings
 		config, _ := persona.LoadConfig(".")
 		voiceConfig := voice.DefaultConfig()
-		
+
 		if config != nil && config.Voice != nil {
 			if config.Voice.Engine != "" {
 				voiceConfig.EnginePriority = config.Voice.Engine
@@ -638,19 +738,19 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 
 func showDesktopNotification(message, urgency string) error {
 	title := "Claude Code"
-	
+
 	switch runtime.GOOS {
 	case "darwin":
 		// macOS notification using osascript
 		script := fmt.Sprintf(`display notification "%s" with title "%s"`, message, title)
 		cmd := exec.Command("osascript", "-e", script)
 		return cmd.Run()
-		
+
 	case "linux":
 		// Linux notification using notify-send
 		cmd := exec.Command("notify-send", "-u", urgency, title, message)
 		return cmd.Run()
-		
+
 	case "windows":
 		// Windows notification using PowerShell
 		script := fmt.Sprintf(`
@@ -676,7 +776,7 @@ func showDesktopNotification(message, urgency string) error {
 		`, title, message)
 		cmd := exec.Command("powershell", "-Command", script)
 		return cmd.Run()
-		
+
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}

@@ -71,7 +71,7 @@ func (m *Manager) ApplyPersona(name string) error {
 	}
 
 	sourcePath := m.GetPersonaPath(name)
-	
+
 	// Read persona file
 	content, err := os.ReadFile(sourcePath)
 	if err != nil {

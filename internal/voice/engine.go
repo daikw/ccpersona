@@ -118,7 +118,7 @@ func (ve *VoiceEngine) synthesizeVoicevox(text string) (string, error) {
 
 	// Synthesize audio
 	synthURL := fmt.Sprintf("%s/synthesis?speaker=%d", VoicevoxURL, ve.config.VoicevoxSpeaker)
-	
+
 	resp, err = ve.httpClient.Post(synthURL, "application/json", bytes.NewReader(queryData))
 	if err != nil {
 		return "", fmt.Errorf("failed to synthesize: %w", err)
@@ -175,7 +175,7 @@ func (ve *VoiceEngine) synthesizeAivisSpeech(text string) (string, error) {
 
 	// Synthesize audio
 	synthURL := fmt.Sprintf("%s/synthesis?speaker=%d", AivisSpeechURL, ve.config.AivisSpeechSpeaker)
-	
+
 	resp, err = ve.httpClient.Post(synthURL, "application/json", bytes.NewReader(queryData))
 	if err != nil {
 		return "", fmt.Errorf("failed to synthesize: %w", err)
@@ -258,7 +258,7 @@ func StripMarkdown(text string) string {
 
 	cmd := exec.Command("mdstrip")
 	cmd.Stdin = strings.NewReader(text)
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		log.Warn().Err(err).Msg("mdstrip failed, keeping original text")
