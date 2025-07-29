@@ -21,6 +21,12 @@ go test -v -run TestHandleSessionStart  # Run specific test
 echo "テストなのだ！" | ./ccpersona voice --plain
 ```
 
+## Development
+
+- `MUST` use `mise` as a tool for tool's version management
+- `MUST` check lint (golangci-lint) before commit
+- `MUST` check test coverage before commit
+
 ## Architecture Overview
 
 ccpersona is a Claude Code persona management system that automatically applies different "personalities" to Claude Code sessions based on project configuration. The system is designed as a single Go binary that replaces shell script dependencies.
