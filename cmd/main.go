@@ -150,7 +150,7 @@ and behavioral patterns for your AI assistant.`,
 					// Cloud provider flags
 					&cli.StringFlag{
 						Name:  "provider",
-						Usage: "TTS provider: openai, voicevox, aivisspeech",
+						Usage: "TTS provider: openai, elevenlabs, voicevox, aivisspeech",
 						Value: "",
 					},
 					&cli.StringFlag{
@@ -192,6 +192,27 @@ and behavioral patterns for your AI assistant.`,
 						Name:  "list-voices",
 						Usage: "List available voices for the specified provider",
 						Value: false,
+					},
+					// ElevenLabs-specific flags
+					&cli.StringFlag{
+						Name:  "stability",
+						Usage: "Voice stability (0.0-1.0) for ElevenLabs",
+						Value: "0.5",
+					},
+					&cli.StringFlag{
+						Name:  "similarity-boost",
+						Usage: "Similarity boost (0.0-1.0) for ElevenLabs",
+						Value: "0.5",
+					},
+					&cli.StringFlag{
+						Name:  "style",
+						Usage: "Style setting (0.0-1.0) for ElevenLabs",
+						Value: "0.0",
+					},
+					&cli.BoolFlag{
+						Name:  "use-speaker-boost",
+						Usage: "Use speaker boost for ElevenLabs",
+						Value: true,
 					},
 				},
 			},
@@ -633,17 +654,43 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 		}
 	}
 
+	// Parse ElevenLabs-specific settings as floats
+	stability := 0.5
+	if stabilityStr := c.String("stability"); stabilityStr != "" {
+		if parsed, err := strconv.ParseFloat(stabilityStr, 64); err == nil {
+			stability = parsed
+		}
+	}
+
+	similarityBoost := 0.5
+	if similarityBoostStr := c.String("similarity-boost"); similarityBoostStr != "" {
+		if parsed, err := strconv.ParseFloat(similarityBoostStr, 64); err == nil {
+			similarityBoost = parsed
+		}
+	}
+
+	style := 0.0
+	if styleStr := c.String("style"); styleStr != "" {
+		if parsed, err := strconv.ParseFloat(styleStr, 64); err == nil {
+			style = parsed
+		}
+	}
+
 	// Set up voice options
 	options := voice.VoiceOptions{
-		Provider:   c.String("provider"),
-		Voice:      c.String("voice"),
-		Speed:      speed,
-		Format:     c.String("format"),
-		Model:      c.String("model"),
-		APIKey:     c.String("api-key"),
-		OutputPath: c.String("output"),
-		PlayAudio:  !c.Bool("stdout"),
-		ToStdout:   c.Bool("stdout"),
+		Provider:        c.String("provider"),
+		Voice:           c.String("voice"),
+		Speed:           speed,
+		Format:          c.String("format"),
+		Model:           c.String("model"),
+		APIKey:          c.String("api-key"),
+		Stability:       stability,
+		SimilarityBoost: similarityBoost,
+		Style:           style,
+		UseSpeakerBoost: c.Bool("use-speaker-boost"),
+		OutputPath:      c.String("output"),
+		PlayAudio:       !c.Bool("stdout"),
+		ToStdout:        c.Bool("stdout"),
 	}
 
 	// Synthesize voice
