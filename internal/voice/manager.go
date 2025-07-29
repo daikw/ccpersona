@@ -208,15 +208,9 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 		UseSpeakerBoost: options.UseSpeakerBoost,
 	}
 
-	// Add Polly-specific options
-	if options.Provider == "polly" {
-		if options.Engine != "" {
-			synthOptions.Model = options.Engine // Use Model field for engine
-		}
-		if options.SampleRate != "" {
-			synthOptions.Quality = options.SampleRate // Use Quality field for sample rate
-		}
-	}
+	// Add provider-specific options directly to dedicated fields
+	synthOptions.Engine = options.Engine
+	synthOptions.SampleRate = options.SampleRate
 
 	// Synthesize
 	audioStream, err := prov.Synthesize(ctx, text, synthOptions)

@@ -12,11 +12,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/polly"
 	"github.com/aws/aws-sdk-go-v2/service/polly/types"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
+
+// PollyClient interface defines the methods we need from the Polly client
+type PollyClient interface {
+	DescribeVoices(ctx context.Context, params *polly.DescribeVoicesInput, optFns ...func(*polly.Options)) (*polly.DescribeVoicesOutput, error)
+	SynthesizeSpeech(ctx context.Context, params *polly.SynthesizeSpeechInput, optFns ...func(*polly.Options)) (*polly.SynthesizeSpeechOutput, error)
+}
 
 // PollyProvider implements the Provider interface for Amazon Polly
 type PollyProvider struct {
-	client *polly.Client
+	client PollyClient
 	region string
 }
 
@@ -60,11 +68,11 @@ func (p *PollyProvider) ListVoices(ctx context.Context) ([]Voice, error) {
 	voices := make([]Voice, 0, len(result.Voices))
 	for _, v := range result.Voices {
 		voice := Voice{
-			ID:       aws.ToString(v.Id),
+			ID:       string(v.Id),
 			Name:     aws.ToString(v.Name),
-			Language: aws.ToString(v.LanguageCode),
+			Language: string(v.LanguageCode),
 			Description: fmt.Sprintf("%s voice, %s engine supported",
-				strings.Title(string(v.Gender)),
+				cases.Title(language.English).String(string(v.Gender)),
 				formatSupportedEngines(v.SupportedEngines)),
 		}
 
@@ -112,10 +120,10 @@ func (p *PollyProvider) Synthesize(ctx context.Context, text string, options Syn
 		return nil, fmt.Errorf("unsupported audio format: %s", outputFormat)
 	}
 
-	// Parse engine from model field or use neural by default
+	// Parse engine from dedicated engine field or use neural by default
 	engine := types.EngineNeural
-	if options.Model != "" {
-		switch strings.ToLower(options.Model) {
+	if options.Engine != "" {
+		switch strings.ToLower(options.Engine) {
 		case "standard":
 			engine = types.EngineStandard
 		case "neural":
@@ -125,7 +133,7 @@ func (p *PollyProvider) Synthesize(ctx context.Context, text string, options Syn
 		case "generative":
 			engine = types.EngineGenerative
 		default:
-			log.Warn().Str("model", options.Model).Msg("Unknown engine, using neural")
+			log.Warn().Str("engine", options.Engine).Msg("Unknown engine, using neural")
 		}
 	}
 
@@ -137,9 +145,9 @@ func (p *PollyProvider) Synthesize(ctx context.Context, text string, options Syn
 		Engine:       engine,
 	}
 
-	// Set sample rate if specified in quality field
-	if options.Quality != "" {
-		sampleRate := options.Quality
+	// Set sample rate if specified in dedicated sample rate field
+	if options.SampleRate != "" {
+		sampleRate := options.SampleRate
 		switch sampleRate {
 		case "8000", "16000", "22050", "24000":
 			input.SampleRate = aws.String(sampleRate)
@@ -148,8 +156,8 @@ func (p *PollyProvider) Synthesize(ctx context.Context, text string, options Syn
 		}
 	}
 
-	// Check if text contains SSML
-	if strings.Contains(text, "<speak>") || strings.Contains(text, "<prosody>") {
+	// Check if text contains SSML tags
+	if strings.Contains(text, "<speak>") || strings.Contains(text, "<prosody") {
 		input.TextType = types.TextTypeSsml
 	} else {
 		input.TextType = types.TextTypeText
@@ -182,9 +190,7 @@ func (p *PollyProvider) IsAvailable(ctx context.Context) bool {
 	defer cancel()
 
 	// Try to list voices to check if service is available
-	input := &polly.DescribeVoicesInput{
-		MaxResults: aws.Int32(1), // Limit to 1 voice for quick check
-	}
+	input := &polly.DescribeVoicesInput{}
 
 	_, err := p.client.DescribeVoices(checkCtx, input)
 	return err == nil
@@ -230,11 +236,11 @@ func (p *PollyProvider) GetPollyVoicesByLanguage(ctx context.Context, languageCo
 	voices := make([]Voice, 0, len(result.Voices))
 	for _, v := range result.Voices {
 		voice := Voice{
-			ID:       aws.ToString(v.Id),
+			ID:       string(v.Id),
 			Name:     aws.ToString(v.Name),
-			Language: aws.ToString(v.LanguageCode),
+			Language: string(v.LanguageCode),
 			Description: fmt.Sprintf("%s voice, %s engine supported",
-				strings.Title(string(v.Gender)),
+				cases.Title(language.English).String(string(v.Gender)),
 				formatSupportedEngines(v.SupportedEngines)),
 		}
 
