@@ -55,6 +55,17 @@ type PreCompactEvent struct {
 	CompactMode string `json:"compact_mode"` // "manual" or "auto"
 }
 
+// CodexNotifyEvent represents the Codex notify hook event
+// See: https://github.com/openai/codex/blob/main/docs/config.md
+type CodexNotifyEvent struct {
+	Type                 string   `json:"type"`                   // "agent-turn-complete"
+	ThreadID             string   `json:"thread-id"`              // UUID of the thread
+	TurnID               int      `json:"turn-id"`                // Turn number
+	CWD                  string   `json:"cwd"`                    // Current working directory
+	InputMessages        []string `json:"input-messages"`         // User's input messages
+	LastAssistantMessage string   `json:"last-assistant-message"` // Model's final response
+}
+
 // ParseHookEvent reads and parses the hook event from stdin
 func ParseHookEvent(r io.Reader) (*HookEvent, error) {
 	var event HookEvent
@@ -113,4 +124,19 @@ func ReadStopEvent() (*StopEvent, error) {
 // ReadNotificationEvent is a convenience function to read Notification event from stdin
 func ReadNotificationEvent() (*NotificationEvent, error) {
 	return ParseNotificationEvent(os.Stdin)
+}
+
+// ParseCodexNotifyEvent reads and parses Codex notify event from stdin
+func ParseCodexNotifyEvent(r io.Reader) (*CodexNotifyEvent, error) {
+	var event CodexNotifyEvent
+	decoder := json.NewDecoder(r)
+	if err := decoder.Decode(&event); err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
+
+// ReadCodexNotifyEvent is a convenience function to read Codex notify event from stdin
+func ReadCodexNotifyEvent() (*CodexNotifyEvent, error) {
+	return ParseCodexNotifyEvent(os.Stdin)
 }

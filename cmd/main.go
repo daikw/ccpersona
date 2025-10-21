@@ -234,6 +234,24 @@ and behavioral patterns for your AI assistant.`,
 					},
 				},
 			},
+			{
+				Name:    "codex-notify",
+				Aliases: []string{"codex_hook"},
+				Usage:   "Execute as Codex notify hook (supports both Claude Code and Codex)",
+				Action:  handleCodexNotify,
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "voice",
+						Usage: "Use voice synthesis for notifications",
+						Value: true,
+					},
+					&cli.BoolFlag{
+						Name:  "desktop",
+						Usage: "Show desktop notifications",
+						Value: true,
+					},
+				},
+			},
 		},
 		Before: func(ctx context.Context, c *cli.Command) error {
 			if c.Bool("verbose") {
@@ -771,6 +789,162 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 		// Synthesize and play voice with original message
 		engine := voice.NewVoiceEngine(voiceConfig)
 		audioFile, err := engine.Synthesize(event.Message)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to synthesize voice")
+		} else {
+			if err := engine.Play(audioFile); err != nil {
+				log.Warn().Err(err).Msg("Failed to play audio")
+			}
+		}
+	}
+
+	return nil
+}
+
+func handleCodexNotify(ctx context.Context, c *cli.Command) error {
+	// Suppress normal output when running as hook
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
+
+	// Use unified hook interface to automatically detect Claude Code or Codex
+	event, err := hook.DetectAndParse(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("failed to parse hook event: %w", err)
+	}
+
+	log.Debug().
+		Str("source", event.Source).
+		Str("session_id", event.SessionID).
+		Str("event_type", event.EventType).
+		Msg("Received hook event")
+
+	// Handle based on event source and type
+	if event.IsCodex() {
+		// Codex notify hook - triggered on agent-turn-complete
+		return handleCodexAgentTurnComplete(ctx, c, event)
+	} else if event.IsClaudeCode() {
+		// Claude Code events - route to appropriate handler
+		switch event.EventType {
+		case "UserPromptSubmit":
+			// Apply persona at session start
+			if err := persona.HandleSessionStart(); err != nil {
+				log.Error().Err(err).Msg("Failed to handle session start")
+			}
+			return nil
+		case "Stop", "SubagentStop":
+			// Voice synthesis for assistant response
+			return handleVoiceSynthesisForEvent(ctx, c, event)
+		case "Notification":
+			// Desktop and voice notification
+			return handleNotificationEvent(ctx, c, event)
+		default:
+			log.Debug().Str("event_type", event.EventType).Msg("Unhandled event type")
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
+	codexEvent, ok := event.GetCodexEvent()
+	if !ok {
+		return fmt.Errorf("failed to get Codex event")
+	}
+
+	log.Info().
+		Str("thread_id", codexEvent.ThreadID).
+		Int("turn_id", codexEvent.TurnID).
+		Str("cwd", codexEvent.CWD).
+		Msg("Codex agent turn complete")
+
+	// Desktop notification (if enabled)
+	if c.Bool("desktop") {
+		message := fmt.Sprintf("Turn %d completed", codexEvent.TurnID)
+		if err := showDesktopNotification(message, "normal"); err != nil {
+			log.Warn().Err(err).Msg("Failed to show desktop notification")
+		}
+	}
+
+	// Voice notification (if enabled)
+	if c.Bool("voice") && codexEvent.LastAssistantMessage != "" {
+		voiceConfig := voice.DefaultConfig()
+
+		// Load persona config for voice settings
+		config, _ := persona.LoadConfig(".")
+		if config != nil && config.Voice != nil {
+			if config.Voice.Engine != "" {
+				voiceConfig.EnginePriority = config.Voice.Engine
+			}
+			if config.Voice.SpeakerID > 0 {
+				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+			}
+		}
+
+		// Process text according to reading mode
+		reader := voice.NewTranscriptReader(voiceConfig)
+		text := reader.ProcessText(codexEvent.LastAssistantMessage)
+		text = voice.StripMarkdown(text)
+
+		// Synthesize and play
+		engine := voice.NewVoiceEngine(voiceConfig)
+		audioFile, err := engine.Synthesize(text)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to synthesize voice")
+		} else {
+			if err := engine.Play(audioFile); err != nil {
+				log.Warn().Err(err).Msg("Failed to play audio")
+			}
+		}
+	}
+
+	return nil
+}
+
+func handleVoiceSynthesisForEvent(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
+	if !c.Bool("voice") {
+		return nil
+	}
+
+	// This would be similar to handleVoice command
+	// but using the event's transcript path
+	log.Debug().Msg("Voice synthesis for event not yet implemented")
+	return nil
+}
+
+func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
+	message := event.AIResponse
+
+	// Desktop notification
+	if c.Bool("desktop") {
+		urgency := "normal"
+		if strings.Contains(strings.ToLower(message), "permission") {
+			urgency = "critical"
+		} else if strings.Contains(strings.ToLower(message), "idle") {
+			urgency = "low"
+		} else if strings.Contains(strings.ToLower(message), "error") {
+			urgency = "high"
+		}
+
+		if err := showDesktopNotification(message, urgency); err != nil {
+			log.Warn().Err(err).Msg("Failed to show desktop notification")
+		}
+	}
+
+	// Voice notification
+	if c.Bool("voice") {
+		voiceConfig := voice.DefaultConfig()
+		config, _ := persona.LoadConfig(".")
+		if config != nil && config.Voice != nil {
+			if config.Voice.Engine != "" {
+				voiceConfig.EnginePriority = config.Voice.Engine
+			}
+			if config.Voice.SpeakerID > 0 {
+				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+			}
+		}
+
+		engine := voice.NewVoiceEngine(voiceConfig)
+		audioFile, err := engine.Synthesize(message)
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to synthesize voice")
 		} else {
