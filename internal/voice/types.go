@@ -3,9 +3,10 @@ package voice
 // Config represents voice synthesis configuration
 type Config struct {
 	// Engine settings
-	EnginePriority     string `json:"engine_priority"`     // "voicevox" or "aivisspeech"
-	VoicevoxSpeaker    int    `json:"voicevox_speaker"`    // VOICEVOX speaker ID
-	AivisSpeechSpeaker int64  `json:"aivisspeech_speaker"` // AivisSpeech speaker ID
+	EnginePriority     string  `json:"engine_priority"`     // "voicevox" or "aivisspeech"
+	VoicevoxSpeaker    int     `json:"voicevox_speaker"`    // VOICEVOX speaker ID
+	AivisSpeechSpeaker int64   `json:"aivisspeech_speaker"` // AivisSpeech speaker ID
+	VolumeScale        float64 `json:"volume_scale"`        // Volume scale (0.0-2.0, default 1.0)
 
 	// Reading settings
 	ReadingMode string `json:"reading_mode"` // first_line, line_limit, after_first, full_text, char_limit
@@ -22,6 +23,7 @@ func DefaultConfig() *Config {
 		EnginePriority:     "aivisspeech",
 		VoicevoxSpeaker:    3,          // ずんだもん
 		AivisSpeechSpeaker: 1512153248, // Default AivisSpeech speaker
+		VolumeScale:        1.0,        // Default volume
 		ReadingMode:        "first_line",
 		MaxChars:           500,
 		MaxLines:           3,

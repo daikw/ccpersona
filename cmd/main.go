@@ -133,6 +133,16 @@ and behavioral patterns for your AI assistant.`,
 						Value: "aivisspeech",
 					},
 					&cli.IntFlag{
+						Name:  "speaker",
+						Usage: "Speaker ID for voice engine (e.g., 3 for VOICEVOX ずんだもん, 888753760 for AivisSpeech)",
+						Value: 0,
+					},
+					&cli.FloatFlag{
+						Name:  "volume",
+						Usage: "Volume scale for voice synthesis (0.0-2.0, default 1.0)",
+						Value: 1.0,
+					},
+					&cli.IntFlag{
 						Name:  "lines",
 						Usage: "Max lines for line_limit mode",
 						Value: 3,
@@ -555,6 +565,13 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	config.MaxLines = int(c.Int("lines"))
 	config.MaxChars = int(c.Int("chars"))
 	config.UUIDMode = c.Bool("uuid")
+	config.VolumeScale = c.Float("volume")
+
+	// Apply speaker ID from CLI flag
+	if speakerID := c.Int("speaker"); speakerID > 0 {
+		config.VoicevoxSpeaker = int(speakerID)
+		config.AivisSpeechSpeaker = speakerID
+	}
 
 	// Create voice manager
 	manager := voice.NewVoiceManager(config)
@@ -783,6 +800,7 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 			}
 			if config.Voice.SpeakerID > 0 {
 				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
 			}
 		}
 
@@ -877,6 +895,7 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 			}
 			if config.Voice.SpeakerID > 0 {
 				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
 			}
 		}
 
@@ -940,6 +959,7 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 			}
 			if config.Voice.SpeakerID > 0 {
 				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
 			}
 		}
 
