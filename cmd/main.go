@@ -160,7 +160,7 @@ and behavioral patterns for your AI assistant.`,
 					// Cloud provider flags
 					&cli.StringFlag{
 						Name:  "provider",
-						Usage: "TTS provider: openai, elevenlabs, voicevox, aivisspeech",
+						Usage: "TTS provider: openai, elevenlabs, polly, voicevox, aivisspeech",
 						Value: "",
 					},
 					&cli.StringFlag{
@@ -223,6 +223,22 @@ and behavioral patterns for your AI assistant.`,
 						Name:  "use-speaker-boost",
 						Usage: "Use speaker boost for ElevenLabs",
 						Value: true,
+					},
+					// Amazon Polly-specific flags
+					&cli.StringFlag{
+						Name:  "region",
+						Usage: "AWS region for Polly (e.g., us-east-1, eu-west-1)",
+						Value: "us-east-1",
+					},
+					&cli.StringFlag{
+						Name:  "polly-engine",
+						Usage: "Polly engine: neural, standard, long-form, generative",
+						Value: "neural",
+					},
+					&cli.StringFlag{
+						Name:  "sample-rate",
+						Usage: "Audio sample rate: 8000, 16000, 22050, 24000",
+						Value: "22050",
 					},
 				},
 			},
@@ -740,6 +756,9 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 		SimilarityBoost: similarityBoost,
 		Style:           style,
 		UseSpeakerBoost: c.Bool("use-speaker-boost"),
+		Region:          c.String("region"),
+		Engine:          c.String("polly-engine"),
+		SampleRate:      c.String("sample-rate"),
 		OutputPath:      c.String("output"),
 		PlayAudio:       !c.Bool("stdout"),
 		ToStdout:        c.Bool("stdout"),
