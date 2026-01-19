@@ -22,6 +22,8 @@ func (f *DefaultFactory) CreateProvider(providerName string, config map[string]i
 		return f.createElevenLabsProvider(config)
 	case "polly":
 		return f.createPollyProvider(config)
+	case "gcp":
+		return f.createGCPProvider(config)
 	default:
 		return nil, fmt.Errorf("unknown provider: %s", providerName)
 	}
@@ -29,7 +31,7 @@ func (f *DefaultFactory) CreateProvider(providerName string, config map[string]i
 
 // ListProviders returns available provider names
 func (f *DefaultFactory) ListProviders() []string {
-	return []string{"openai", "elevenlabs", "polly"}
+	return []string{"openai", "elevenlabs", "polly", "gcp"}
 }
 
 // createOpenAIProvider creates an OpenAI provider with configuration
@@ -78,6 +80,12 @@ func (f *DefaultFactory) createPollyProvider(config map[string]interface{}) (Pro
 	return PollyProviderFromConfig(config)
 }
 
+// createGCPProvider creates a Google Cloud TTS provider with configuration
+func (f *DefaultFactory) createGCPProvider(config map[string]interface{}) (Provider, error) {
+	// Authentication is handled via GOOGLE_APPLICATION_CREDENTIALS or ADC
+	return GCPProviderFromConfig(config)
+}
+
 // GetProviderWithDefaults creates a provider with default configuration
 func (f *DefaultFactory) GetProviderWithDefaults(providerName string) (Provider, error) {
 	config := make(map[string]interface{})
@@ -105,6 +113,12 @@ func (f *DefaultFactory) GetProviderWithDefaults(providerName string) (Provider,
 		config["model"] = "neural" // neural engine
 		config["format"] = "mp3"
 		config["quality"] = "22050" // sample rate
+	case "gcp":
+		// Google Cloud TTS defaults - uses GOOGLE_APPLICATION_CREDENTIALS or ADC
+		config["voice"] = "ja-JP-Neural2-B" // Japanese Neural2 male voice
+		config["language"] = "ja-JP"
+		config["engine"] = "neural2"
+		config["format"] = "mp3"
 	}
 
 	return f.CreateProvider(providerName, config)
