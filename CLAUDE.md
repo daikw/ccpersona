@@ -54,7 +54,7 @@ ccpersona is a persona management system that automatically applies different "p
    - With --transcript flag: reads from `~/.claude/projects/*.jsonl`
    - As Stop hook: automatically uses transcript path from hook event
    - Supports VOICEVOX (port 50021) and AivisSpeech (port 10101) engines
-   - Multiple reading modes: first_line, full_text, char_limit, etc.
+   - Reading modes: short (first line) or full (entire text with optional --chars limit)
    - Cross-platform audio playback (afplay/aplay/paplay/ffplay)
 
 4. **CLI Framework**

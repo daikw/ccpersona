@@ -125,8 +125,8 @@ and behavioral patterns for your AI assistant.`,
 					},
 					&cli.StringFlag{
 						Name:  "mode",
-						Usage: "Reading mode: first_line, line_limit, after_first, full_text, char_limit",
-						Value: "first_line",
+						Usage: "Reading mode: short (first line) or full (entire text). Legacy: first_line, full_text also supported",
+						Value: "short",
 					},
 					&cli.StringFlag{
 						Name:  "engine",
@@ -144,14 +144,9 @@ and behavioral patterns for your AI assistant.`,
 						Value: 1.0,
 					},
 					&cli.IntFlag{
-						Name:  "lines",
-						Usage: "Max lines for line_limit mode",
-						Value: 3,
-					},
-					&cli.IntFlag{
 						Name:  "chars",
-						Usage: "Max characters for char_limit mode",
-						Value: 500,
+						Usage: "Max characters limit for 'full' mode (0 = unlimited)",
+						Value: 0,
 					},
 					&cli.BoolFlag{
 						Name:  "uuid",
@@ -620,7 +615,6 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	voiceConfig := voice.DefaultConfig()
 	voiceConfig.ReadingMode = c.String("mode")
 	voiceConfig.EnginePriority = c.String("engine")
-	voiceConfig.MaxLines = int(c.Int("lines"))
 	voiceConfig.MaxChars = int(c.Int("chars"))
 	voiceConfig.UUIDMode = c.Bool("uuid")
 	voiceConfig.VolumeScale = c.Float("volume")

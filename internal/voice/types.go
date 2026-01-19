@@ -9,9 +9,8 @@ type Config struct {
 	VolumeScale        float64 `json:"volume_scale"`        // Volume scale (0.0-2.0, default 1.0)
 
 	// Reading settings
-	ReadingMode string `json:"reading_mode"` // first_line, line_limit, after_first, full_text, char_limit
-	MaxChars    int    `json:"max_chars"`    // Character limit for char_limit mode
-	MaxLines    int    `json:"max_lines"`    // Line limit for line_limit mode
+	ReadingMode string `json:"reading_mode"` // short (first line) or full (entire text)
+	MaxChars    int    `json:"max_chars"`    // Character limit for 'full' mode (0 = unlimited)
 
 	// Processing settings
 	UUIDMode bool `json:"uuid_mode"` // Use UUID search mode (slower but complete)
@@ -24,9 +23,8 @@ func DefaultConfig() *Config {
 		VoicevoxSpeaker:    3,          // ずんだもん
 		AivisSpeechSpeaker: 1512153248, // Default AivisSpeech speaker
 		VolumeScale:        1.0,        // Default volume
-		ReadingMode:        "first_line",
-		MaxChars:           500,
-		MaxLines:           3,
+		ReadingMode:        "short",    // First line only
+		MaxChars:           0,          // No limit by default
 		UUIDMode:           false,
 	}
 }
@@ -55,13 +53,32 @@ type AudioQuery struct {
 }
 
 // ReadingMode constants
+// Primary modes (recommended):
 const (
-	ModeFirstLine  = "first_line"
-	ModeLineLimit  = "line_limit"
-	ModeAfterFirst = "after_first"
-	ModeFullText   = "full_text"
-	ModeCharLimit  = "char_limit"
+	ModeShort = "short" // Read first line only
+	ModeFull  = "full"  // Read full text (with optional char limit)
 )
+
+// Legacy mode aliases for backward compatibility:
+const (
+	ModeFirstLine  = "first_line"  // Alias for "short"
+	ModeLineLimit  = "line_limit"  // Deprecated: use "full" with --chars
+	ModeAfterFirst = "after_first" // Deprecated: use "full"
+	ModeFullText   = "full_text"   // Alias for "full"
+	ModeCharLimit  = "char_limit"  // Alias for "full" with --chars
+)
+
+// NormalizeReadingMode converts legacy mode names to canonical names
+func NormalizeReadingMode(mode string) string {
+	switch mode {
+	case ModeFirstLine, ModeShort:
+		return ModeShort
+	case ModeFullText, ModeFull, ModeLineLimit, ModeAfterFirst, ModeCharLimit:
+		return ModeFull
+	default:
+		return ModeShort // Default
+	}
+}
 
 // Engine constants
 const (
