@@ -67,9 +67,29 @@ ccpersona is a persona management system that automatically applies different "p
 
 #### Claude Code Integration
 
-The system integrates with Claude Code via hooks:
-1. User configures Claude Code with `"user-prompt-submit": "ccpersona hook"`
-2. On session start, ccpersona checks for `.claude/persona.json` in the current directory
+The system integrates with Claude Code via hooks. **SessionStart is the recommended hook** as it's triggered once per session:
+
+**Recommended configuration (SessionStart):**
+```json
+{
+  "hooks": {
+    "session-start": ["ccpersona hook"]
+  }
+}
+```
+
+**Legacy configuration (UserPromptSubmit) - still supported:**
+```json
+{
+  "hooks": {
+    "user-prompt-submit": ["ccpersona hook"]
+  }
+}
+```
+
+The hook process:
+1. User configures Claude Code with the hook command
+2. On session start (or prompt submit for legacy), ccpersona checks for `.claude/persona.json`
 3. If found, applies the specified persona by outputting formatted instructions
 4. Session tracking prevents re-application during the same session
 

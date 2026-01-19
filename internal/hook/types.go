@@ -55,6 +55,18 @@ type PreCompactEvent struct {
 	CompactMode string `json:"compact_mode"` // "manual" or "auto"
 }
 
+// SessionStartEvent represents the SessionStart hook event
+// Triggered when a Claude Code session starts or resumes
+type SessionStartEvent struct {
+	HookEvent
+}
+
+// SessionEndEvent represents the SessionEnd hook event
+// Triggered when a Claude Code session ends
+type SessionEndEvent struct {
+	HookEvent
+}
+
 // CodexNotifyEvent represents the Codex notify hook event
 // See: https://github.com/openai/codex/blob/main/docs/config.md
 type CodexNotifyEvent struct {
@@ -124,6 +136,36 @@ func ReadStopEvent() (*StopEvent, error) {
 // ReadNotificationEvent is a convenience function to read Notification event from stdin
 func ReadNotificationEvent() (*NotificationEvent, error) {
 	return ParseNotificationEvent(os.Stdin)
+}
+
+// ParseSessionStartEvent reads and parses SessionStart event from stdin
+func ParseSessionStartEvent(r io.Reader) (*SessionStartEvent, error) {
+	var event SessionStartEvent
+	decoder := json.NewDecoder(r)
+	if err := decoder.Decode(&event); err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
+
+// ReadSessionStartEvent is a convenience function to read SessionStart event from stdin
+func ReadSessionStartEvent() (*SessionStartEvent, error) {
+	return ParseSessionStartEvent(os.Stdin)
+}
+
+// ParseSessionEndEvent reads and parses SessionEnd event from stdin
+func ParseSessionEndEvent(r io.Reader) (*SessionEndEvent, error) {
+	var event SessionEndEvent
+	decoder := json.NewDecoder(r)
+	if err := decoder.Decode(&event); err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
+
+// ReadSessionEndEvent is a convenience function to read SessionEnd event from stdin
+func ReadSessionEndEvent() (*SessionEndEvent, error) {
+	return ParseSessionEndEvent(os.Stdin)
 }
 
 // ParseCodexNotifyEvent reads and parses Codex notify event from stdin

@@ -590,28 +590,57 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 	// Suppress normal output when running as hook
 	zerolog.SetGlobalLevel(zerolog.WarnLevel)
 
-	// Try to read hook event data from stdin
-	event, err := hook.ReadUserPromptSubmitEvent()
+	// Try to detect and parse hook event using unified interface
+	unifiedEvent, err := hook.DetectAndParse(os.Stdin)
 	if err != nil {
-		// Fallback to legacy behavior if no stdin data
+		// Fallback to legacy behavior if no stdin data or parse error
 		log.Debug().Err(err).Msg("No hook event data from stdin, using legacy mode")
-	} else {
-		// Use session ID from hook event if available
-		if event.SessionID != "" {
-			_ = os.Setenv("CLAUDE_SESSION_ID", event.SessionID)
+		// Still try to apply persona in legacy mode
+		if err := persona.HandleSessionStart(); err != nil {
+			log.Error().Err(err).Msg("Failed to handle session start")
 		}
-		log.Debug().
-			Str("session_id", event.SessionID).
-			Str("prompt", event.Prompt).
-			Str("cwd", event.CWD).
-			Msg("Received UserPromptSubmit hook event")
-	}
-
-	if err := persona.HandleSessionStart(); err != nil {
-		// Log error but don't fail the hook
-		log.Error().Err(err).Msg("Failed to handle session start")
 		return nil
 	}
+
+	// Set session ID from hook event
+	if unifiedEvent.SessionID != "" {
+		_ = os.Setenv("CLAUDE_SESSION_ID", unifiedEvent.SessionID)
+	}
+
+	log.Debug().
+		Str("source", unifiedEvent.Source).
+		Str("event_type", unifiedEvent.EventType).
+		Str("session_id", unifiedEvent.SessionID).
+		Str("cwd", unifiedEvent.CWD).
+		Msg("Received hook event")
+
+	// Handle different event types
+	switch unifiedEvent.EventType {
+	case "SessionStart":
+		// SessionStart is the ideal hook for persona application
+		// It's triggered once when the session starts or resumes
+		log.Debug().Msg("Processing SessionStart hook")
+		if err := persona.HandleSessionStart(); err != nil {
+			log.Error().Err(err).Msg("Failed to handle session start")
+		}
+
+	case "UserPromptSubmit":
+		// UserPromptSubmit is the legacy hook, still supported for backward compatibility
+		// Persona application happens on every prompt, but session tracking prevents duplicates
+		log.Debug().Msg("Processing UserPromptSubmit hook (legacy)")
+		if err := persona.HandleSessionStart(); err != nil {
+			log.Error().Err(err).Msg("Failed to handle session start")
+		}
+
+	case "SessionEnd":
+		// SessionEnd can be used for cleanup or farewell messages
+		log.Debug().Msg("Processing SessionEnd hook")
+		// Future: Add farewell voice synthesis or session summary
+
+	default:
+		log.Debug().Str("event_type", unifiedEvent.EventType).Msg("Unhandled hook event type")
+	}
+
 	return nil
 }
 

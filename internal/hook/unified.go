@@ -114,6 +114,36 @@ func parseClaudeCodeEvent(data []byte, generic map[string]interface{}) (*Unified
 			RawEvent:   &event,
 		}, nil
 
+	case "SessionStart":
+		var event SessionStartEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse SessionStart event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "claude-code",
+			SessionID:  event.SessionID,
+			CWD:        event.CWD,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: "",
+			RawEvent:   &event,
+		}, nil
+
+	case "SessionEnd":
+		var event SessionEndEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse SessionEnd event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "claude-code",
+			SessionID:  event.SessionID,
+			CWD:        event.CWD,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: "",
+			RawEvent:   &event,
+		}, nil
+
 	default:
 		// For other Claude Code events, just parse as generic HookEvent
 		var event HookEvent
