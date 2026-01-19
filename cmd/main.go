@@ -559,22 +559,39 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 
 func handleVoice(ctx context.Context, c *cli.Command) error {
 	// Create voice config from flags
-	config := voice.DefaultConfig()
-	config.ReadingMode = c.String("mode")
-	config.EnginePriority = c.String("engine")
-	config.MaxLines = int(c.Int("lines"))
-	config.MaxChars = int(c.Int("chars"))
-	config.UUIDMode = c.Bool("uuid")
-	config.VolumeScale = c.Float("volume")
+	voiceConfig := voice.DefaultConfig()
+	voiceConfig.ReadingMode = c.String("mode")
+	voiceConfig.EnginePriority = c.String("engine")
+	voiceConfig.MaxLines = int(c.Int("lines"))
+	voiceConfig.MaxChars = int(c.Int("chars"))
+	voiceConfig.UUIDMode = c.Bool("uuid")
+	voiceConfig.VolumeScale = c.Float("volume")
 
-	// Apply speaker ID from CLI flag
-	if speakerID := c.Int("speaker"); speakerID > 0 {
-		config.VoicevoxSpeaker = int(speakerID)
-		config.AivisSpeechSpeaker = speakerID
+	// Apply speaker ID from CLI flag (takes priority over persona config)
+	cliSpeakerID := c.Int("speaker")
+	if cliSpeakerID > 0 {
+		voiceConfig.VoicevoxSpeaker = int(cliSpeakerID)
+		voiceConfig.AivisSpeechSpeaker = cliSpeakerID
+	}
+
+	// Load persona config and apply voice settings (if CLI flag not specified)
+	personaConfig, err := persona.LoadConfig(".")
+	if err == nil && personaConfig != nil && personaConfig.Voice != nil {
+		if personaConfig.Voice.Engine != "" {
+			voiceConfig.EnginePriority = personaConfig.Voice.Engine
+		}
+		if personaConfig.Voice.SpeakerID > 0 && cliSpeakerID == 0 {
+			// Apply speaker ID to the appropriate engine based on priority
+			if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
+				voiceConfig.AivisSpeechSpeaker = int64(personaConfig.Voice.SpeakerID)
+			} else {
+				voiceConfig.VoicevoxSpeaker = personaConfig.Voice.SpeakerID
+			}
+		}
 	}
 
 	// Create voice manager
-	manager := voice.NewVoiceManager(config)
+	manager := voice.NewVoiceManager(voiceConfig)
 
 	// Handle list voices
 	if c.Bool("list-voices") {
@@ -602,7 +619,7 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 		// User explicitly wants to read from transcript
 		log.Debug().Msg("Reading from latest transcript (--transcript flag)")
 
-		reader := voice.NewTranscriptReader(config)
+		reader := voice.NewTranscriptReader(voiceConfig)
 		transcriptPath, err := reader.FindLatestTranscript()
 		if err != nil {
 			return fmt.Errorf("failed to find transcript: %w", err)
@@ -658,7 +675,7 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 			Msg("Received Stop hook event")
 
 		// Create transcript reader
-		reader := voice.NewTranscriptReader(config)
+		reader := voice.NewTranscriptReader(voiceConfig)
 
 		// Get latest assistant message from transcript
 		text, err = reader.GetLatestAssistantMessage(event.TranscriptPath)
@@ -799,8 +816,12 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 				voiceConfig.EnginePriority = config.Voice.Engine
 			}
 			if config.Voice.SpeakerID > 0 {
-				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
-				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
+				// Apply speaker ID to the appropriate engine based on priority
+				if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
+					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
+				} else {
+					voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+				}
 			}
 		}
 
@@ -894,8 +915,12 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 				voiceConfig.EnginePriority = config.Voice.Engine
 			}
 			if config.Voice.SpeakerID > 0 {
-				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
-				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
+				// Apply speaker ID to the appropriate engine based on priority
+				if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
+					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
+				} else {
+					voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+				}
 			}
 		}
 
@@ -958,8 +983,12 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 				voiceConfig.EnginePriority = config.Voice.Engine
 			}
 			if config.Voice.SpeakerID > 0 {
-				voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
-				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
+				// Apply speaker ID to the appropriate engine based on priority
+				if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
+					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
+				} else {
+					voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+				}
 			}
 		}
 
