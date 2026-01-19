@@ -2,6 +2,7 @@ package voice
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -116,6 +117,15 @@ func (ve *VoiceEngine) synthesizeVoicevox(text string) (string, error) {
 		return "", fmt.Errorf("failed to read query response: %w", err)
 	}
 
+	// Apply volume scale if not default
+	if ve.config.VolumeScale != 1.0 {
+		var query map[string]interface{}
+		if err := json.Unmarshal(queryData, &query); err == nil {
+			query["volumeScale"] = ve.config.VolumeScale
+			queryData, _ = json.Marshal(query)
+		}
+	}
+
 	// Synthesize audio
 	synthURL := fmt.Sprintf("%s/synthesis?speaker=%d", VoicevoxURL, ve.config.VoicevoxSpeaker)
 
@@ -171,6 +181,15 @@ func (ve *VoiceEngine) synthesizeAivisSpeech(text string) (string, error) {
 	queryData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read query response: %w", err)
+	}
+
+	// Apply volume scale if not default
+	if ve.config.VolumeScale != 1.0 {
+		var query map[string]interface{}
+		if err := json.Unmarshal(queryData, &query); err == nil {
+			query["volumeScale"] = ve.config.VolumeScale
+			queryData, _ = json.Marshal(query)
+		}
 	}
 
 	// Synthesize audio

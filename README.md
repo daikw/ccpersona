@@ -9,6 +9,7 @@ A system that automatically applies different "personas" to Claude Code sessions
 - 📝 **Customizable** - Create and edit custom personas easily
 - 🎯 **Consistent interactions** - Maintain unified response styles throughout projects
 - 🔊 **Voice synthesis** - Optional text-to-speech for assistant messages
+- 🤖 **Multi-platform support** - Works with both Claude Code and OpenAI Codex
 
 ## Installation
 
@@ -51,7 +52,9 @@ ccpersona list
 ccpersona set zundamon
 ```
 
-3. **Configure Claude Code hook**
+3. **Configure hooks for your AI coding assistant**
+
+#### For Claude Code
 
 Add the following to your Claude Code settings file (e.g., `~/.claude/settings.json`):
 
@@ -92,7 +95,18 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
 }
 ```
 
-Now the persona will be applied automatically when you submit prompts in Claude Code.
+#### For OpenAI Codex
+
+Add the following to your Codex config file (`~/.codex/config.toml`):
+
+```toml
+[notify]
+# Use unified hook command that auto-detects Claude Code or Codex
+command = "ccpersona"
+args = ["codex-notify"]
+```
+
+Now the persona will be applied automatically when you submit prompts.
 
 ## Usage
 
@@ -128,6 +142,10 @@ ccpersona config -g     # Edit global config
 ccpersona hook                    # UserPromptSubmit hook (alias: user_prompt_submit_hook)
 ccpersona voice                   # Stop hook (alias: stop_hook)
 ccpersona notify                  # Notification hook (alias: notification_hook)
+
+# Execute as unified hook (works for both Claude Code and Codex)
+ccpersona codex-notify            # Unified hook (alias: codex_hook)
+                                  # Auto-detects and handles both platforms
 
 # Voice synthesis (expects JSON hook event from stdin by default)
 ccpersona voice                   # Read Stop hook JSON event from stdin
@@ -267,6 +285,8 @@ git push origin --tags
 
 ### How Hooks Work
 
+#### Claude Code Integration
+
 ccpersona integrates with Claude Code through the UserPromptSubmit hook:
 
 1. Configure Claude Code to run `ccpersona hook` on each prompt submission
@@ -274,10 +294,30 @@ ccpersona integrates with Claude Code through the UserPromptSubmit hook:
 3. If found and it's a new session, the persona instructions are output
 4. Claude Code receives these instructions and adjusts its behavior accordingly
 
+#### OpenAI Codex Integration
+
+ccpersona integrates with OpenAI Codex through the notify hook:
+
+1. Configure Codex to run `ccpersona codex-notify` on agent-turn-complete events
+2. When an agent turn completes, ccpersona receives the event in JSON format
+3. The unified hook interface automatically detects whether it's from Claude Code or Codex
+4. Appropriate actions (voice synthesis, notifications) are performed based on the event type
+
+#### Unified Hook Interface
+
+The `codex-notify` command provides a unified interface that automatically detects and handles events from both Claude Code and OpenAI Codex:
+
+- **Auto-detection**: Analyzes the JSON structure to determine the source platform
+- **Codex events**: Handles `agent-turn-complete` events with turn completion notifications
+- **Claude Code events**: Routes `UserPromptSubmit`, `Stop`, and `Notification` events to appropriate handlers
+- **Persona support**: Applies personas for both platforms using the same `.claude/persona.json` configuration
+- **Voice synthesis**: Works with both platforms using the configured voice engine
+
 This design provides:
 - Simple setup (works immediately after brew install)
 - Cross-platform compatibility (Windows/Mac/Linux)
-- Robust error handling (silent failures to avoid disrupting Claude Code)
+- Multi-platform AI assistant support (Claude Code and OpenAI Codex)
+- Robust error handling (silent failures to avoid disrupting the AI assistant)
 - Session tracking (prevents duplicate persona applications)
 - Advanced customization options
 

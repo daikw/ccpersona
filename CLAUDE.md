@@ -29,7 +29,7 @@ echo "テストなのだ！" | ./ccpersona voice --plain
 
 ## Architecture Overview
 
-ccpersona is a Claude Code persona management system that automatically applies different "personalities" to Claude Code sessions based on project configuration. The system is designed as a single Go binary that replaces shell script dependencies.
+ccpersona is a persona management system that automatically applies different "personalities" to AI coding assistant sessions (Claude Code and OpenAI Codex) based on project configuration. The system is designed as a single Go binary that replaces shell script dependencies and provides unified hook handling for multiple platforms.
 
 ### Core Components
 
@@ -37,9 +37,18 @@ ccpersona is a Claude Code persona management system that automatically applies 
    - Personas are markdown files stored in `~/.claude/personas/`
    - Project configuration in `.claude/persona.json`
    - Session tracking prevents duplicate persona applications
-   - Manager handles persona CRUD operations and Claude Code integration
+   - Manager handles persona CRUD operations and AI assistant integration
 
-2. **Voice Synthesis** (`internal/voice/`)
+2. **Hook System** (`internal/hook/`)
+   - **types.go**: Defines event types for both Claude Code and Codex
+     - Claude Code events: UserPromptSubmit, Stop, Notification, PreToolUse, PostToolUse, PreCompact
+     - Codex events: CodexNotifyEvent (agent-turn-complete)
+   - **unified.go**: Unified hook interface with auto-detection
+     - DetectAndParse(): Automatically detects Claude Code or Codex events from JSON
+     - UnifiedHookEvent: Normalized event structure for both platforms
+     - Platform-specific handlers route events to appropriate logic
+
+3. **Voice Synthesis** (`internal/voice/`)
    - Default: reads Stop hook JSON event from stdin (expects JSON with transcript_path)
    - With --plain flag: reads plain text from stdin for voice synthesis
    - With --transcript flag: reads from `~/.claude/projects/*.jsonl`
@@ -48,25 +57,47 @@ ccpersona is a Claude Code persona management system that automatically applies 
    - Multiple reading modes: first_line, full_text, char_limit, etc.
    - Cross-platform audio playback (afplay/aplay/paplay/ffplay)
 
-3. **CLI Framework**
+4. **CLI Framework**
    - Uses urfave/cli v3 (note: v3 has different API from v2)
    - Single entry point in `cmd/main.go`
-   - All commands return nil on success to avoid disrupting Claude Code hooks
+   - All commands return nil on success to avoid disrupting hooks
+   - **codex-notify**: Unified command that works with both Claude Code and Codex
 
 ### Hook Integration
 
-The system integrates with Claude Code via the UserPromptSubmit hook:
+#### Claude Code Integration
+
+The system integrates with Claude Code via hooks:
 1. User configures Claude Code with `"user-prompt-submit": "ccpersona hook"`
 2. On session start, ccpersona checks for `.claude/persona.json` in the current directory
 3. If found, applies the specified persona by outputting formatted instructions
 4. Session tracking prevents re-application during the same session
 
+#### OpenAI Codex Integration
+
+The system integrates with OpenAI Codex via the notify hook:
+1. User configures Codex with `command = "ccpersona"` and `args = ["codex-notify"]`
+2. On agent-turn-complete events, ccpersona receives JSON with turn details
+3. The unified hook interface (DetectAndParse) automatically detects Codex events
+4. Appropriate actions are performed (notifications, voice synthesis)
+
+#### Unified Hook Interface
+
+The `codex-notify` command provides a single interface for both platforms:
+- **Auto-detection**: Parses stdin JSON and identifies the platform by structure
+  - Codex events have `"type": "agent-turn-complete"` field
+  - Claude Code events have `"hook_event_name"` field
+- **Routing**: Routes events to platform-specific handlers
+- **Shared functionality**: Both platforms use the same persona and voice configuration
+
 ### Key Design Decisions
 
 - **No shell scripts**: All functionality implemented in Go for cross-platform compatibility
-- **Silent failures in hooks**: Errors are logged but don't fail to avoid disrupting Claude Code
+- **Multi-platform support**: Single codebase works with both Claude Code and OpenAI Codex
+- **Silent failures in hooks**: Errors are logged but don't fail to avoid disrupting AI assistants
 - **Session persistence**: Session markers stored in `/tmp/ccpersona-sessions/` with 24-hour cleanup
 - **Persona format**: Markdown with specific sections (口調, 考え方, 価値観, etc.)
+- **Unified hook interface**: Auto-detection of platform from JSON structure eliminates need for separate configurations
 
 ## Important Implementation Details
 

@@ -1,0 +1,159 @@
+// Package hook provides unified handling for both Claude Code and Codex hook events
+package hook
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+)
+
+// UnifiedHookEvent represents a normalized hook event that works for both Claude Code and Codex
+type UnifiedHookEvent struct {
+	Source     string      // "claude-code" or "codex"
+	SessionID  string      // Session/Thread identifier
+	CWD        string      // Current working directory
+	EventType  string      // Event type (e.g., "user-prompt-submit", "agent-turn-complete")
+	UserInput  []string    // User's input messages
+	AIResponse string      // AI's response message
+	RawEvent   interface{} // Original event for type-specific handling
+}
+
+// DetectAndParse automatically detects the hook source and parses the event
+func DetectAndParse(r io.Reader) (*UnifiedHookEvent, error) {
+	// Read all data from reader
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read input: %w", err)
+	}
+
+	// Try to parse as a generic JSON first to detect the source
+	var generic map[string]interface{}
+	if err := json.Unmarshal(data, &generic); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	// Detect source by checking for distinctive fields
+	if _, hasType := generic["type"]; hasType {
+		if typeVal, ok := generic["type"].(string); ok && typeVal == "agent-turn-complete" {
+			// This is a Codex event
+			return parseCodexEvent(data)
+		}
+	}
+
+	if _, hasHookEventName := generic["hook_event_name"]; hasHookEventName {
+		// This is a Claude Code event
+		return parseClaudeCodeEvent(data, generic)
+	}
+
+	return nil, fmt.Errorf("unknown hook event format")
+}
+
+func parseCodexEvent(data []byte) (*UnifiedHookEvent, error) {
+	var event CodexNotifyEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, fmt.Errorf("failed to parse Codex event: %w", err)
+	}
+
+	return &UnifiedHookEvent{
+		Source:     "codex",
+		SessionID:  event.ThreadID,
+		CWD:        event.CWD,
+		EventType:  event.Type,
+		UserInput:  event.InputMessages,
+		AIResponse: event.LastAssistantMessage,
+		RawEvent:   &event,
+	}, nil
+}
+
+func parseClaudeCodeEvent(data []byte, generic map[string]interface{}) (*UnifiedHookEvent, error) {
+	hookEventName, _ := generic["hook_event_name"].(string)
+
+	switch hookEventName {
+	case "UserPromptSubmit":
+		var event UserPromptSubmitEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse UserPromptSubmit event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "claude-code",
+			SessionID:  event.SessionID,
+			CWD:        event.CWD,
+			EventType:  hookEventName,
+			UserInput:  []string{event.Prompt},
+			AIResponse: "",
+			RawEvent:   &event,
+		}, nil
+
+	case "Stop", "SubagentStop":
+		var event StopEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse Stop event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "claude-code",
+			SessionID:  event.SessionID,
+			CWD:        event.CWD,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: "", // Will be read from transcript
+			RawEvent:   &event,
+		}, nil
+
+	case "Notification":
+		var event NotificationEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse Notification event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "claude-code",
+			SessionID:  event.SessionID,
+			CWD:        event.CWD,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: event.Message,
+			RawEvent:   &event,
+		}, nil
+
+	default:
+		// For other Claude Code events, just parse as generic HookEvent
+		var event HookEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse Claude Code event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "claude-code",
+			SessionID:  event.SessionID,
+			CWD:        event.CWD,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: "",
+			RawEvent:   &event,
+		}, nil
+	}
+}
+
+// IsCodex returns true if the event is from Codex
+func (e *UnifiedHookEvent) IsCodex() bool {
+	return e.Source == "codex"
+}
+
+// IsClaudeCode returns true if the event is from Claude Code
+func (e *UnifiedHookEvent) IsClaudeCode() bool {
+	return e.Source == "claude-code"
+}
+
+// GetCodexEvent returns the underlying Codex event if available
+func (e *UnifiedHookEvent) GetCodexEvent() (*CodexNotifyEvent, bool) {
+	if event, ok := e.RawEvent.(*CodexNotifyEvent); ok {
+		return event, true
+	}
+	return nil, false
+}
+
+// GetClaudeCodeEvent returns the underlying Claude Code event if available
+func (e *UnifiedHookEvent) GetClaudeCodeEvent() (interface{}, bool) {
+	if e.IsClaudeCode() {
+		return e.RawEvent, true
+	}
+	return nil, false
+}
