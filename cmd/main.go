@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -239,6 +240,47 @@ and behavioral patterns for your AI assistant.`,
 						Name:  "sample-rate",
 						Usage: "Audio sample rate: 8000, 16000, 22050, 24000",
 						Value: "22050",
+					},
+					// Config file options
+					&cli.StringFlag{
+						Name:  "config",
+						Usage: "Path to voice config file (default: .claude/voice.json or ~/.claude/voice.json)",
+						Value: "",
+					},
+					&cli.BoolFlag{
+						Name:  "no-config",
+						Usage: "Ignore all config files",
+						Value: false,
+					},
+				},
+				Commands: []*cli.Command{
+					{
+						Name:  "config",
+						Usage: "Manage voice configuration",
+						Commands: []*cli.Command{
+							{
+								Name:   "show",
+								Usage:  "Show current configuration (secrets masked)",
+								Action: handleVoiceConfigShow,
+							},
+							{
+								Name:   "validate",
+								Usage:  "Validate configuration file",
+								Action: handleVoiceConfigValidate,
+							},
+							{
+								Name:   "init",
+								Usage:  "Generate example configuration file",
+								Action: handleVoiceConfigInit,
+								Flags: []cli.Flag{
+									&cli.BoolFlag{
+										Name:  "global",
+										Usage: "Create global config (~/.claude/voice.json)",
+										Value: false,
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -583,7 +625,30 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	voiceConfig.UUIDMode = c.Bool("uuid")
 	voiceConfig.VolumeScale = c.Float("volume")
 
-	// Apply speaker ID from CLI flag (takes priority over persona config)
+	// Load voice config file (if not disabled)
+	fileConfig := loadVoiceConfig(c)
+	if fileConfig != nil {
+		// Apply file config as base, CLI flags override
+		provider := fileConfig.GetEffectiveProvider(c.String("provider"))
+		if providerConfig := fileConfig.GetProviderConfig(provider); providerConfig != nil {
+			// Apply local engine settings
+			if provider == "voicevox" || provider == "aivisspeech" {
+				if providerConfig.Speaker > 0 && c.Int("speaker") == 0 {
+					if provider == "aivisspeech" {
+						voiceConfig.AivisSpeechSpeaker = int64(providerConfig.Speaker)
+					} else {
+						voiceConfig.VoicevoxSpeaker = providerConfig.Speaker
+					}
+				}
+				if providerConfig.Volume > 0 && c.Float("volume") == 1.0 {
+					voiceConfig.VolumeScale = providerConfig.Volume
+				}
+			}
+			log.Debug().Str("provider", provider).Msg("Applied voice config from file")
+		}
+	}
+
+	// Apply speaker ID from CLI flag (takes priority over config file)
 	cliSpeakerID := c.Int("speaker")
 	if cliSpeakerID > 0 {
 		voiceConfig.VoicevoxSpeaker = int(cliSpeakerID)
@@ -1069,4 +1134,132 @@ func showDesktopNotification(message, urgency string) error {
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
+}
+
+// Voice config management handlers
+
+func handleVoiceConfigShow(ctx context.Context, c *cli.Command) error {
+	loader := voice.NewVoiceConfigLoader()
+
+	// Try to load config
+	workDir, _ := os.Getwd()
+	config, err := loader.LoadConfig(workDir)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if config == nil {
+		fmt.Println("No voice configuration file found.")
+		fmt.Println("\nSearched locations:")
+		fmt.Println("  - .claude/voice.json (project)")
+		fmt.Println("  - ~/.claude/voice.json (global)")
+		fmt.Println("\nRun 'ccpersona voice config init' to create one.")
+		return nil
+	}
+
+	// Mask secrets before displaying
+	masked := config.MaskSecrets()
+
+	// Pretty print
+	output, err := json.MarshalIndent(masked, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to format config: %w", err)
+	}
+
+	fmt.Println("Current voice configuration (secrets masked):")
+	fmt.Println(string(output))
+
+	return nil
+}
+
+func handleVoiceConfigValidate(ctx context.Context, c *cli.Command) error {
+	loader := voice.NewVoiceConfigLoader()
+
+	// Try to load config
+	workDir, _ := os.Getwd()
+	config, err := loader.LoadConfig(workDir)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if config == nil {
+		fmt.Println("No voice configuration file found.")
+		return nil
+	}
+
+	// Validate
+	errors := config.Validate()
+	if len(errors) == 0 {
+		fmt.Println("✅ Configuration is valid.")
+		return nil
+	}
+
+	fmt.Println("❌ Configuration has errors:")
+	for _, err := range errors {
+		fmt.Printf("  - %s\n", err)
+	}
+	return fmt.Errorf("configuration validation failed")
+}
+
+func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
+	var configPath string
+
+	if c.Bool("global") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		configPath = filepath.Join(homeDir, ".claude", "voice.json")
+	} else {
+		configPath = ".claude/voice.json"
+	}
+
+	// Check if file already exists
+	if _, err := os.Stat(configPath); err == nil {
+		return fmt.Errorf("config file already exists: %s", configPath)
+	}
+
+	// Create directory if needed
+	dir := filepath.Dir(configPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// Generate example config
+	example := voice.GenerateExampleConfig()
+
+	// Write with secure permissions
+	if err := os.WriteFile(configPath, []byte(example), 0600); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	fmt.Printf("✅ Created voice configuration: %s\n", configPath)
+	fmt.Println("\nEdit the file to configure your preferred voice providers.")
+	fmt.Println("Use ${ENV_VAR} syntax for sensitive values like API keys.")
+
+	return nil
+}
+
+// Helper function for loading voice config in handlers
+func loadVoiceConfig(c *cli.Command) *voice.VoiceConfigFile {
+	if c.Bool("no-config") {
+		return nil
+	}
+
+	loader := voice.NewVoiceConfigLoader()
+
+	// Custom config path
+	if configPath := c.String("config"); configPath != "" {
+		config, err := loader.LoadFromPath(configPath)
+		if err != nil {
+			log.Warn().Err(err).Str("path", configPath).Msg("Failed to load custom config")
+			return nil
+		}
+		return config
+	}
+
+	// Default locations
+	workDir, _ := os.Getwd()
+	config, _ := loader.LoadConfig(workDir)
+	return config
 }

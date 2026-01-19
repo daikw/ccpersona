@@ -93,7 +93,7 @@ func TestPollyProvider_ListVoices(t *testing.T) {
 					{
 						Id:               types.VoiceId("Matthew"),
 						Name:             aws.String("Matthew"),
-						LanguageCode:     types.LanguageCode("en-US"),  
+						LanguageCode:     types.LanguageCode("en-US"),
 						Gender:           types.GenderMale,
 						SupportedEngines: []types.Engine{types.EngineNeural},
 					},
@@ -154,17 +154,17 @@ func TestPollyProvider_ListVoices(t *testing.T) {
 
 func TestPollyProvider_Synthesize(t *testing.T) {
 	tests := []struct {
-		name           string
-		text           string
-		options        SynthesizeOptions
-		mockResponse   *polly.SynthesizeSpeechOutput
-		mockError      error
-		expectedError  string
-		validateInput  func(*testing.T, *polly.SynthesizeSpeechInput)
+		name          string
+		text          string
+		options       SynthesizeOptions
+		mockResponse  *polly.SynthesizeSpeechOutput
+		mockError     error
+		expectedError string
+		validateInput func(*testing.T, *polly.SynthesizeSpeechInput)
 	}{
 		{
-			name: "successful synthesis with defaults",
-			text: "Hello world",
+			name:    "successful synthesis with defaults",
+			text:    "Hello world",
 			options: SynthesizeOptions{},
 			mockResponse: &polly.SynthesizeSpeechOutput{
 				AudioStream: NewMockReadCloser([]byte("mock audio data")),
@@ -200,8 +200,8 @@ func TestPollyProvider_Synthesize(t *testing.T) {
 			},
 		},
 		{
-			name: "synthesis with SSML",
-			text: "<speak>Hello <prosody rate='slow'>world</prosody></speak>",
+			name:    "synthesis with SSML",
+			text:    "<speak>Hello <prosody rate='slow'>world</prosody></speak>",
 			options: SynthesizeOptions{},
 			mockResponse: &polly.SynthesizeSpeechOutput{
 				AudioStream: NewMockReadCloser([]byte("mock audio data")),
@@ -212,8 +212,8 @@ func TestPollyProvider_Synthesize(t *testing.T) {
 			},
 		},
 		{
-			name: "synthesis with all engines",
-			text: "Test",
+			name:    "synthesis with all engines",
+			text:    "Test",
 			options: SynthesizeOptions{Engine: "generative"},
 			mockResponse: &polly.SynthesizeSpeechOutput{
 				AudioStream: NewMockReadCloser([]byte("mock audio data")),
@@ -230,16 +230,16 @@ func TestPollyProvider_Synthesize(t *testing.T) {
 			expectedError: "text cannot be empty",
 		},
 		{
-			name: "unsupported format error",
-			text: "Hello",
-			options: SynthesizeOptions{Format: "unsupported"},
+			name:          "unsupported format error",
+			text:          "Hello",
+			options:       SynthesizeOptions{Format: "unsupported"},
 			expectedError: "unsupported audio format: unsupported",
 		},
 		{
-			name: "API synthesis error",
-			text: "Hello",
-			options: SynthesizeOptions{},
-			mockError: errors.New("synthesis failed"),
+			name:          "API synthesis error",
+			text:          "Hello",
+			options:       SynthesizeOptions{},
+			mockError:     errors.New("synthesis failed"),
 			expectedError: "failed to synthesize speech: synthesis failed",
 		},
 	}
@@ -267,7 +267,7 @@ func TestPollyProvider_Synthesize(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
-				
+
 				// Test that we can read from the result
 				data, readErr := io.ReadAll(result)
 				assert.NoError(t, readErr)
@@ -288,7 +288,7 @@ func TestPollyProvider_Synthesize_EngineValidation(t *testing.T) {
 		{"standard", types.EngineStandard},
 		{"long-form", types.EngineLongForm},
 		{"generative", types.EngineGenerative},
-		{"NEURAL", types.EngineNeural}, // Case insensitive
+		{"NEURAL", types.EngineNeural},  // Case insensitive
 		{"invalid", types.EngineNeural}, // Default fallback
 		{"", types.EngineNeural},        // Empty fallback
 	}
@@ -547,7 +547,7 @@ func TestPollyProviderFromConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			provider, err := PollyProviderFromConfig(tt.config)
-			
+
 			// We can't easily test the actual AWS client creation without mocking more,
 			// but we can verify the function doesn't crash and returns a provider
 			if strings.Contains(tt.name, "invalid") {
