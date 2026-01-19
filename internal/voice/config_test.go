@@ -220,8 +220,55 @@ func TestVoiceConfigFile_MaskSecrets(t *testing.T) {
 	require.NotNil(t, masked)
 	assert.Equal(t, "openai", masked.DefaultProvider)
 	assert.NotEqual(t, config.Providers["openai"].APIKey, masked.Providers["openai"].APIKey)
-	assert.Contains(t, masked.Providers["openai"].APIKey, "****")
+	// New format shows "[set, N chars]" instead of revealing any characters
+	assert.Contains(t, masked.Providers["openai"].APIKey, "[set,")
+	assert.Contains(t, masked.Providers["openai"].APIKey, "chars]")
 	assert.Equal(t, "nova", masked.Providers["openai"].Voice)
+}
+
+func TestValidateConfigPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		expectErr bool
+	}{
+		{
+			name:      "valid path",
+			path:      "/home/user/.claude/voice.json",
+			expectErr: false,
+		},
+		{
+			name:      "valid relative path",
+			path:      ".claude/voice.json",
+			expectErr: false,
+		},
+		{
+			name:      "path traversal attempt",
+			path:      "/home/user/../../../etc/passwd",
+			expectErr: true,
+		},
+		{
+			name:      "wrong filename",
+			path:      "/home/user/.claude/config.json",
+			expectErr: true,
+		},
+		{
+			name:      "hidden traversal",
+			path:      "/home/user/.claude/../../voice.json",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateConfigPath(tt.path)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestGenerateExampleConfig(t *testing.T) {

@@ -87,8 +87,32 @@ func (l *VoiceConfigLoader) LoadConfig(workDir string) (*VoiceConfigFile, error)
 }
 
 // LoadFromPath loads configuration from a specific path
+// For security, it validates that the path doesn't traverse outside expected directories
 func (l *VoiceConfigLoader) LoadFromPath(path string) (*VoiceConfigFile, error) {
+	// Validate path to prevent path traversal attacks
+	if err := validateConfigPath(path); err != nil {
+		return nil, err
+	}
 	return l.loadFromFile(path)
+}
+
+// validateConfigPath checks that the config path is safe to use
+func validateConfigPath(path string) error {
+	// Check for path traversal attempts BEFORE cleaning
+	// This catches both obvious and hidden traversal attempts
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("invalid config path: path traversal not allowed")
+	}
+
+	// Clean the path for further validation
+	cleanPath := filepath.Clean(path)
+
+	// Ensure path ends with expected filename
+	if !strings.HasSuffix(cleanPath, "voice.json") {
+		return fmt.Errorf("invalid config path: must be a voice.json file")
+	}
+
+	return nil
 }
 
 func (l *VoiceConfigLoader) loadFromFile(path string) (*VoiceConfigFile, error) {
@@ -111,7 +135,7 @@ func (l *VoiceConfigLoader) loadFromFile(path string) (*VoiceConfigFile, error) 
 	return &config, nil
 }
 
-// expandEnvVars replaces ${VAR} and $VAR patterns with environment variable values
+// expandEnvVars replaces ${VAR} patterns with environment variable values
 func expandEnvVars(input string) string {
 	// Match ${VAR} pattern
 	re := regexp.MustCompile(`\$\{([^}]+)\}`)
@@ -120,7 +144,8 @@ func expandEnvVars(input string) string {
 		if value, exists := os.LookupEnv(varName); exists {
 			return value
 		}
-		log.Warn().Str("var", varName).Msg("Environment variable not set")
+		// Don't log variable names for security reasons
+		log.Debug().Msg("Referenced environment variable not set in config")
 		return ""
 	})
 
@@ -134,10 +159,9 @@ func (l *VoiceConfigLoader) checkFilePermissions(path string) {
 	}
 
 	mode := info.Mode().Perm()
-	// Warn if file is world-readable or group-readable
-	if mode&0044 != 0 {
+	// Warn if file has any group or world permissions (read/write/execute)
+	if mode&0077 != 0 {
 		log.Warn().
-			Str("path", path).
 			Str("permissions", fmt.Sprintf("%04o", mode)).
 			Msg("Voice config file may contain secrets but has permissive permissions. Consider: chmod 600")
 	}
@@ -275,6 +299,7 @@ func GenerateExampleConfig() string {
 }
 
 // MaskSecrets masks sensitive values in config for display
+// For security, only shows that a key is present, not its contents
 func (c *VoiceConfigFile) MaskSecrets() *VoiceConfigFile {
 	if c == nil {
 		return nil
@@ -288,11 +313,8 @@ func (c *VoiceConfigFile) MaskSecrets() *VoiceConfigFile {
 	for name, provider := range c.Providers {
 		maskedProvider := provider
 		if provider.APIKey != "" {
-			if len(provider.APIKey) > 8 {
-				maskedProvider.APIKey = provider.APIKey[:4] + strings.Repeat("*", len(provider.APIKey)-8) + provider.APIKey[len(provider.APIKey)-4:]
-			} else {
-				maskedProvider.APIKey = "****"
-			}
+			// Only indicate that a key is set, don't reveal any characters
+			maskedProvider.APIKey = fmt.Sprintf("[set, %d chars]", len(provider.APIKey))
 		}
 		masked.Providers[name] = maskedProvider
 	}
