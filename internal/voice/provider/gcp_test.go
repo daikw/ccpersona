@@ -38,12 +38,6 @@ func (m *MockGCPClient) Close() error {
 	return nil
 }
 
-// GCPProviderWithMock creates a GCPProvider with a mock client for testing
-type GCPProviderWithMock struct {
-	*GCPProvider
-	mockClient *MockGCPClient
-}
-
 func TestGCPProvider_Name(t *testing.T) {
 	p := &GCPProvider{}
 	assert.Equal(t, "gcp", p.Name())
@@ -248,7 +242,7 @@ func TestGCPProvider_Integration(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping integration test - no GCP credentials: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	p := &GCPProvider{
 		client:   client,
@@ -288,7 +282,7 @@ func TestGCPProvider_Integration(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.NotNil(t, reader)
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		// Read the audio data
 		data, err := io.ReadAll(reader)
@@ -305,7 +299,7 @@ func TestGCPProvider_Integration(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.NotNil(t, reader)
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		data, err := io.ReadAll(reader)
 		assert.NoError(t, err)
@@ -319,7 +313,7 @@ func TestGCPProvider_Integration(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.NotNil(t, reader)
-		defer reader.Close()
+		defer func() { _ = reader.Close() }()
 
 		data, err := io.ReadAll(reader)
 		assert.NoError(t, err)
