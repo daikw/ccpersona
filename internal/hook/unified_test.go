@@ -127,6 +127,64 @@ func TestDetectAndParseClaudeCodeNotification(t *testing.T) {
 	}
 }
 
+func TestDetectAndParseClaudeCodeSessionStart(t *testing.T) {
+	jsonData := `{
+		"session_id": "session-start-123",
+		"transcript_path": "/path/to/transcript.jsonl",
+		"cwd": "/home/user/project",
+		"hook_event_name": "SessionStart"
+	}`
+
+	reader := strings.NewReader(jsonData)
+	event, err := DetectAndParse(reader)
+	if err != nil {
+		t.Fatalf("Failed to parse SessionStart event: %v", err)
+	}
+
+	if event.Source != "claude-code" {
+		t.Errorf("Expected source 'claude-code', got '%s'", event.Source)
+	}
+
+	if event.EventType != "SessionStart" {
+		t.Errorf("Expected event type 'SessionStart', got '%s'", event.EventType)
+	}
+
+	if event.SessionID != "session-start-123" {
+		t.Errorf("Expected session ID 'session-start-123', got '%s'", event.SessionID)
+	}
+
+	if event.CWD != "/home/user/project" {
+		t.Errorf("Expected CWD '/home/user/project', got '%s'", event.CWD)
+	}
+}
+
+func TestDetectAndParseClaudeCodeSessionEnd(t *testing.T) {
+	jsonData := `{
+		"session_id": "session-end-456",
+		"transcript_path": "/path/to/transcript.jsonl",
+		"cwd": "/home/user/project",
+		"hook_event_name": "SessionEnd"
+	}`
+
+	reader := strings.NewReader(jsonData)
+	event, err := DetectAndParse(reader)
+	if err != nil {
+		t.Fatalf("Failed to parse SessionEnd event: %v", err)
+	}
+
+	if event.Source != "claude-code" {
+		t.Errorf("Expected source 'claude-code', got '%s'", event.Source)
+	}
+
+	if event.EventType != "SessionEnd" {
+		t.Errorf("Expected event type 'SessionEnd', got '%s'", event.EventType)
+	}
+
+	if event.SessionID != "session-end-456" {
+		t.Errorf("Expected session ID 'session-end-456', got '%s'", event.SessionID)
+	}
+}
+
 func TestDetectAndParseInvalidJSON(t *testing.T) {
 	jsonData := `{"invalid json`
 
