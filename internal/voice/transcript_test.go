@@ -232,57 +232,37 @@ func TestGetLatestAssistantMessageNoText(t *testing.T) {
 	}
 }
 
-// TestProcessTextModes tests different reading modes
+// TestProcessTextModes tests reading modes (short and full)
 func TestProcessTextModes(t *testing.T) {
 	tests := []struct {
 		name     string
-		mode     string
 		input    string
 		expected string
 		config   *Config
 	}{
 		{
-			name:     "FirstLine",
-			mode:     ModeFirstLine,
+			name:     "Short mode",
 			input:    "First line\nSecond line\nThird line",
 			expected: "First line",
-			config:   DefaultConfig(),
-		},
-		{
-			name:     "LineLimit",
-			mode:     ModeLineLimit,
-			input:    "Line 1\nLine 2\nLine 3\nLine 4",
-			expected: "Line 1 Line 2 Line 3",
 			config: &Config{
-				ReadingMode: ModeLineLimit,
-				MaxLines:    3,
+				ReadingMode: ModeShort,
 			},
 		},
 		{
-			name:     "AfterFirst",
-			mode:     ModeAfterFirst,
-			input:    "Skip this\nKeep this\nAnd this",
-			expected: "Keep this And this",
-			config: &Config{
-				ReadingMode: ModeAfterFirst,
-			},
-		},
-		{
-			name:     "FullText",
-			mode:     ModeFullText,
+			name:     "Full mode without limit",
 			input:    "All\nof\nthis\ntext",
 			expected: "All of this text",
 			config: &Config{
-				ReadingMode: ModeFullText,
+				ReadingMode: ModeFull,
+				MaxChars:    0, // No limit
 			},
 		},
 		{
-			name:     "CharLimit",
-			mode:     ModeCharLimit,
+			name:     "Full mode with char limit",
 			input:    "This is a long text that should be truncated",
 			expected: "This is a long t",
 			config: &Config{
-				ReadingMode: ModeCharLimit,
+				ReadingMode: ModeFull,
 				MaxChars:    16,
 			},
 		},
@@ -294,6 +274,103 @@ func TestProcessTextModes(t *testing.T) {
 			result := reader.ProcessText(tt.input)
 			if result != tt.expected {
 				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestProcessTextLegacyModes tests backward compatibility with legacy mode names
+func TestProcessTextLegacyModes(t *testing.T) {
+	tests := []struct {
+		name       string
+		legacyMode string
+		input      string
+		expected   string
+		config     *Config
+	}{
+		{
+			name:       "Legacy first_line maps to short",
+			legacyMode: ModeFirstLine,
+			input:      "First line\nSecond line",
+			expected:   "First line",
+			config: &Config{
+				ReadingMode: ModeFirstLine,
+			},
+		},
+		{
+			name:       "Legacy full_text maps to full",
+			legacyMode: ModeFullText,
+			input:      "All\nof\nthis",
+			expected:   "All of this",
+			config: &Config{
+				ReadingMode: ModeFullText,
+				MaxChars:    0,
+			},
+		},
+		{
+			name:       "Legacy line_limit maps to full",
+			legacyMode: ModeLineLimit,
+			input:      "Line 1\nLine 2\nLine 3",
+			expected:   "Line 1 Line 2 Line 3",
+			config: &Config{
+				ReadingMode: ModeLineLimit,
+				MaxChars:    0,
+			},
+		},
+		{
+			name:       "Legacy after_first maps to full",
+			legacyMode: ModeAfterFirst,
+			input:      "Skip\nKeep this",
+			expected:   "Skip Keep this",
+			config: &Config{
+				ReadingMode: ModeAfterFirst,
+				MaxChars:    0,
+			},
+		},
+		{
+			name:       "Legacy char_limit maps to full with MaxChars",
+			legacyMode: ModeCharLimit,
+			input:      "This is truncated text",
+			expected:   "This is tr",
+			config: &Config{
+				ReadingMode: ModeCharLimit,
+				MaxChars:    10,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := NewTranscriptReader(tt.config)
+			result := reader.ProcessText(tt.input)
+			if result != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestNormalizeReadingMode tests mode normalization
+func TestNormalizeReadingMode(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{ModeShort, ModeShort},
+		{ModeFull, ModeFull},
+		{ModeFirstLine, ModeShort},
+		{ModeFullText, ModeFull},
+		{ModeLineLimit, ModeFull},
+		{ModeAfterFirst, ModeFull},
+		{ModeCharLimit, ModeFull},
+		{"unknown", ModeShort}, // Default to short
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := NormalizeReadingMode(tt.input)
+			if result != tt.expected {
+				t.Errorf("NormalizeReadingMode(%s) = %s, want %s", tt.input, result, tt.expected)
 			}
 		})
 	}

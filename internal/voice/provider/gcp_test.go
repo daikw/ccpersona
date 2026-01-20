@@ -108,8 +108,8 @@ func TestGCPProvider_getSpeakingRate(t *testing.T) {
 		{"normal", 1.0, 1.0},
 		{"slow", 0.5, 0.5},
 		{"fast", 2.0, 2.0},
-		{"too_slow", 0.1, 0.25},  // Clamped to min
-		{"too_fast", 5.0, 4.0},   // Clamped to max
+		{"too_slow", 0.1, 0.25}, // Clamped to min
+		{"too_fast", 5.0, 4.0},  // Clamped to max
 		{"boundary_min", 0.25, 0.25},
 		{"boundary_max", 4.0, 4.0},
 	}

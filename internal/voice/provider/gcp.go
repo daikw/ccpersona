@@ -197,8 +197,8 @@ func (p *GCPProvider) Synthesize(ctx context.Context, text string, options Synth
 
 	// Build audio config
 	audioConfig := &texttospeechpb.AudioConfig{
-		AudioEncoding: p.getAudioEncoding(options.Format),
-		SpeakingRate:  p.getSpeakingRate(options.Speed),
+		AudioEncoding:   p.getAudioEncoding(options.Format),
+		SpeakingRate:    p.getSpeakingRate(options.Speed),
 		SampleRateHertz: p.getSampleRate(options.SampleRate),
 	}
 

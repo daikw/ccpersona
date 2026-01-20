@@ -150,7 +150,7 @@ ccpersona codex-notify            # Unified hook (alias: codex_hook)
 # Voice synthesis (expects JSON hook event from stdin by default)
 ccpersona voice                   # Read Stop hook JSON event from stdin
 echo "こんにちは、世界！" | ccpersona voice --plain  # Read plain text
-echo "Hello, world!" | ccpersona voice --plain --mode full_text --engine voicevox
+echo "Hello, world!" | ccpersona voice --plain --mode full --engine voicevox
 
 # Voice synthesis from transcript
 ccpersona voice --transcript  # Read latest assistant message from transcript
@@ -232,11 +232,10 @@ The voice synthesis feature supports:
 - **AivisSpeech** - Alternative voice engine (default port: 10101)
 
 Reading modes:
-- `first_line` - Read only the first line
-- `line_limit` - Read up to N lines
-- `after_first` - Skip first line, read the rest
-- `full_text` - Read entire message
-- `char_limit` - Read up to N characters
+- `short` - Read only the first line (default)
+- `full` - Read entire message (use `--chars` to limit characters)
+
+Legacy mode names (`first_line`, `full_text`, etc.) are still supported for backward compatibility.
 
 ## File Locations
 

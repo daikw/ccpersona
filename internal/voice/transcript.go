@@ -260,43 +260,31 @@ func (tr *TranscriptReader) readLinesWithTruncation(file *os.File) ([]string, er
 
 // ProcessText applies reading mode restrictions to the text
 func (tr *TranscriptReader) ProcessText(text string) string {
-	switch tr.config.ReadingMode {
-	case ModeFirstLine:
-		// First line only
+	// Normalize mode for backward compatibility
+	normalizedMode := NormalizeReadingMode(tr.config.ReadingMode)
+
+	switch normalizedMode {
+	case ModeShort:
+		// First line only (formerly first_line)
 		if idx := strings.Index(text, "\n"); idx != -1 {
 			text = text[:idx]
 		}
 
-	case ModeLineLimit:
-		// Limited number of lines
-		lines := strings.Split(text, "\n")
-		if len(lines) > tr.config.MaxLines {
-			lines = lines[:tr.config.MaxLines]
-		}
-		text = strings.Join(lines, " ")
-
-	case ModeAfterFirst:
-		// Skip first line
-		if idx := strings.Index(text, "\n"); idx != -1 && idx < len(text)-1 {
-			text = text[idx+1:]
-		}
+	case ModeFull:
+		// Full text with newlines replaced by spaces (formerly full_text/char_limit)
 		text = strings.ReplaceAll(text, "\n", " ")
-
-	case ModeFullText:
-		// Full text with newlines replaced by spaces
-		text = strings.ReplaceAll(text, "\n", " ")
-
-	case ModeCharLimit:
-		// Character limit
-		text = strings.ReplaceAll(text, "\n", " ")
-		runes := []rune(text)
-		if len(runes) > tr.config.MaxChars {
-			text = string(runes[:tr.config.MaxChars])
+		// Apply character limit if specified
+		if tr.config.MaxChars > 0 {
+			runes := []rune(text)
+			if len(runes) > tr.config.MaxChars {
+				text = string(runes[:tr.config.MaxChars])
+			}
 		}
 	}
 
 	log.Debug().
-		Str("mode", tr.config.ReadingMode).
+		Str("mode", normalizedMode).
+		Str("original_mode", tr.config.ReadingMode).
 		Int("length", len(text)).
 		Msg("Processed text")
 
