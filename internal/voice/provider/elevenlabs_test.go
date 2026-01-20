@@ -31,7 +31,7 @@ func TestElevenLabsProvider_ListVoices(t *testing.T) {
 			assert.Equal(t, "test-api-key", r.Header.Get("xi-api-key"))
 
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{
+			_, _ = w.Write([]byte(`{
 				"voices": [
 					{
 						"voice_id": "voice1",
@@ -61,7 +61,7 @@ func TestElevenLabsProvider_ListVoices(t *testing.T) {
 	t.Run("handles API error", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"detail": {"status": "invalid_api_key"}}`))
+			_, _ = w.Write([]byte(`{"detail": {"status": "invalid_api_key"}}`))
 		}))
 		defer server.Close()
 
@@ -93,7 +93,7 @@ func TestElevenLabsProvider_Synthesize(t *testing.T) {
 			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("mock audio data"))
+			_, _ = w.Write([]byte("mock audio data"))
 		}))
 		defer server.Close()
 
@@ -115,13 +115,13 @@ func TestElevenLabsProvider_Synthesize(t *testing.T) {
 		data, err := io.ReadAll(reader)
 		assert.NoError(t, err)
 		assert.Equal(t, "mock audio data", string(data))
-		reader.Close()
+		_ = reader.Close()
 	})
 
 	t.Run("uses default values", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("audio"))
+			_, _ = w.Write([]byte("audio"))
 		}))
 		defer server.Close()
 
@@ -133,13 +133,13 @@ func TestElevenLabsProvider_Synthesize(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, reader)
-		reader.Close()
+		_ = reader.Close()
 	})
 
 	t.Run("handles API error", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"detail": {"message": "Bad request"}}`))
+			_, _ = w.Write([]byte(`{"detail": {"message": "Bad request"}}`))
 		}))
 		defer server.Close()
 
@@ -164,7 +164,7 @@ func TestElevenLabsProvider_IsAvailable(t *testing.T) {
 	t.Run("returns true when API responds OK", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"voices": []}`))
+			_, _ = w.Write([]byte(`{"voices": []}`))
 		}))
 		defer server.Close()
 
