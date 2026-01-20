@@ -127,12 +127,12 @@ This checks:
 
 3. **Check Claude Code hooks configuration:**
    ```bash
-   cat ~/.claude/settings.json | grep -A5 "UserPromptSubmit"
+   cat ~/.claude/settings.json | grep -A5 "session-start"
    ```
 
 4. **Verify hook output manually:**
    ```bash
-   echo '{"hook_event_name":"UserPromptSubmit","session_id":"test","prompt":"hello"}' | ccpersona hook
+   echo '{"session_id":"test"}' | ccpersona hook
    ```
 
 5. **Check session tracking (persona only applies once per session):**
@@ -230,12 +230,13 @@ To use different speakers on different machines:
    ```json
    {
      "hooks": {
-       "UserPromptSubmit": [
+       "session-start": ["ccpersona hook"],
+       "Stop": [
          {
            "hooks": [
              {
                "type": "command",
-               "command": "ccpersona hook"
+               "command": "ccpersona voice"
              }
            ]
          }
@@ -257,7 +258,7 @@ To use different speakers on different machines:
 ### Hook causes Claude Code to hang
 
 **Symptoms:**
-- Claude Code becomes unresponsive after prompt submission
+- Claude Code becomes unresponsive after session start
 
 **Solutions:**
 
@@ -267,7 +268,7 @@ To use different speakers on different machines:
 
 3. **Test hook in isolation:**
    ```bash
-   time echo '{"hook_event_name":"UserPromptSubmit"}' | ccpersona hook
+   time echo '{"session_id":"test"}' | ccpersona hook
    ```
 
 ## Getting Help
