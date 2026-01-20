@@ -308,6 +308,11 @@ If you work on multiple devices (e.g., Mac + Jetson terminals), you can run a si
 
 Now each device produces a distinct voice, making it easy to identify which session is speaking.
 
+## Documentation
+
+- [Persona Creation Best Practices](docs/persona-best-practices.md) - How to write effective personas
+- [Troubleshooting Guide](docs/troubleshooting.md) - Diagnose and fix common issues
+
 ## File Locations
 
 - Global personas: `~/.claude/personas/`
