@@ -2,7 +2,7 @@
 
 # Variables
 BINARY_NAME := ccpersona
-MAIN_PATH := ./cmd/main.go
+MAIN_PATH := ./cmd
 BUILD_DIR := ./dist
 INSTALL_PATH := $(GOPATH)/bin
 

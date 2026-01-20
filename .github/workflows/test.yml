@@ -72,4 +72,4 @@ jobs:
           cache: true
 
       - name: Build
-        run: go build -v ./cmd/main.go
+        run: go build -v -o ccpersona ./cmd
