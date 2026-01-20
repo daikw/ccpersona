@@ -81,16 +81,7 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
 ```json
 {
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ccpersona hook"
-          }
-        ]
-      }
-    ],
+    "session-start": ["ccpersona hook"],
     "Stop": [
       {
         "hooks": [
