@@ -229,8 +229,8 @@ func TestConvertToElevenLabsFormat(t *testing.T) {
 	}{
 		{"mp3", "mp3_44100_128"},
 		{"wav", "pcm_44100"},
-		{"ogg", "ulaw_8000"},     // maps to ulaw_8000
-		{"", "mp3_44100_128"},   // default
+		{"ogg", "ulaw_8000"},  // maps to ulaw_8000
+		{"", "mp3_44100_128"}, // default
 	}
 
 	for _, tt := range tests {

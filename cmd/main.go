@@ -38,44 +38,44 @@ and behavioral patterns for your AI assistant.`,
 		Commands: []*cli.Command{
 			{
 				Name:    "init",
-				Usage:   "Initialize persona configuration in current project",
+				Usage:   "Initialize persona configuration in current project (interactive)",
 				Action:  handleInit,
 				Aliases: []string{"i"},
 			},
 			{
 				Name:    "list",
-				Usage:   "List available personas",
+				Usage:   "List available personas (deprecated: use init)",
 				Action:  handleList,
 				Aliases: []string{"ls", "l"},
 			},
 			{
 				Name:    "current",
-				Usage:   "Show current active persona",
+				Usage:   "Show current active persona (deprecated: use show)",
 				Action:  handleCurrent,
 				Aliases: []string{"c"},
 			},
 			{
 				Name:      "set",
-				Usage:     "Set the active persona for this project",
+				Usage:     "Set the active persona for this project (deprecated: use init)",
 				Action:    handleSet,
 				Aliases:   []string{"s"},
 				ArgsUsage: "<persona>",
 			},
 			{
 				Name:      "show",
-				Usage:     "Show details of a specific persona",
+				Usage:     "Show persona details (without args: show current persona)",
 				Action:    handleShow,
-				ArgsUsage: "<persona>",
+				ArgsUsage: "[persona]",
 			},
 			{
 				Name:      "create",
-				Usage:     "Create a new persona",
+				Usage:     "Create a new persona (deprecated: use edit)",
 				Action:    handleCreate,
 				ArgsUsage: "<name>",
 			},
 			{
 				Name:      "edit",
-				Usage:     "Edit an existing persona",
+				Usage:     "Edit a persona (creates if not exists)",
 				Action:    handleEdit,
 				ArgsUsage: "<persona>",
 			},
@@ -93,7 +93,7 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:   "setup",
-				Usage:  "Interactive setup wizard for ccpersona",
+				Usage:  "Interactive setup wizard (deprecated: use status --diagnose)",
 				Action: handleSetup,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
@@ -105,12 +105,19 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:   "status",
-				Usage:  "Show current ccpersona status",
+				Usage:  "Show current ccpersona status (auto-diagnoses on errors)",
 				Action: handleStatus,
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "diagnose",
+						Usage: "Force detailed diagnostics",
+						Value: false,
+					},
+				},
 			},
 			{
 				Name:   "doctor",
-				Usage:  "Diagnose ccpersona configuration and connectivity",
+				Usage:  "Diagnose ccpersona configuration (deprecated: use status --diagnose)",
 				Action: handleDoctor,
 			},
 			{
@@ -209,27 +216,9 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:    "notify",
-				Aliases: []string{"notification_hook"},
-				Usage:   "Handle Claude Code notifications and alert the user",
+				Aliases: []string{"notification_hook", "codex-notify", "codex_hook"},
+				Usage:   "Handle notifications (auto-detects Claude Code or Codex)",
 				Action:  handleNotify,
-				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:  "voice",
-						Usage: "Use voice synthesis for notifications",
-						Value: true,
-					},
-					&cli.BoolFlag{
-						Name:  "desktop",
-						Usage: "Show desktop notifications",
-						Value: true,
-					},
-				},
-			},
-			{
-				Name:    "codex-notify",
-				Aliases: []string{"codex_hook"},
-				Usage:   "Execute as Codex notify hook (supports both Claude Code and Codex)",
-				Action:  handleCodexNotify,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:  "voice",
