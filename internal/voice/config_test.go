@@ -282,3 +282,129 @@ func TestGenerateExampleConfig(t *testing.T) {
 	assert.Contains(t, example, "aivisspeech")
 	assert.Contains(t, example, "${OPENAI_API_KEY}")
 }
+
+func TestVoiceConfigLoader_LoadFromPath(t *testing.T) {
+	// Create temp directory with config file
+	tmpDir, err := os.MkdirTemp("", "voice-config-loadfrompath-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create .claude directory
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	err = os.MkdirAll(claudeDir, 0755)
+	require.NoError(t, err)
+
+	configContent := `{
+		"defaultProvider": "aivisspeech",
+		"providers": {
+			"aivisspeech": {
+				"speaker": 888753760
+			}
+		}
+	}`
+	configPath := filepath.Join(claudeDir, "voice.json")
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	loader := NewVoiceConfigLoader()
+
+	t.Run("load from valid path", func(t *testing.T) {
+		config, err := loader.LoadFromPath(configPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+		assert.Equal(t, "aivisspeech", config.DefaultProvider)
+		assert.Equal(t, 888753760, config.Providers["aivisspeech"].Speaker)
+	})
+
+	t.Run("load from path with traversal", func(t *testing.T) {
+		_, err := loader.LoadFromPath("/tmp/../etc/passwd")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "path traversal")
+	})
+
+	t.Run("load from wrong filename", func(t *testing.T) {
+		_, err := loader.LoadFromPath("/tmp/config.json")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "voice.json")
+	})
+
+	t.Run("load from nonexistent path", func(t *testing.T) {
+		_, err := loader.LoadFromPath("/nonexistent/path/voice.json")
+		assert.Error(t, err)
+	})
+}
+
+func TestContains(t *testing.T) {
+	tests := []struct {
+		name     string
+		slice    []string
+		item     string
+		expected bool
+	}{
+		{
+			name:     "item exists in slice",
+			slice:    []string{"a", "b", "c"},
+			item:     "b",
+			expected: true,
+		},
+		{
+			name:     "item not in slice",
+			slice:    []string{"a", "b", "c"},
+			item:     "d",
+			expected: false,
+		},
+		{
+			name:     "empty slice",
+			slice:    []string{},
+			item:     "a",
+			expected: false,
+		},
+		{
+			name:     "item at beginning",
+			slice:    []string{"x", "y", "z"},
+			item:     "x",
+			expected: true,
+		},
+		{
+			name:     "item at end",
+			slice:    []string{"x", "y", "z"},
+			item:     "z",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := contains(tt.slice, tt.item)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestVoiceConfigFile_ValidateProviderConfig_ElevenLabs(t *testing.T) {
+	t.Run("missing elevenlabs api key", func(t *testing.T) {
+		config := &VoiceConfigFile{
+			Providers: map[string]ProviderConfig{
+				"elevenlabs": {
+					Voice: "Rachel",
+				},
+			},
+		}
+		errors := config.Validate()
+		assert.Len(t, errors, 1)
+		assert.Contains(t, errors[0], "apiKey is required")
+	})
+
+	t.Run("valid elevenlabs config", func(t *testing.T) {
+		config := &VoiceConfigFile{
+			Providers: map[string]ProviderConfig{
+				"elevenlabs": {
+					APIKey: "test-key",
+					Voice:  "Rachel",
+				},
+			},
+		}
+		errors := config.Validate()
+		assert.Empty(t, errors)
+	})
+}
