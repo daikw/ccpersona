@@ -13,11 +13,35 @@ A system that automatically applies different "personas" to Claude Code sessions
 
 ## Installation
 
-### Homebrew (Recommended)
+### Quick Install (Recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/daikw/ccpersona/main/install.sh | sh
+```
+
+This works on Linux (including Jetson/ARM64), macOS, and Windows (via WSL/Git Bash).
+
+### Homebrew (macOS/Linux)
 
 ```bash
 brew tap daikw/tap
 brew install ccpersona
+```
+
+### Direct Download
+
+```bash
+# Linux ARM64 (Jetson, Raspberry Pi, etc.)
+curl -Lo ccpersona.tar.gz https://github.com/daikw/ccpersona/releases/latest/download/ccpersona_Linux_arm64.tar.gz
+tar -xzf ccpersona.tar.gz && sudo mv ccpersona /usr/local/bin/
+
+# Linux x86_64
+curl -Lo ccpersona.tar.gz https://github.com/daikw/ccpersona/releases/latest/download/ccpersona_Linux_x86_64.tar.gz
+tar -xzf ccpersona.tar.gz && sudo mv ccpersona /usr/local/bin/
+
+# macOS ARM64 (Apple Silicon)
+curl -Lo ccpersona.tar.gz https://github.com/daikw/ccpersona/releases/latest/download/ccpersona_Darwin_arm64.tar.gz
+tar -xzf ccpersona.tar.gz && sudo mv ccpersona /usr/local/bin/
 ```
 
 ### Build from Source
@@ -28,10 +52,6 @@ cd ccpersona
 make build
 make install
 ```
-
-### Download Binary
-
-Download the latest binary from the [Releases](https://github.com/daikw/ccpersona/releases) page.
 
 ## Quick Start
 
@@ -236,6 +256,57 @@ Reading modes:
 - `full` - Read entire message (use `--chars` to limit characters)
 
 Legacy mode names (`first_line`, `full_text`, etc.) are still supported for backward compatibility.
+
+## Advanced Usage
+
+### Multi-Device Setup with Remote Voice Synthesis
+
+If you work on multiple devices (e.g., Mac + Jetson terminals), you can run a single voice synthesis engine on your main machine and forward the connection to other devices.
+
+**Architecture:**
+```
+┌─────────────────┐     ssh -R 10101:localhost:10101
+│   Mac (Server)  │◄────────────────────────────────┐
+│  AivisSpeech    │                                 │
+│  (port 10101)   │                                 │
+└─────────────────┘                                 │
+                                                    │
+┌─────────────────┐  ┌─────────────────┐  ┌────────┴────────┐
+│   Jetson #1     │  │   Jetson #2     │  │   Jetson #3     │
+│  Speaker: A     │  │  Speaker: B     │  │  Speaker: C     │
+│  (project-foo)  │  │  (project-bar)  │  │  (project-baz)  │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+**Setup:**
+
+1. **On the server (Mac):** Start AivisSpeech or VOICEVOX
+
+2. **On each client (Jetson):** Connect with port forwarding
+   ```bash
+   ssh -R 10101:localhost:10101 user@server
+   ```
+
+3. **Configure different speaker IDs per device:**
+   ```json
+   // Jetson #1: .claude/voice.json
+   {
+     "default_provider": "aivisspeech",
+     "providers": {
+       "aivisspeech": { "speaker_id": 888753760 }
+     }
+   }
+
+   // Jetson #2: .claude/voice.json
+   {
+     "default_provider": "aivisspeech",
+     "providers": {
+       "aivisspeech": { "speaker_id": 1234567890 }
+     }
+   }
+   ```
+
+Now each device produces a distinct voice, making it easy to identify which session is speaking.
 
 ## File Locations
 
