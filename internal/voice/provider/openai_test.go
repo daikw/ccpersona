@@ -65,7 +65,7 @@ func TestOpenAIProvider_Synthesize(t *testing.T) {
 
 			// Return mock audio data
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("mock audio data"))
+			_, _ = w.Write([]byte("mock audio data"))
 		}))
 		defer server.Close()
 
@@ -86,13 +86,13 @@ func TestOpenAIProvider_Synthesize(t *testing.T) {
 		data, err := io.ReadAll(reader)
 		assert.NoError(t, err)
 		assert.Equal(t, "mock audio data", string(data))
-		reader.Close()
+		_ = reader.Close()
 	})
 
 	t.Run("uses defaults when options not provided", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("audio"))
+			_, _ = w.Write([]byte("audio"))
 		}))
 		defer server.Close()
 
@@ -104,13 +104,13 @@ func TestOpenAIProvider_Synthesize(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotNil(t, reader)
-		reader.Close()
+		_ = reader.Close()
 	})
 
 	t.Run("clamps speed to valid range", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("audio"))
+			_, _ = w.Write([]byte("audio"))
 		}))
 		defer server.Close()
 
@@ -122,18 +122,18 @@ func TestOpenAIProvider_Synthesize(t *testing.T) {
 		// Test speed below minimum
 		reader, err := provider.Synthesize(ctx, "Test", SynthesizeOptions{Speed: 0.1})
 		assert.NoError(t, err)
-		reader.Close()
+		_ = reader.Close()
 
 		// Test speed above maximum
 		reader, err = provider.Synthesize(ctx, "Test", SynthesizeOptions{Speed: 10.0})
 		assert.NoError(t, err)
-		reader.Close()
+		_ = reader.Close()
 	})
 
 	t.Run("handles API error", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error": {"message": "Invalid API key"}}`))
+			_, _ = w.Write([]byte(`{"error": {"message": "Invalid API key"}}`))
 		}))
 		defer server.Close()
 
