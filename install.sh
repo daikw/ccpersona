@@ -5,12 +5,18 @@
 # Environment variables:
 #   CCPERSONA_VERSION  - Specific version to install (default: latest)
 #   CCPERSONA_INSTALL_DIR - Installation directory (default: /usr/local/bin)
+#
+# Security note: Always review scripts before piping to shell.
+# You can download and inspect this script first:
+#   curl -sL https://raw.githubusercontent.com/daikw/ccpersona/main/install.sh > install.sh
+#   # Review the script, then run: sh install.sh
 
 set -e
 
 REPO="daikw/ccpersona"
 BINARY_NAME="ccpersona"
 DEFAULT_INSTALL_DIR="/usr/local/bin"
+GITHUB_BASE_URL="https://github.com/${REPO}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -52,28 +58,70 @@ detect_arch() {
     esac
 }
 
-# Get latest release version from GitHub
+# Get latest release version from GitHub (with jq fallback)
 get_latest_version() {
+    local api_url="https://api.github.com/repos/${REPO}/releases/latest"
+    local response
+
     if command -v curl >/dev/null 2>&1; then
-        curl -sL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+        response=$(curl -sL "$api_url")
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+        response=$(wget -qO- "$api_url")
     else
         error "Neither curl nor wget found. Please install one of them."
     fi
+
+    # Use jq if available for safer JSON parsing
+    if command -v jq >/dev/null 2>&1; then
+        echo "$response" | jq -r '.tag_name // empty'
+    else
+        echo "$response" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+    fi
 }
 
-# Download file
+# Validate version format
+validate_version() {
+    local version="$1"
+    case "$version" in
+        v[0-9]*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Validate download URL
+validate_url() {
+    local url="$1"
+    case "$url" in
+        "${GITHUB_BASE_URL}/releases/download/"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Download file with error checking
 download() {
     local url="$1"
     local output="$2"
 
     if command -v curl >/dev/null 2>&1; then
-        curl -sL -o "$output" "$url"
+        curl -sL --fail -o "$output" "$url" || return 1
     elif command -v wget >/dev/null 2>&1; then
-        wget -q -O "$output" "$url"
+        wget -q -O "$output" "$url" || return 1
     else
         error "Neither curl nor wget found. Please install one of them."
+    fi
+
+    # Verify file was created and has content
+    [ -s "$output" ] || return 1
+}
+
+# Check required dependencies
+check_dependencies() {
+    local os="$1"
+
+    if [ "$os" = "Windows" ]; then
+        command -v unzip >/dev/null 2>&1 || error "unzip is required but not installed"
+    else
+        command -v tar >/dev/null 2>&1 || error "tar is required but not installed"
     fi
 }
 
@@ -86,10 +134,18 @@ main() {
     ARCH=$(detect_arch)
     info "Detected: ${OS} ${ARCH}"
 
+    # Check dependencies
+    check_dependencies "$OS"
+
     # Get version
     VERSION="${CCPERSONA_VERSION:-$(get_latest_version)}"
     if [ -z "$VERSION" ]; then
         error "Could not determine version to install"
+    fi
+
+    # Validate version format
+    if ! validate_version "$VERSION"; then
+        error "Invalid version format: $VERSION (expected: v*.*.*)"
     fi
     info "Version: ${VERSION}"
 
@@ -102,35 +158,44 @@ main() {
 
     # Build download URL
     ARCHIVE_NAME="${BINARY_NAME}_${OS}_${ARCH}.${EXT}"
-    DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE_NAME}"
+    DOWNLOAD_URL="${GITHUB_BASE_URL}/releases/download/${VERSION}/${ARCHIVE_NAME}"
+
+    # Validate URL
+    if ! validate_url "$DOWNLOAD_URL"; then
+        error "Invalid download URL: $DOWNLOAD_URL"
+    fi
 
     info "Downloading from: ${DOWNLOAD_URL}"
 
-    # Create temp directory
+    # Create temp directory with restricted permissions
     TMP_DIR=$(mktemp -d)
+    chmod 700 "$TMP_DIR"
     trap "rm -rf $TMP_DIR" EXIT
 
     # Download archive
     ARCHIVE_PATH="${TMP_DIR}/${ARCHIVE_NAME}"
-    download "$DOWNLOAD_URL" "$ARCHIVE_PATH"
-
-    if [ ! -f "$ARCHIVE_PATH" ]; then
-        error "Download failed"
+    if ! download "$DOWNLOAD_URL" "$ARCHIVE_PATH"; then
+        error "Download failed. Check your network connection or verify the version exists."
     fi
 
     # Extract
     info "Extracting..."
     cd "$TMP_DIR"
     if [ "$EXT" = "zip" ]; then
-        unzip -q "$ARCHIVE_PATH"
+        unzip -q "$ARCHIVE_PATH" || error "Failed to extract ZIP archive"
     else
-        tar -xzf "$ARCHIVE_PATH"
+        tar -xzf "$ARCHIVE_PATH" || error "Failed to extract tar archive"
     fi
 
     # Find binary
     BINARY_PATH=$(find "$TMP_DIR" -name "$BINARY_NAME" -type f | head -1)
     if [ -z "$BINARY_PATH" ]; then
         error "Binary not found in archive"
+    fi
+
+    # Verify binary is executable
+    if [ ! -x "$BINARY_PATH" ]; then
+        chmod +x "$BINARY_PATH" || error "Failed to make binary executable"
     fi
 
     # Install
@@ -149,11 +214,11 @@ main() {
     fi
 
     # Create directory if needed
-    $SUDO mkdir -p "$INSTALL_DIR"
+    $SUDO mkdir -p "$INSTALL_DIR" || error "Failed to create installation directory"
 
     # Copy binary
-    $SUDO cp "$BINARY_PATH" "${INSTALL_DIR}/${BINARY_NAME}"
-    $SUDO chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+    $SUDO cp "$BINARY_PATH" "${INSTALL_DIR}/${BINARY_NAME}" || error "Failed to copy binary"
+    $SUDO chmod +x "${INSTALL_DIR}/${BINARY_NAME}" || error "Failed to set executable permissions"
 
     info "Installed to ${INSTALL_DIR}/${BINARY_NAME}"
 
