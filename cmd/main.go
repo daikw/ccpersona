@@ -125,6 +125,7 @@ and behavioral patterns for your AI assistant.`,
 				Usage:   "Synthesize voice from text (stdin by default, or from transcript)",
 				Action:  handleVoice,
 				Flags: []cli.Flag{
+					// Input mode flags
 					&cli.BoolFlag{
 						Name:  "transcript",
 						Usage: "Read from Claude Code transcript instead of stdin",
@@ -137,127 +138,42 @@ and behavioral patterns for your AI assistant.`,
 					},
 					&cli.StringFlag{
 						Name:  "mode",
-						Usage: "Reading mode: short (first line) or full (entire text). Legacy: first_line, full_text also supported",
+						Usage: "Reading mode: short (first line) or full (entire text)",
 						Value: "short",
 					},
-					&cli.StringFlag{
-						Name:  "engine",
-						Usage: "Voice engine priority: voicevox, aivisspeech (legacy local engines)",
-						Value: "aivisspeech",
-					},
-					&cli.IntFlag{
-						Name:  "speaker",
-						Usage: "Speaker ID for voice engine (e.g., 3 for VOICEVOX ずんだもん, 888753760 for AivisSpeech)",
-						Value: 0,
-					},
-					&cli.FloatFlag{
-						Name:  "volume",
-						Usage: "Volume scale for voice synthesis (0.0-2.0, default 1.0)",
-						Value: 1.0,
-					},
-					&cli.IntFlag{
-						Name:  "chars",
-						Usage: "Max characters limit for 'full' mode (0 = unlimited)",
-						Value: 0,
-					},
-					&cli.BoolFlag{
-						Name:  "uuid",
-						Usage: "Use UUID mode for complete message extraction",
-						Value: false,
-					},
-					// Cloud provider flags
+					// Provider selection
 					&cli.StringFlag{
 						Name:  "provider",
-						Usage: "TTS provider: openai, elevenlabs, polly, voicevox, aivisspeech",
-						Value: "",
+						Usage: "TTS provider: voicevox, aivisspeech, openai, elevenlabs, polly, gcp",
+						Value: "aivisspeech",
 					},
-					&cli.StringFlag{
-						Name:  "api-key",
-						Usage: "API key for cloud providers (or use environment variables)",
-						Value: "",
+					// Voice selection
+					&cli.IntFlag{
+						Name:  "speaker",
+						Usage: "Speaker ID for local engines (VOICEVOX/AivisSpeech)",
+						Value: 0,
 					},
 					&cli.StringFlag{
 						Name:  "voice",
-						Usage: "Voice ID (e.g., alloy, echo, fable for OpenAI)",
+						Usage: "Voice ID for cloud providers (e.g., alloy for OpenAI)",
 						Value: "",
 					},
-					&cli.StringFlag{
-						Name:  "model",
-						Usage: "Model to use (e.g., tts-1, tts-1-hd for OpenAI)",
-						Value: "tts-1",
-					},
-					&cli.StringFlag{
-						Name:  "format",
-						Usage: "Audio format: mp3, wav, ogg, flac, aac",
-						Value: "mp3",
-					},
-					&cli.StringFlag{
-						Name:  "speed",
-						Usage: "Speech speed (0.25-4.0)",
-						Value: "1.0",
-					},
+					// Output
 					&cli.StringFlag{
 						Name:  "output",
-						Usage: "Output file path (default: temp file)",
+						Usage: "Output file path, or '-' for stdout (default: play audio)",
 						Value: "",
-					},
-					&cli.BoolFlag{
-						Name:  "stdout",
-						Usage: "Stream audio to stdout instead of playing",
-						Value: false,
 					},
 					&cli.BoolFlag{
 						Name:  "list-voices",
 						Usage: "List available voices for the specified provider",
 						Value: false,
 					},
-					// ElevenLabs-specific flags
-					&cli.StringFlag{
-						Name:  "stability",
-						Usage: "Voice stability (0.0-1.0) for ElevenLabs",
-						Value: "0.5",
-					},
-					&cli.StringFlag{
-						Name:  "similarity-boost",
-						Usage: "Similarity boost (0.0-1.0) for ElevenLabs",
-						Value: "0.5",
-					},
-					&cli.StringFlag{
-						Name:  "style",
-						Usage: "Style setting (0.0-1.0) for ElevenLabs",
-						Value: "0.0",
-					},
-					&cli.BoolFlag{
-						Name:  "use-speaker-boost",
-						Usage: "Use speaker boost for ElevenLabs",
-						Value: true,
-					},
-					// Amazon Polly-specific flags
-					&cli.StringFlag{
-						Name:  "region",
-						Usage: "AWS region for Polly (e.g., us-east-1, eu-west-1)",
-						Value: "us-east-1",
-					},
-					&cli.StringFlag{
-						Name:  "polly-engine",
-						Usage: "Polly engine: neural, standard, long-form, generative",
-						Value: "neural",
-					},
-					&cli.StringFlag{
-						Name:  "sample-rate",
-						Usage: "Audio sample rate: 8000, 16000, 22050, 24000",
-						Value: "22050",
-					},
-					// Config file options
+					// Config
 					&cli.StringFlag{
 						Name:  "config",
-						Usage: "Path to voice config file (default: .claude/voice.json or ~/.claude/voice.json)",
+						Usage: "Path to voice config file (default: .claude/voice.json)",
 						Value: "",
-					},
-					&cli.BoolFlag{
-						Name:  "no-config",
-						Usage: "Ignore all config files",
-						Value: false,
 					},
 				},
 				Commands: []*cli.Command{
