@@ -204,3 +204,108 @@ func TestDetectAndParseUnknownFormat(t *testing.T) {
 		t.Error("Expected error for unknown format, got nil")
 	}
 }
+
+func TestGetClaudeCodeEvent(t *testing.T) {
+	t.Run("returns event for Claude Code source", func(t *testing.T) {
+		jsonData := `{
+			"session_id": "test-session",
+			"transcript_path": "/path/to/transcript.jsonl",
+			"hook_event_name": "Stop",
+			"stop_hook_active": true
+		}`
+
+		reader := strings.NewReader(jsonData)
+		event, err := DetectAndParse(reader)
+		if err != nil {
+			t.Fatalf("Failed to parse: %v", err)
+		}
+
+		rawEvent, ok := event.GetClaudeCodeEvent()
+		if !ok {
+			t.Error("Expected GetClaudeCodeEvent to return true for Claude Code event")
+		}
+		if rawEvent == nil {
+			t.Error("Expected non-nil raw event")
+		}
+	})
+
+	t.Run("returns false for Codex source", func(t *testing.T) {
+		jsonData := `{
+			"type": "agent-turn-complete",
+			"thread-id": "12345678-1234-1234-1234-123456789abc",
+			"turn-id": 1,
+			"cwd": "/project",
+			"input-messages": [],
+			"last-assistant-message": "Done"
+		}`
+
+		reader := strings.NewReader(jsonData)
+		event, err := DetectAndParse(reader)
+		if err != nil {
+			t.Fatalf("Failed to parse: %v", err)
+		}
+
+		_, ok := event.GetClaudeCodeEvent()
+		if ok {
+			t.Error("Expected GetClaudeCodeEvent to return false for Codex event")
+		}
+	})
+}
+
+func TestParseClaudeCodeEventTypes(t *testing.T) {
+	t.Run("parse PreToolUse event", func(t *testing.T) {
+		jsonData := `{
+			"session_id": "test-session",
+			"transcript_path": "/path/transcript.jsonl",
+			"hook_event_name": "PreToolUse",
+			"tool_name": "Read"
+		}`
+
+		reader := strings.NewReader(jsonData)
+		event, err := DetectAndParse(reader)
+		if err != nil {
+			t.Fatalf("Failed to parse: %v", err)
+		}
+
+		if event.EventType != "PreToolUse" {
+			t.Errorf("Expected event type 'PreToolUse', got '%s'", event.EventType)
+		}
+	})
+
+	t.Run("parse PostToolUse event", func(t *testing.T) {
+		jsonData := `{
+			"session_id": "test-session",
+			"transcript_path": "/path/transcript.jsonl",
+			"hook_event_name": "PostToolUse",
+			"tool_name": "Write"
+		}`
+
+		reader := strings.NewReader(jsonData)
+		event, err := DetectAndParse(reader)
+		if err != nil {
+			t.Fatalf("Failed to parse: %v", err)
+		}
+
+		if event.EventType != "PostToolUse" {
+			t.Errorf("Expected event type 'PostToolUse', got '%s'", event.EventType)
+		}
+	})
+
+	t.Run("parse SubagentStop event", func(t *testing.T) {
+		jsonData := `{
+			"session_id": "test-session",
+			"transcript_path": "/path/transcript.jsonl",
+			"hook_event_name": "SubagentStop"
+		}`
+
+		reader := strings.NewReader(jsonData)
+		event, err := DetectAndParse(reader)
+		if err != nil {
+			t.Fatalf("Failed to parse: %v", err)
+		}
+
+		if event.EventType != "SubagentStop" {
+			t.Errorf("Expected event type 'SubagentStop', got '%s'", event.EventType)
+		}
+	})
+}

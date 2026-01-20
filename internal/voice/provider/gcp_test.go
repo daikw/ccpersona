@@ -172,8 +172,10 @@ func TestIsSSML(t *testing.T) {
 }
 
 func TestGCPProviderFromConfig(t *testing.T) {
-	// Note: This test will fail without valid GCP credentials
-	// It's primarily for verifying the configuration parsing logic
+	// This test requires network access to GCP, skip in short mode
+	if testing.Short() {
+		t.Skip("Skipping GCP config test in short mode - requires network access")
+	}
 
 	t.Run("config_parsing", func(t *testing.T) {
 		// Test that config values are parsed correctly
