@@ -62,6 +62,7 @@ detect_arch() {
 get_latest_version() {
     local api_url="https://api.github.com/repos/${REPO}/releases/latest"
     local response
+    local version
 
     if command -v curl >/dev/null 2>&1; then
         response=$(curl -sL "$api_url")
@@ -71,12 +72,18 @@ get_latest_version() {
         error "Neither curl nor wget found. Please install one of them."
     fi
 
-    # Use jq if available for safer JSON parsing
+    # Try jq first if available, fallback to grep/sed if jq fails
+    # (jq can fail if response contains control characters)
     if command -v jq >/dev/null 2>&1; then
-        echo "$response" | jq -r '.tag_name // empty'
-    else
-        echo "$response" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+        version=$(echo "$response" | jq -r '.tag_name // empty' 2>/dev/null) || version=""
     fi
+
+    # Fallback to grep/sed if jq failed or not available
+    if [ -z "$version" ]; then
+        version=$(echo "$response" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    fi
+
+    echo "$version"
 }
 
 # Validate version format
