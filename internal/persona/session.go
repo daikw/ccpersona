@@ -139,12 +139,25 @@ func HandleSessionStart() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
+	// Fallback to global config if project config not found
 	if config == nil {
-		log.Debug().Msg("No project persona configuration found")
+		log.Debug().Msg("No project persona configuration found, trying global config")
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		config, err = LoadConfig(homeDir)
+		if err != nil {
+			return fmt.Errorf("failed to load global config: %w", err)
+		}
+	}
+
+	if config == nil {
+		log.Debug().Msg("No persona configuration found (project or global)")
 		return nil
 	}
 
-	log.Info().Str("persona", config.Name).Msg("Found project persona configuration")
+	log.Info().Str("persona", config.Name).Msg("Found persona configuration")
 
 	// Apply the persona
 	manager, err := NewManager()
