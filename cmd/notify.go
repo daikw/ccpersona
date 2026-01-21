@@ -62,12 +62,6 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-func handleCodexNotify(ctx context.Context, c *cli.Command) error {
-	// Deprecated: use 'notify' instead (auto-detects Claude Code or Codex)
-	fmt.Fprintln(os.Stderr, "⚠️  'codex-notify' is deprecated. Use 'notify' instead (auto-detects platform).")
-	return handleNotify(ctx, c)
-}
-
 func handleLegacyNotification(ctx context.Context, c *cli.Command) error {
 	// Legacy notification format (simple JSON with message field)
 	// This is kept for backward compatibility
