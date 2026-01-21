@@ -1,42 +1,100 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/daikw/ccpersona/internal/persona"
-	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
 )
 
 func handleInit(ctx context.Context, c *cli.Command) error {
-	log.Info().Msg("Initializing persona configuration...")
+	fmt.Println("🎭 ccpersona プロジェクト初期化")
+	fmt.Println("")
 
-	config, err := persona.LoadConfig(".")
+	// Check existing config
+	existingConfig, _ := persona.LoadConfig(".")
+	if existingConfig != nil {
+		fmt.Printf("⚠️  既に設定があります: %s\n", existingConfig.Name)
+		fmt.Print("上書きしますか？ [y/N]: ")
+		reader := bufio.NewReader(os.Stdin)
+		answer, _ := reader.ReadString('\n')
+		answer = strings.TrimSpace(strings.ToLower(answer))
+		if answer != "y" && answer != "yes" {
+			fmt.Println("キャンセルしました")
+			return nil
+		}
+		fmt.Println("")
+	}
+
+	// Get persona manager
+	manager, err := persona.NewManager()
 	if err != nil {
 		return err
 	}
 
-	if config != nil {
-		log.Warn().Msg("Persona configuration already exists")
-		return nil
-	}
-
-	defaultConfig := persona.GetDefaultConfig()
-
-	if err := persona.SaveConfig(".", defaultConfig); err != nil {
+	// List available personas
+	personas, err := manager.ListPersonas()
+	if err != nil {
 		return err
 	}
 
-	log.Info().Msg("Persona configuration initialized successfully")
-	fmt.Println("Created .claude/persona.json with default configuration")
+	var selectedPersona string
+
+	if len(personas) == 0 {
+		fmt.Println("📝 利用可能なペルソナがありません")
+		fmt.Println("   デフォルトのペルソナを作成します")
+		fmt.Println("")
+		selectedPersona = "default"
+	} else {
+		fmt.Println("📝 利用可能なペルソナ:")
+		for i, p := range personas {
+			fmt.Printf("   %d. %s\n", i+1, p)
+		}
+		fmt.Println("")
+		fmt.Printf("ペルソナを選択してください [1-%d]: ", len(personas))
+
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		choice, err := strconv.Atoi(input)
+		if err != nil || choice < 1 || choice > len(personas) {
+			fmt.Println("無効な選択です。デフォルトを使用します。")
+			selectedPersona = "default"
+		} else {
+			selectedPersona = personas[choice-1]
+		}
+		fmt.Println("")
+	}
+
+	// Create config
+	config := persona.GetDefaultConfig()
+	config.Name = selectedPersona
+
+	if err := persona.SaveConfig(".", config); err != nil {
+		return err
+	}
+
+	fmt.Printf("✅ 設定を作成しました: .claude/persona.json\n")
+	fmt.Printf("   ペルソナ: %s\n", selectedPersona)
+	fmt.Println("")
+	fmt.Println("次のステップ:")
+	fmt.Println("  - 'ccpersona show' で設定を確認")
+	fmt.Println("  - 'ccpersona edit <name>' でペルソナを編集")
 	return nil
 }
 
 func handleList(ctx context.Context, c *cli.Command) error {
+	// Deprecated: use 'init' instead (shows list interactively)
+	fmt.Fprintln(os.Stderr, "⚠️  'list' is deprecated. Use 'init' instead (shows list interactively).")
+
 	manager, err := persona.NewManager()
 	if err != nil {
 		return err
@@ -48,7 +106,7 @@ func handleList(ctx context.Context, c *cli.Command) error {
 	}
 
 	if len(personas) == 0 {
-		fmt.Println("No personas found. Create one with 'ccpersona create <name>'")
+		fmt.Println("No personas found. Create one with 'ccpersona edit <name>'")
 		return nil
 	}
 
@@ -61,21 +119,15 @@ func handleList(ctx context.Context, c *cli.Command) error {
 }
 
 func handleCurrent(ctx context.Context, c *cli.Command) error {
-	manager, err := persona.NewManager()
-	if err != nil {
-		return err
-	}
-
-	current, err := manager.GetCurrentPersona()
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Current persona: %s\n", current)
-	return nil
+	// Deprecated: use 'show' without arguments instead
+	fmt.Fprintln(os.Stderr, "⚠️  'current' is deprecated. Use 'show' without arguments instead.")
+	return handleShow(ctx, c)
 }
 
 func handleSet(ctx context.Context, c *cli.Command) error {
+	// Deprecated: use 'init' instead (interactive selection)
+	fmt.Fprintln(os.Stderr, "⚠️  'set' is deprecated. Use 'init' instead (interactive selection).")
+
 	personaName := c.Args().Get(0)
 	if personaName == "" {
 		return fmt.Errorf("persona name is required")
@@ -114,16 +166,33 @@ func handleSet(ctx context.Context, c *cli.Command) error {
 }
 
 func handleShow(ctx context.Context, c *cli.Command) error {
-	personaName := c.Args().Get(0)
-	if personaName == "" {
-		return fmt.Errorf("persona name is required")
-	}
-
 	manager, err := persona.NewManager()
 	if err != nil {
 		return err
 	}
 
+	personaName := c.Args().Get(0)
+	if personaName == "" {
+		// No argument: show current persona
+		current, err := manager.GetCurrentPersona()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Current persona: %s\n", current)
+
+		// Also show the content if persona exists
+		if manager.PersonaExists(current) {
+			fmt.Println()
+			content, err := manager.ReadPersona(current)
+			if err != nil {
+				return err
+			}
+			fmt.Println(content)
+		}
+		return nil
+	}
+
+	// With argument: show specified persona
 	content, err := manager.ReadPersona(personaName)
 	if err != nil {
 		return err
@@ -134,22 +203,9 @@ func handleShow(ctx context.Context, c *cli.Command) error {
 }
 
 func handleCreate(ctx context.Context, c *cli.Command) error {
-	name := c.Args().Get(0)
-	if name == "" {
-		return fmt.Errorf("persona name is required")
-	}
-
-	manager, err := persona.NewManager()
-	if err != nil {
-		return err
-	}
-
-	if err := manager.CreatePersona(name); err != nil {
-		return err
-	}
-
-	fmt.Printf("Created persona: %s\n", name)
-	return nil
+	// Deprecated: use 'edit' instead (creates if not exists)
+	fmt.Fprintln(os.Stderr, "⚠️  'create' is deprecated. Use 'edit' instead (creates if not exists).")
+	return handleEdit(ctx, c)
 }
 
 func handleEdit(ctx context.Context, c *cli.Command) error {
@@ -163,8 +219,12 @@ func handleEdit(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
+	// Create persona if it doesn't exist
 	if !manager.PersonaExists(personaName) {
-		return fmt.Errorf("persona '%s' does not exist", personaName)
+		if err := manager.CreatePersona(personaName); err != nil {
+			return err
+		}
+		fmt.Printf("Created new persona: %s\n", personaName)
 	}
 
 	// Get the path to the persona file

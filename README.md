@@ -124,44 +124,32 @@ Now the persona will be applied automatically when you submit prompts.
 ### Basic Commands
 
 ```bash
-# Initialize persona configuration in current project
+# Initialize persona configuration (interactive - select from available personas)
 ccpersona init
 
-# List available personas
-ccpersona list
+# Show current persona (or specify a name to show details)
+ccpersona show              # Show current active persona and its content
+ccpersona show <name>       # Show specific persona details
 
-# Show current active persona
-ccpersona current
-
-# Set active persona
-ccpersona set <persona-name>
-
-# Show persona details
-ccpersona show <persona-name>
-
-# Create a new persona
-ccpersona create <persona-name>
-
-# Edit an existing persona
+# Edit a persona (creates if not exists)
 ccpersona edit <persona-name>
 
 # Edit configuration
 ccpersona config        # Edit project config
 ccpersona config -g     # Edit global config
 
-# Execute as Claude Code hooks
-ccpersona hook                    # UserPromptSubmit hook (alias: user_prompt_submit_hook)
-ccpersona voice                   # Stop hook (alias: stop_hook)
-ccpersona notify                  # Notification hook (alias: notification_hook)
+# Check status (auto-diagnoses on errors)
+ccpersona status            # Quick status check
+ccpersona status --diagnose # Force detailed diagnostics
 
-# Execute as unified hook (works for both Claude Code and Codex)
-ccpersona codex-notify            # Unified hook (alias: codex_hook)
-                                  # Auto-detects and handles both platforms
+# Execute as Claude Code hooks
+ccpersona hook                    # session-start hook
+ccpersona voice                   # Stop hook (voice synthesis)
+ccpersona notify                  # Notification hook (works with both Claude Code and Codex)
 
 # Voice synthesis (expects JSON hook event from stdin by default)
 ccpersona voice                   # Read Stop hook JSON event from stdin
 echo "こんにちは、世界！" | ccpersona voice --plain  # Read plain text
-echo "Hello, world!" | ccpersona voice --plain --mode full --engine voicevox
 
 # Voice synthesis from transcript
 ccpersona voice --transcript  # Read latest assistant message from transcript
@@ -175,8 +163,7 @@ ccpersona notify --voice --desktop  # Show desktop notification and speak
 To create a new persona:
 
 ```bash
-ccpersona create my-persona
-ccpersona edit my-persona
+ccpersona edit my-persona   # Creates if not exists, then opens editor
 ```
 
 Your editor will open for you to define the persona.

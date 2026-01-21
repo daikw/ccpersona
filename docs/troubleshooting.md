@@ -121,8 +121,8 @@ This checks:
 
 2. **Check persona file exists:**
    ```bash
-   ls ~/.claude/personas/
-   ccpersona show <persona-name>
+   ccpersona show              # Show current persona
+   ccpersona show <persona-name>  # Show specific persona
    ```
 
 3. **Check Claude Code hooks configuration:**
