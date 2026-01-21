@@ -18,12 +18,13 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 	fmt.Println("🎭 ccpersona プロジェクト初期化")
 	fmt.Println("")
 
+	reader := bufio.NewReader(os.Stdin)
+
 	// Check existing config
 	existingConfig, _ := persona.LoadConfig(".")
 	if existingConfig != nil {
 		fmt.Printf("⚠️  既に設定があります: %s\n", existingConfig.Name)
 		fmt.Print("上書きしますか？ [y/N]: ")
-		reader := bufio.NewReader(os.Stdin)
 		answer, _ := reader.ReadString('\n')
 		answer = strings.TrimSpace(strings.ToLower(answer))
 		if answer != "y" && answer != "yes" {
@@ -60,7 +61,6 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 		fmt.Println("")
 		fmt.Printf("ペルソナを選択してください [1-%d]: ", len(personas))
 
-		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
@@ -74,7 +74,26 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 		fmt.Println("")
 	}
 
-	// Create config
+	// Select AI assistant
+	fmt.Println("🤖 AI アシスタントを選択してください:")
+	fmt.Println("   1. Claude Code")
+	fmt.Println("   2. Cursor")
+	fmt.Println("   3. 両方")
+	fmt.Println("")
+	fmt.Print("選択 [1-3] (デフォルト: 1): ")
+
+	assistantInput, _ := reader.ReadString('\n')
+	assistantInput = strings.TrimSpace(assistantInput)
+
+	assistantChoice := 1
+	if assistantInput != "" {
+		if choice, err := strconv.Atoi(assistantInput); err == nil && choice >= 1 && choice <= 3 {
+			assistantChoice = choice
+		}
+	}
+	fmt.Println("")
+
+	// Create persona config (common for all assistants)
 	config := persona.GetDefaultConfig()
 	config.Name = selectedPersona
 
@@ -82,12 +101,77 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
-	fmt.Printf("✅ 設定を作成しました: .claude/persona.json\n")
+	fmt.Println("✅ 設定を作成しました:")
+	fmt.Println("   - .claude/persona.json")
+
+	// Generate assistant-specific config
+	switch assistantChoice {
+	case 1: // Claude Code
+		showClaudeCodeHookInstructions()
+	case 2: // Cursor
+		if err := generateCursorHooksConfig(); err != nil {
+			return err
+		}
+		fmt.Println("   - .cursor/hooks.json")
+	case 3: // Both
+		showClaudeCodeHookInstructions()
+		if err := generateCursorHooksConfig(); err != nil {
+			return err
+		}
+		fmt.Println("   - .cursor/hooks.json")
+	}
+
+	fmt.Println("")
 	fmt.Printf("   ペルソナ: %s\n", selectedPersona)
 	fmt.Println("")
 	fmt.Println("次のステップ:")
 	fmt.Println("  - 'ccpersona show' で設定を確認")
 	fmt.Println("  - 'ccpersona edit <name>' でペルソナを編集")
+	return nil
+}
+
+func showClaudeCodeHookInstructions() {
+	fmt.Println("")
+	fmt.Println("📌 Claude Code のフック設定を ~/.claude/settings.json に追加してください:")
+	fmt.Println("")
+	fmt.Println(`   {
+     "hooks": {
+       "session-start": ["ccpersona hook"],
+       "Stop": [{"hooks": [{"type": "command", "command": "ccpersona voice"}]}]
+     }
+   }`)
+	fmt.Println("")
+}
+
+func generateCursorHooksConfig() error {
+	// Create .cursor directory if not exists
+	cursorDir := ".cursor"
+	if err := os.MkdirAll(cursorDir, 0755); err != nil {
+		return fmt.Errorf("failed to create .cursor directory: %w", err)
+	}
+
+	hooksConfig := `{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "ccpersona hook"
+      }
+    ],
+    "stop": [
+      {
+        "command": "ccpersona voice"
+      }
+    ]
+  }
+}
+`
+
+	hooksPath := filepath.Join(cursorDir, "hooks.json")
+	if err := os.WriteFile(hooksPath, []byte(hooksConfig), 0644); err != nil {
+		return fmt.Errorf("failed to write hooks.json: %w", err)
+	}
+
 	return nil
 }
 

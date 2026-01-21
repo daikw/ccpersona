@@ -9,7 +9,7 @@ A system that automatically applies different "personas" to Claude Code sessions
 - 📝 **Customizable** - Create and edit custom personas easily
 - 🎯 **Consistent interactions** - Maintain unified response styles throughout projects
 - 🔊 **Voice synthesis** - Optional text-to-speech for assistant messages
-- 🤖 **Multi-platform support** - Works with both Claude Code and OpenAI Codex
+- 🤖 **Multi-platform support** - Works with Claude Code, Cursor, and OpenAI Codex
 
 ## Installation
 
@@ -114,7 +114,29 @@ Add the following to your Codex config file (`~/.codex/config.toml`):
 [notify]
 # Use unified hook command that auto-detects Claude Code or Codex
 command = "ccpersona"
-args = ["codex-notify"]
+args = ["notify"]
+```
+
+#### For Cursor
+
+Run `ccpersona init` and select "Cursor" when prompted. This will create `.cursor/hooks.json` automatically:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "ccpersona hook"
+      }
+    ],
+    "stop": [
+      {
+        "command": "ccpersona voice"
+      }
+    ]
+  }
+}
 ```
 
 Now the persona will be applied automatically when you submit prompts.
