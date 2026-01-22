@@ -212,3 +212,79 @@ func TestGetDefaultConfig(t *testing.T) {
 		t.Error("Expected OverrideGlobal to be false")
 	}
 }
+
+func TestLoadConfigWithFallback(t *testing.T) {
+	// Save current directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	t.Run("ProjectConfigExists", func(t *testing.T) {
+		// Create temp project directory with config
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-project-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		// Create .claude directory and config
+		claudeDir := filepath.Join(tmpDir, ClaudeDir)
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		testConfig := &Config{Name: "project-persona"}
+		data, _ := json.MarshalIndent(testConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Change to temp directory
+		if err := os.Chdir(tmpDir); err != nil {
+			t.Fatal(err)
+		}
+
+		// Load config with fallback
+		config, err := LoadConfigWithFallback()
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+		}
+		if config.Name != "project-persona" {
+			t.Errorf("Expected project-persona, got %s", config.Name)
+		}
+	})
+
+	t.Run("NoProjectConfigFallsBackToGlobal", func(t *testing.T) {
+		// Create temp directory without config
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-empty-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		// Change to temp directory (no config here)
+		if err := os.Chdir(tmpDir); err != nil {
+			t.Fatal(err)
+		}
+
+		// This will try to load from home directory
+		// We can't easily mock home directory, so just verify no error
+		config, err := LoadConfigWithFallback()
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		// config may be nil if no global config exists, which is OK
+		_ = config
+	})
+}

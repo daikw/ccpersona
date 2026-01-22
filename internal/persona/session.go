@@ -132,28 +132,14 @@ func HandleSessionStart() error {
 		log.Warn().Err(err).Msg("Failed to cleanup old sessions")
 	}
 
-	// Check if project has persona configuration
-	projectDir, _ := os.Getwd()
-	config, err := LoadConfig(projectDir)
+	// Load persona configuration (project or global fallback)
+	config, err := LoadConfigWithFallback()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Fallback to global config if project config not found
 	if config == nil {
-		log.Debug().Msg("No project persona configuration found, trying global config")
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
-		}
-		config, err = LoadConfig(homeDir)
-		if err != nil {
-			return fmt.Errorf("failed to load global config: %w", err)
-		}
-	}
-
-	if config == nil {
-		log.Debug().Msg("No persona configuration found (project or global)")
+		log.Debug().Msg("No persona configuration found")
 		return nil
 	}
 
