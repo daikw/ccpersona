@@ -107,11 +107,11 @@ func ValidateConfig(config *Config) error {
 	}
 
 	if config.Voice != nil {
-		if config.Voice.Engine == "" {
-			return fmt.Errorf("voice engine cannot be empty when voice is configured")
+		if config.Voice.Provider == "" {
+			return fmt.Errorf("voice provider cannot be empty when voice is configured")
 		}
-		if config.Voice.Engine != "voicevox" && config.Voice.Engine != "aivisspeech" {
-			return fmt.Errorf("unsupported voice engine: %s", config.Voice.Engine)
+		if config.Voice.Provider != "voicevox" && config.Voice.Provider != "aivisspeech" {
+			return fmt.Errorf("unsupported voice provider: %s", config.Voice.Provider)
 		}
 	}
 

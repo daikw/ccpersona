@@ -68,15 +68,15 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	// Load persona config and apply voice settings (if CLI flag not specified)
 	personaConfig, err := persona.LoadConfigWithFallback()
 	if err == nil && personaConfig != nil && personaConfig.Voice != nil {
-		if personaConfig.Voice.Engine != "" && c.String("provider") == "aivisspeech" {
-			voiceConfig.EnginePriority = personaConfig.Voice.Engine
-			provider = personaConfig.Voice.Engine
+		if personaConfig.Voice.Provider != "" && c.String("provider") == "aivisspeech" {
+			voiceConfig.EnginePriority = personaConfig.Voice.Provider
+			provider = personaConfig.Voice.Provider
 		}
-		if personaConfig.Voice.SpeakerID > 0 && cliSpeakerID == 0 {
+		if personaConfig.Voice.Speaker > 0 && cliSpeakerID == 0 {
 			if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
-				voiceConfig.AivisSpeechSpeaker = int64(personaConfig.Voice.SpeakerID)
+				voiceConfig.AivisSpeechSpeaker = int64(personaConfig.Voice.Speaker)
 			} else {
-				voiceConfig.VoicevoxSpeaker = personaConfig.Voice.SpeakerID
+				voiceConfig.VoicevoxSpeaker = personaConfig.Voice.Speaker
 			}
 		}
 	}
@@ -310,10 +310,10 @@ func handleVoiceConfigShow(ctx context.Context, c *cli.Command) error {
 	}
 
 	if config == nil {
-		fmt.Println("No voice configuration file found.")
+		fmt.Println("No configuration file found.")
 		fmt.Println("\nSearched locations:")
-		fmt.Println("  - .claude/voice.json (project)")
-		fmt.Println("  - ~/.claude/voice.json (global)")
+		fmt.Println("  - .claude/config.json (project)")
+		fmt.Println("  - ~/.claude/config.json (global)")
 		fmt.Println("\nRun 'ccpersona voice config init' to create one.")
 		return nil
 	}
@@ -370,9 +370,9 @@ func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
 		if err != nil {
 			return fmt.Errorf("failed to get home directory: %w", err)
 		}
-		configPath = filepath.Join(homeDir, ".claude", "voice.json")
+		configPath = filepath.Join(homeDir, ".claude", "config.json")
 	} else {
-		configPath = ".claude/voice.json"
+		configPath = ".claude/config.json"
 	}
 
 	// Check if file already exists
@@ -394,7 +394,7 @@ func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
-	fmt.Printf("✅ Created voice configuration: %s\n", configPath)
+	fmt.Printf("✅ Created configuration: %s\n", configPath)
 	fmt.Println("\nEdit the file to configure your preferred voice providers.")
 	fmt.Println("Use ${ENV_VAR} syntax for sensitive values like API keys.")
 

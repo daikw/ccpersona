@@ -40,8 +40,8 @@ func TestLoadConfig(t *testing.T) {
 		testConfig := &Config{
 			Name: "test-persona",
 			Voice: &VoiceConfig{
-				Engine:    "voicevox",
-				SpeakerID: 3,
+				Provider: "voicevox",
+				Speaker:  3,
 			},
 			OverrideGlobal:     true,
 			CustomInstructions: "Test instructions",
@@ -68,7 +68,7 @@ func TestLoadConfig(t *testing.T) {
 		if config.Name != testConfig.Name { //nolint:staticcheck // checked for nil above
 			t.Errorf("Expected name %s, got %s", testConfig.Name, config.Name)
 		}
-		if config.Voice == nil || config.Voice.Engine != testConfig.Voice.Engine {
+		if config.Voice == nil || config.Voice.Provider != testConfig.Voice.Provider {
 			t.Errorf("Voice config mismatch")
 		}
 	})
@@ -157,30 +157,30 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				Name: "valid",
 				Voice: &VoiceConfig{
-					Engine:    "voicevox",
-					SpeakerID: 1,
+					Provider: "voicevox",
+					Speaker:  1,
 				},
 			},
 			wantErr: false,
 		},
 		{
-			name: "InvalidVoiceEngine",
+			name: "InvalidVoiceProvider",
 			config: &Config{
 				Name: "valid",
 				Voice: &VoiceConfig{
-					Engine:    "invalid-engine",
-					SpeakerID: 1,
+					Provider: "invalid-provider",
+					Speaker:  1,
 				},
 			},
 			wantErr: true,
 		},
 		{
-			name: "EmptyVoiceEngine",
+			name: "EmptyVoiceProvider",
 			config: &Config{
 				Name: "valid",
 				Voice: &VoiceConfig{
-					Engine:    "",
-					SpeakerID: 1,
+					Provider: "",
+					Speaker:  1,
 				},
 			},
 			wantErr: true,

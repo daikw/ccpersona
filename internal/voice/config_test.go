@@ -21,18 +21,18 @@ func TestExpandEnvVars(t *testing.T) {
 	}{
 		{
 			name:     "expand ${VAR} pattern",
-			input:    `{"apiKey": "${TEST_API_KEY}"}`,
-			expected: `{"apiKey": "sk-test-12345"}`,
+			input:    `{"api_key": "${TEST_API_KEY}"}`,
+			expected: `{"api_key": "sk-test-12345"}`,
 		},
 		{
 			name:     "missing env var returns empty",
-			input:    `{"apiKey": "${NONEXISTENT_VAR}"}`,
-			expected: `{"apiKey": ""}`,
+			input:    `{"api_key": "${NONEXISTENT_VAR}"}`,
+			expected: `{"api_key": ""}`,
 		},
 		{
 			name:     "no variables to expand",
-			input:    `{"apiKey": "literal-value"}`,
-			expected: `{"apiKey": "literal-value"}`,
+			input:    `{"api_key": "literal-value"}`,
+			expected: `{"api_key": "literal-value"}`,
 		},
 		{
 			name:     "multiple variables",
@@ -49,9 +49,9 @@ func TestExpandEnvVars(t *testing.T) {
 	}
 }
 
-func TestVoiceConfigLoader_LoadConfig(t *testing.T) {
+func TestConfigLoader_LoadConfig(t *testing.T) {
 	// Create temp directory
-	tmpDir, err := os.MkdirTemp("", "voice-config-test-*")
+	tmpDir, err := os.MkdirTemp("", "config-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -63,19 +63,19 @@ func TestVoiceConfigLoader_LoadConfig(t *testing.T) {
 	t.Run("load project config", func(t *testing.T) {
 		// Create project config
 		configContent := `{
-			"defaultProvider": "openai",
+			"default_provider": "openai",
 			"providers": {
 				"openai": {
-					"apiKey": "test-key",
+					"api_key": "test-key",
 					"voice": "nova"
 				}
 			}
 		}`
-		configPath := filepath.Join(claudeDir, "voice.json")
+		configPath := filepath.Join(claudeDir, "config.json")
 		err := os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
 
-		loader := NewVoiceConfigLoader()
+		loader := NewConfigLoader()
 		config, err := loader.LoadConfig(tmpDir)
 
 		require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestVoiceConfigLoader_LoadConfig(t *testing.T) {
 		require.NoError(t, err)
 		defer os.RemoveAll(emptyDir)
 
-		loader := NewVoiceConfigLoader()
+		loader := NewConfigLoader()
 		config, err := loader.LoadConfig(emptyDir)
 
 		require.NoError(t, err)
@@ -98,8 +98,8 @@ func TestVoiceConfigLoader_LoadConfig(t *testing.T) {
 	})
 }
 
-func TestVoiceConfigFile_GetProviderConfig(t *testing.T) {
-	config := &VoiceConfigFile{
+func TestConfigFile_GetProviderConfig(t *testing.T) {
+	config := &ConfigFile{
 		DefaultProvider: "openai",
 		Providers: map[string]ProviderConfig{
 			"openai": {
@@ -121,14 +121,14 @@ func TestVoiceConfigFile_GetProviderConfig(t *testing.T) {
 	})
 
 	t.Run("nil config", func(t *testing.T) {
-		var nilConfig *VoiceConfigFile
+		var nilConfig *ConfigFile
 		providerConfig := nilConfig.GetProviderConfig("openai")
 		assert.Nil(t, providerConfig)
 	})
 }
 
-func TestVoiceConfigFile_GetEffectiveProvider(t *testing.T) {
-	config := &VoiceConfigFile{
+func TestConfigFile_GetEffectiveProvider(t *testing.T) {
+	config := &ConfigFile{
 		DefaultProvider: "openai",
 	}
 
@@ -143,15 +143,15 @@ func TestVoiceConfigFile_GetEffectiveProvider(t *testing.T) {
 	})
 
 	t.Run("empty when no config and no explicit", func(t *testing.T) {
-		var nilConfig *VoiceConfigFile
+		var nilConfig *ConfigFile
 		result := nilConfig.GetEffectiveProvider("")
 		assert.Equal(t, "", result)
 	})
 }
 
-func TestVoiceConfigFile_Validate(t *testing.T) {
+func TestConfigFile_Validate(t *testing.T) {
 	t.Run("valid config", func(t *testing.T) {
-		config := &VoiceConfigFile{
+		config := &ConfigFile{
 			DefaultProvider: "aivisspeech",
 			Providers: map[string]ProviderConfig{
 				"aivisspeech": {
@@ -165,7 +165,7 @@ func TestVoiceConfigFile_Validate(t *testing.T) {
 	})
 
 	t.Run("missing openai api key", func(t *testing.T) {
-		config := &VoiceConfigFile{
+		config := &ConfigFile{
 			Providers: map[string]ProviderConfig{
 				"openai": {
 					Voice: "nova",
@@ -174,11 +174,11 @@ func TestVoiceConfigFile_Validate(t *testing.T) {
 		}
 		errors := config.Validate()
 		assert.Len(t, errors, 1)
-		assert.Contains(t, errors[0], "apiKey is required")
+		assert.Contains(t, errors[0], "api_key is required")
 	})
 
 	t.Run("invalid speed", func(t *testing.T) {
-		config := &VoiceConfigFile{
+		config := &ConfigFile{
 			Providers: map[string]ProviderConfig{
 				"aivisspeech": {
 					Speed: 10.0, // Invalid: > 4.0
@@ -191,7 +191,7 @@ func TestVoiceConfigFile_Validate(t *testing.T) {
 	})
 
 	t.Run("invalid volume", func(t *testing.T) {
-		config := &VoiceConfigFile{
+		config := &ConfigFile{
 			Providers: map[string]ProviderConfig{
 				"aivisspeech": {
 					Volume: 5.0, // Invalid: > 2.0
@@ -204,8 +204,8 @@ func TestVoiceConfigFile_Validate(t *testing.T) {
 	})
 }
 
-func TestVoiceConfigFile_MaskSecrets(t *testing.T) {
-	config := &VoiceConfigFile{
+func TestConfigFile_MaskSecrets(t *testing.T) {
+	config := &ConfigFile{
 		DefaultProvider: "openai",
 		Providers: map[string]ProviderConfig{
 			"openai": {
@@ -234,12 +234,12 @@ func TestValidateConfigPath(t *testing.T) {
 	}{
 		{
 			name:      "valid path",
-			path:      "/home/user/.claude/voice.json",
+			path:      "/home/user/.claude/config.json",
 			expectErr: false,
 		},
 		{
 			name:      "valid relative path",
-			path:      ".claude/voice.json",
+			path:      ".claude/config.json",
 			expectErr: false,
 		},
 		{
@@ -249,12 +249,12 @@ func TestValidateConfigPath(t *testing.T) {
 		},
 		{
 			name:      "wrong filename",
-			path:      "/home/user/.claude/config.json",
+			path:      "/home/user/.claude/voice.json",
 			expectErr: true,
 		},
 		{
 			name:      "hidden traversal",
-			path:      "/home/user/.claude/../../voice.json",
+			path:      "/home/user/.claude/../../config.json",
 			expectErr: true,
 		},
 	}
@@ -274,7 +274,7 @@ func TestValidateConfigPath(t *testing.T) {
 func TestGenerateExampleConfig(t *testing.T) {
 	example := GenerateExampleConfig()
 
-	assert.Contains(t, example, "defaultProvider")
+	assert.Contains(t, example, "default_provider")
 	assert.Contains(t, example, "openai")
 	assert.Contains(t, example, "elevenlabs")
 	assert.Contains(t, example, "polly")
@@ -283,9 +283,9 @@ func TestGenerateExampleConfig(t *testing.T) {
 	assert.Contains(t, example, "${OPENAI_API_KEY}")
 }
 
-func TestVoiceConfigLoader_LoadFromPath(t *testing.T) {
+func TestConfigLoader_LoadFromPath(t *testing.T) {
 	// Create temp directory with config file
-	tmpDir, err := os.MkdirTemp("", "voice-config-loadfrompath-*")
+	tmpDir, err := os.MkdirTemp("", "config-loadfrompath-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -295,18 +295,18 @@ func TestVoiceConfigLoader_LoadFromPath(t *testing.T) {
 	require.NoError(t, err)
 
 	configContent := `{
-		"defaultProvider": "aivisspeech",
+		"default_provider": "aivisspeech",
 		"providers": {
 			"aivisspeech": {
 				"speaker": 888753760
 			}
 		}
 	}`
-	configPath := filepath.Join(claudeDir, "voice.json")
+	configPath := filepath.Join(claudeDir, "config.json")
 	err = os.WriteFile(configPath, []byte(configContent), 0644)
 	require.NoError(t, err)
 
-	loader := NewVoiceConfigLoader()
+	loader := NewConfigLoader()
 
 	t.Run("load from valid path", func(t *testing.T) {
 		config, err := loader.LoadFromPath(configPath)
@@ -323,13 +323,13 @@ func TestVoiceConfigLoader_LoadFromPath(t *testing.T) {
 	})
 
 	t.Run("load from wrong filename", func(t *testing.T) {
-		_, err := loader.LoadFromPath("/tmp/config.json")
+		_, err := loader.LoadFromPath("/tmp/voice.json")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "voice.json")
+		assert.Contains(t, err.Error(), "config.json")
 	})
 
 	t.Run("load from nonexistent path", func(t *testing.T) {
-		_, err := loader.LoadFromPath("/nonexistent/path/voice.json")
+		_, err := loader.LoadFromPath("/nonexistent/path/config.json")
 		assert.Error(t, err)
 	})
 }
@@ -381,9 +381,9 @@ func TestContains(t *testing.T) {
 	}
 }
 
-func TestVoiceConfigFile_ValidateProviderConfig_ElevenLabs(t *testing.T) {
+func TestConfigFile_ValidateProviderConfig_ElevenLabs(t *testing.T) {
 	t.Run("missing elevenlabs api key", func(t *testing.T) {
-		config := &VoiceConfigFile{
+		config := &ConfigFile{
 			Providers: map[string]ProviderConfig{
 				"elevenlabs": {
 					Voice: "Rachel",
@@ -392,11 +392,11 @@ func TestVoiceConfigFile_ValidateProviderConfig_ElevenLabs(t *testing.T) {
 		}
 		errors := config.Validate()
 		assert.Len(t, errors, 1)
-		assert.Contains(t, errors[0], "apiKey is required")
+		assert.Contains(t, errors[0], "api_key is required")
 	})
 
 	t.Run("valid elevenlabs config", func(t *testing.T) {
-		config := &VoiceConfigFile{
+		config := &ConfigFile{
 			Providers: map[string]ProviderConfig{
 				"elevenlabs": {
 					APIKey: "test-key",

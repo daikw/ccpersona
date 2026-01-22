@@ -35,8 +35,8 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 	if projectConfig != nil {
 		fmt.Printf("🎭 プロジェクトペルソナ: %s\n", projectConfig.Name)
 		if projectConfig.Voice != nil {
-			fmt.Printf("🔊 音声エンジン: %s\n", projectConfig.Voice.Engine)
-			fmt.Printf("🎤 Speaker ID: %d\n", projectConfig.Voice.SpeakerID)
+			fmt.Printf("🔊 音声プロバイダー: %s\n", projectConfig.Voice.Provider)
+			fmt.Printf("🎤 Speaker: %d\n", projectConfig.Voice.Speaker)
 		}
 	} else {
 		fmt.Println("🎭 プロジェクトペルソナ: (未設定)")
