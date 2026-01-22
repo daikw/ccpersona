@@ -103,6 +103,10 @@ func TestNewVoiceEngine(t *testing.T) {
 }
 
 func TestVoiceEngine_SelectEngine(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test that connects to local voice engines")
+	}
+
 	config := DefaultConfig()
 	engine := NewVoiceEngine(config)
 

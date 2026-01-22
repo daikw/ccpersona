@@ -100,15 +100,15 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 		// Load persona config for voice settings
 		config, _ := persona.LoadConfigWithFallback()
 		if config != nil && config.Voice != nil {
-			if config.Voice.Engine != "" {
-				voiceConfig.EnginePriority = config.Voice.Engine
+			if config.Voice.Provider != "" {
+				voiceConfig.EnginePriority = config.Voice.Provider
 			}
-			if config.Voice.SpeakerID > 0 {
+			if config.Voice.Speaker > 0 {
 				// Apply speaker ID to the appropriate engine based on priority
 				if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
-					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
+					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.Speaker)
 				} else {
-					voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+					voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
 				}
 			}
 		}
@@ -168,15 +168,15 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 		voiceConfig := voice.DefaultConfig()
 		config, _ := persona.LoadConfigWithFallback()
 		if config != nil && config.Voice != nil {
-			if config.Voice.Engine != "" {
-				voiceConfig.EnginePriority = config.Voice.Engine
+			if config.Voice.Provider != "" {
+				voiceConfig.EnginePriority = config.Voice.Provider
 			}
-			if config.Voice.SpeakerID > 0 {
+			if config.Voice.Speaker > 0 {
 				// Apply speaker ID to the appropriate engine based on priority
 				if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
-					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.SpeakerID)
+					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.Speaker)
 				} else {
-					voiceConfig.VoicevoxSpeaker = config.Voice.SpeakerID
+					voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
 				}
 			}
 		}

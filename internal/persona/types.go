@@ -8,10 +8,12 @@ type Config struct {
 	CustomInstructions string       `json:"custom_instructions,omitempty"`
 }
 
-// VoiceConfig represents voice synthesis settings
+// VoiceConfig represents voice synthesis settings for a persona
 type VoiceConfig struct {
-	Engine    string `json:"engine"`
-	SpeakerID int    `json:"speaker_id"`
+	Provider string  `json:"provider"`
+	Speaker  int     `json:"speaker"`
+	Volume   float64 `json:"volume,omitempty"`
+	Speed    float64 `json:"speed,omitempty"`
 }
 
 // Definition represents a persona definition

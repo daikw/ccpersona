@@ -1,4 +1,4 @@
-.PHONY: build test clean install lint fmt vet
+.PHONY: build test test-integration clean install lint fmt vet
 
 # Variables
 BINARY_NAME := ccpersona
@@ -27,9 +27,14 @@ build-all: clean
 	@GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 $(MAIN_PATH)
 	@GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe $(MAIN_PATH)
 
-# Run tests
+# Run tests (skip integration tests that require external services)
 test:
 	@echo "Running tests..."
+	@go test -v -short -race -coverprofile=coverage.out ./...
+
+# Run all tests including integration tests
+test-integration:
+	@echo "Running all tests including integration..."
 	@go test -v -race -coverprofile=coverage.out ./...
 
 # Clean build artifacts
