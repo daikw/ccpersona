@@ -14,7 +14,7 @@ const (
 	ClaudeDir      = ".claude"
 )
 
-// LoadConfig loads persona configuration from the project's .claude directory
+// LoadConfig loads persona configuration from the specified directory's .claude directory
 func LoadConfig(projectPath string) (*Config, error) {
 	configPath := filepath.Join(projectPath, ClaudeDir, ConfigFileName)
 
@@ -36,6 +36,36 @@ func LoadConfig(projectPath string) (*Config, error) {
 
 	log.Debug().Str("persona", config.Name).Msg("Loaded persona config")
 	return &config, nil
+}
+
+// LoadConfigWithFallback loads persona configuration from the current directory,
+// falling back to the home directory if not found.
+func LoadConfigWithFallback() (*Config, error) {
+	// Try current directory first
+	config, err := LoadConfig(".")
+	if err != nil {
+		return nil, err
+	}
+	if config != nil {
+		log.Debug().Msg("Using project persona config")
+		return config, nil
+	}
+
+	// Fallback to home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	config, err = LoadConfig(homeDir)
+	if err != nil {
+		return nil, err
+	}
+	if config != nil {
+		log.Debug().Msg("Using global persona config from home directory")
+	}
+
+	return config, nil
 }
 
 // SaveConfig saves persona configuration to the project's .claude directory

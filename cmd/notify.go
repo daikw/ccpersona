@@ -98,7 +98,7 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 		voiceConfig := voice.DefaultConfig()
 
 		// Load persona config for voice settings
-		config, _ := persona.LoadConfig(".")
+		config, _ := persona.LoadConfigWithFallback()
 		if config != nil && config.Voice != nil {
 			if config.Voice.Engine != "" {
 				voiceConfig.EnginePriority = config.Voice.Engine
@@ -166,7 +166,7 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 	// Voice notification
 	if c.Bool("voice") {
 		voiceConfig := voice.DefaultConfig()
-		config, _ := persona.LoadConfig(".")
+		config, _ := persona.LoadConfigWithFallback()
 		if config != nil && config.Voice != nil {
 			if config.Voice.Engine != "" {
 				voiceConfig.EnginePriority = config.Voice.Engine

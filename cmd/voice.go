@@ -66,7 +66,7 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	}
 
 	// Load persona config and apply voice settings (if CLI flag not specified)
-	personaConfig, err := persona.LoadConfig(".")
+	personaConfig, err := persona.LoadConfigWithFallback()
 	if err == nil && personaConfig != nil && personaConfig.Voice != nil {
 		if personaConfig.Voice.Engine != "" && c.String("provider") == "aivisspeech" {
 			voiceConfig.EnginePriority = personaConfig.Voice.Engine
