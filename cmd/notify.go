@@ -71,8 +71,8 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 		// Claude Code events - route to appropriate handler
 		switch unifiedEvent.EventType {
 		case "UserPromptSubmit":
-			// Apply persona at session start
-			if err := persona.HandleSessionStart(); err != nil {
+			// Apply persona at session start (platform-aware)
+			if err := persona.HandleSessionStartForPlatform(unifiedEvent.Source); err != nil {
 				log.Error().Err(err).Msg("Failed to handle session start")
 			}
 			return nil
@@ -133,8 +133,8 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 	if c.Bool("voice") && codexEvent.LastAssistantMessage != "" {
 		voiceConfig := voice.DefaultConfig()
 
-		// Load persona config for voice settings
-		config, _ := persona.LoadConfigWithFallback()
+		// Load persona config for voice settings (platform-aware)
+		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
 		if config != nil && config.Voice != nil {
 			if config.Voice.Provider != "" {
 				voiceConfig.EnginePriority = config.Voice.Provider
@@ -215,7 +215,7 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 	// Voice notification
 	if c.Bool("voice") {
 		voiceConfig := voice.DefaultConfig()
-		config, _ := persona.LoadConfigWithFallback()
+		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
 		if config != nil && config.Voice != nil {
 			if config.Voice.Provider != "" {
 				voiceConfig.EnginePriority = config.Voice.Provider
