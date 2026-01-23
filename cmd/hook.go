@@ -20,12 +20,15 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 	if err != nil {
 		// Fallback to legacy behavior if no stdin data or parse error
 		log.Debug().Err(err).Msg("No hook event data from stdin, using legacy mode")
-		// Still try to apply persona in legacy mode
+		// Still try to apply persona in legacy mode (no platform info available)
 		if err := persona.HandleSessionStart(); err != nil {
 			log.Error().Err(err).Msg("Failed to handle session start")
 		}
 		return nil
 	}
+
+	// Platform is available from the unified event
+	platform := unifiedEvent.Source
 
 	// Set session ID from hook event
 	if unifiedEvent.SessionID != "" {
@@ -39,17 +42,17 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 		Str("cwd", unifiedEvent.CWD).
 		Msg("Received hook event")
 
-	// Handle different event types
+	// Handle different event types (platform-aware)
 	switch unifiedEvent.EventType {
 	case "SessionStart":
-		log.Debug().Msg("Processing SessionStart hook")
-		if err := persona.HandleSessionStart(); err != nil {
+		log.Debug().Str("platform", platform).Msg("Processing SessionStart hook")
+		if err := persona.HandleSessionStartForPlatform(platform); err != nil {
 			log.Error().Err(err).Msg("Failed to handle session start")
 		}
 
 	case "UserPromptSubmit":
-		log.Debug().Msg("Processing UserPromptSubmit hook (legacy)")
-		if err := persona.HandleSessionStart(); err != nil {
+		log.Debug().Str("platform", platform).Msg("Processing UserPromptSubmit hook (legacy)")
+		if err := persona.HandleSessionStartForPlatform(platform); err != nil {
 			log.Error().Err(err).Msg("Failed to handle session start")
 		}
 

@@ -109,7 +109,13 @@ func (sm *SessionManager) getSessionMarkerPath() string {
 }
 
 // HandleSessionStart is the main entry point for hook functionality
+// This is a convenience wrapper for HandleSessionStartForPlatform with empty platform.
 func HandleSessionStart() error {
+	return HandleSessionStartForPlatform("")
+}
+
+// HandleSessionStartForPlatform is the main entry point for hook functionality with platform support
+func HandleSessionStartForPlatform(platform string) error {
 	// Create session manager
 	sessionMgr, err := NewSessionManager()
 	if err != nil {
@@ -132,8 +138,8 @@ func HandleSessionStart() error {
 		log.Warn().Err(err).Msg("Failed to cleanup old sessions")
 	}
 
-	// Load persona configuration (project or global fallback)
-	config, err := LoadConfigWithFallback()
+	// Load persona configuration (project or global fallback, platform-aware)
+	config, err := LoadConfigWithFallbackForPlatform(platform)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

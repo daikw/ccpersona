@@ -288,3 +288,118 @@ func TestLoadConfigWithFallback(t *testing.T) {
 		_ = config
 	})
 }
+
+func TestLoadConfigForPlatform(t *testing.T) {
+	t.Run("PlatformSpecificConfigTakesPriority", func(t *testing.T) {
+		// Create temp directory with both common and platform-specific config
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-platform-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		// Create common config
+		claudeDir := filepath.Join(tmpDir, ClaudeDir)
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		commonConfig := &Config{Name: "common-persona"}
+		data, _ := json.MarshalIndent(commonConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create platform-specific config
+		platformDir := filepath.Join(claudeDir, PlatformCodex)
+		if err := os.MkdirAll(platformDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		platformConfig := &Config{Name: "codex-persona"}
+		data, _ = json.MarshalIndent(platformConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(platformDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Load with platform - should get platform-specific config
+		config, err := LoadConfigForPlatform(tmpDir, PlatformCodex)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+		}
+		if config.Name != "codex-persona" {
+			t.Errorf("Expected codex-persona, got %s", config.Name)
+		}
+	})
+
+	t.Run("FallsBackToCommonIfNoPlatformConfig", func(t *testing.T) {
+		// Create temp directory with only common config
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-fallback-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		// Create common config only
+		claudeDir := filepath.Join(tmpDir, ClaudeDir)
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		commonConfig := &Config{Name: "common-persona"}
+		data, _ := json.MarshalIndent(commonConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Load with platform - should fall back to common config
+		config, err := LoadConfigForPlatform(tmpDir, PlatformCodex)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+		}
+		if config.Name != "common-persona" {
+			t.Errorf("Expected common-persona, got %s", config.Name)
+		}
+	})
+
+	t.Run("EmptyPlatformUsesCommonConfig", func(t *testing.T) {
+		// Create temp directory with both common and platform-specific config
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-empty-platform-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		// Create common config
+		claudeDir := filepath.Join(tmpDir, ClaudeDir)
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		commonConfig := &Config{Name: "common-persona"}
+		data, _ := json.MarshalIndent(commonConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Load without platform - should get common config
+		config, err := LoadConfigForPlatform(tmpDir, "")
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+		}
+		if config.Name != "common-persona" {
+			t.Errorf("Expected common-persona, got %s", config.Name)
+		}
+	})
+}
