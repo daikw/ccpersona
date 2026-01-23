@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -20,8 +21,21 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 	// Suppress normal output when running as hook
 	zerolog.SetGlobalLevel(zerolog.WarnLevel)
 
-	// Try unified hook interface first to auto-detect Claude Code or Codex
-	unifiedEvent, err := hook.DetectAndParse(os.Stdin)
+	var unifiedEvent *hook.UnifiedHookEvent
+	var err error
+
+	// Codex passes JSON as command line argument, Claude Code uses stdin
+	// Check for JSON argument first (Codex style)
+	args := c.Args().Slice()
+	if len(args) > 0 && strings.HasPrefix(strings.TrimSpace(args[0]), "{") {
+		log.Debug().Str("arg", args[0]).Msg("Parsing JSON from command line argument (Codex style)")
+		unifiedEvent, err = hook.DetectAndParse(bytes.NewReader([]byte(args[0])))
+	} else {
+		// Fallback to stdin (Claude Code style)
+		log.Debug().Msg("Parsing JSON from stdin (Claude Code style)")
+		unifiedEvent, err = hook.DetectAndParse(os.Stdin)
+	}
+
 	if err != nil {
 		// Fallback: try reading as simple notification event
 		log.Debug().Err(err).Msg("Failed to parse as unified event, trying legacy format")
