@@ -113,35 +113,47 @@ The `codex-notify` command provides a single interface for both platforms:
 ### Platform-Specific Configuration
 
 ccpersona supports platform-specific configuration files, allowing different personas for different AI assistants.
+Each platform uses its own standard configuration directory.
+
+#### Global Configuration Directories
+
+| Platform    | Global Config Path         |
+|-------------|---------------------------|
+| Claude Code | `~/.claude/persona.json`  |
+| Codex       | `~/.codex/persona.json`   |
+| Cursor      | `~/.cursor/persona.json`  |
 
 #### Configuration Fallback Hierarchy
 
-When loading configuration, ccpersona searches in this order (first match wins):
+**Claude Code:**
+1. `.claude/persona.json` (project)
+2. `~/.claude/persona.json` (global)
 
-1. **Project platform-specific**: `.claude/<platform>/persona.json`
-2. **Project common**: `.claude/persona.json`
-3. **Global platform-specific**: `~/.claude/<platform>/persona.json`
-4. **Global common**: `~/.claude/persona.json`
+**Codex:**
+1. `.claude/codex/persona.json` (project, platform-specific)
+2. `.claude/persona.json` (project, common)
+3. `~/.codex/persona.json` (global)
 
-Where `<platform>` is one of:
-- `claude-code` - Claude Code
-- `codex` - OpenAI Codex
-- `cursor` - Cursor IDE
+**Cursor:**
+1. `.claude/cursor/persona.json` (project, platform-specific)
+2. `.claude/persona.json` (project, common)
+3. `~/.cursor/persona.json` (global)
 
 #### Example Directory Structure
 
 ```
-~/.claude/
-├── persona.json              # Global default (all platforms)
-├── claude-code/
-│   └── persona.json          # Claude Code specific
-└── codex/
-    └── persona.json          # Codex specific
+# Global configs (each platform uses its own directory)
+~/.claude/persona.json        # Claude Code
+~/.codex/persona.json         # Codex
+~/.cursor/persona.json        # Cursor
 
+# Project configs (all in .claude/)
 ./your-project/.claude/
-├── persona.json              # Project default (all platforms)
-└── codex/
-    └── persona.json          # Project Codex specific
+├── persona.json              # Common (all platforms)
+├── codex/
+│   └── persona.json          # Codex specific
+└── cursor/
+    └── persona.json          # Cursor specific
 ```
 
 ### Key Design Decisions
