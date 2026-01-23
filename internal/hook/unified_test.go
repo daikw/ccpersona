@@ -9,7 +9,7 @@ func TestDetectAndParseCodexEvent(t *testing.T) {
 	jsonData := `{
 		"type": "agent-turn-complete",
 		"thread-id": "12345678-1234-1234-1234-123456789abc",
-		"turn-id": 5,
+		"turn-id": "5",
 		"cwd": "/home/user/project",
 		"input-messages": ["Fix the bug in main.go"],
 		"last-assistant-message": "I've fixed the bug by updating the error handling."
@@ -54,8 +54,8 @@ func TestDetectAndParseCodexEvent(t *testing.T) {
 		t.Error("Expected to get Codex event")
 	}
 
-	if codexEvent.TurnID != 5 {
-		t.Errorf("Expected turn ID 5, got %d", codexEvent.TurnID)
+	if codexEvent.TurnID != "5" {
+		t.Errorf("Expected turn ID '5', got '%s'", codexEvent.TurnID)
 	}
 }
 
@@ -233,7 +233,7 @@ func TestGetClaudeCodeEvent(t *testing.T) {
 		jsonData := `{
 			"type": "agent-turn-complete",
 			"thread-id": "12345678-1234-1234-1234-123456789abc",
-			"turn-id": 1,
+			"turn-id": "1",
 			"cwd": "/project",
 			"input-messages": [],
 			"last-assistant-message": "Done"

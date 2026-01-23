@@ -421,7 +421,7 @@ func TestParseCodexNotifyEvent(t *testing.T) {
 			input: `{
 				"type": "agent-turn-complete",
 				"thread-id": "12345678-1234-1234-1234-123456789abc",
-				"turn-id": 5,
+				"turn-id": "5",
 				"cwd": "/home/user/project",
 				"input-messages": ["Fix the bug", "Also update tests"],
 				"last-assistant-message": "Done!"
@@ -434,8 +434,8 @@ func TestParseCodexNotifyEvent(t *testing.T) {
 				if e.ThreadID != "12345678-1234-1234-1234-123456789abc" {
 					t.Errorf("Expected thread_id '12345678-1234-1234-1234-123456789abc', got '%s'", e.ThreadID)
 				}
-				if e.TurnID != 5 {
-					t.Errorf("Expected turn_id 5, got %d", e.TurnID)
+				if e.TurnID != "5" {
+					t.Errorf("Expected turn_id '5', got '%s'", e.TurnID)
 				}
 				if e.CWD != "/home/user/project" {
 					t.Errorf("Expected cwd '/home/user/project', got '%s'", e.CWD)
@@ -453,7 +453,7 @@ func TestParseCodexNotifyEvent(t *testing.T) {
 			input: `{
 				"type": "agent-turn-complete",
 				"thread-id": "abcd-efgh",
-				"turn-id": 1,
+				"turn-id": "1",
 				"cwd": "/project",
 				"input-messages": [],
 				"last-assistant-message": ""
@@ -463,8 +463,8 @@ func TestParseCodexNotifyEvent(t *testing.T) {
 				if len(e.InputMessages) != 0 {
 					t.Errorf("Expected empty input messages, got %d", len(e.InputMessages))
 				}
-				if e.TurnID != 1 {
-					t.Errorf("Expected turn_id 1, got %d", e.TurnID)
+				if e.TurnID != "1" {
+					t.Errorf("Expected turn_id '1', got '%s'", e.TurnID)
 				}
 			},
 		},

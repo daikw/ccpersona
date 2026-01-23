@@ -18,8 +18,12 @@ import (
 )
 
 func handleNotify(ctx context.Context, c *cli.Command) error {
-	// Suppress normal output when running as hook
-	zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	// Check for debug mode
+	debug := os.Getenv("CCPERSONA_DEBUG") != ""
+	if !debug {
+		// Suppress normal output when running as hook
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	}
 
 	var unifiedEvent *hook.UnifiedHookEvent
 	var err error
@@ -27,19 +31,30 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 	// Codex passes JSON as command line argument, Claude Code uses stdin
 	// Check for JSON argument first (Codex style)
 	args := c.Args().Slice()
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] args: %v\n", args)
+	}
 	if len(args) > 0 && strings.HasPrefix(strings.TrimSpace(args[0]), "{") {
-		log.Debug().Str("arg", args[0]).Msg("Parsing JSON from command line argument (Codex style)")
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Parsing from argument (Codex style)\n")
+		}
 		unifiedEvent, err = hook.DetectAndParse(bytes.NewReader([]byte(args[0])))
 	} else {
-		// Fallback to stdin (Claude Code style)
-		log.Debug().Msg("Parsing JSON from stdin (Claude Code style)")
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Parsing from stdin (Claude Code style)\n")
+		}
 		unifiedEvent, err = hook.DetectAndParse(os.Stdin)
 	}
 
 	if err != nil {
-		// Fallback: try reading as simple notification event
-		log.Debug().Err(err).Msg("Failed to parse as unified event, trying legacy format")
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Parse error: %v\n", err)
+		}
 		return handleLegacyNotification(ctx, c)
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Event: source=%s, type=%s\n", unifiedEvent.Source, unifiedEvent.EventType)
 	}
 
 	log.Debug().
@@ -88,20 +103,27 @@ func handleLegacyNotification(ctx context.Context, c *cli.Command) error {
 }
 
 func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
+	debug := os.Getenv("CCPERSONA_DEBUG") != ""
+
 	codexEvent, ok := event.GetCodexEvent()
 	if !ok {
 		return fmt.Errorf("failed to get Codex event")
 	}
 
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] LastAssistantMessage: %q\n", codexEvent.LastAssistantMessage)
+		fmt.Fprintf(os.Stderr, "[DEBUG] voice flag: %v\n", c.Bool("voice"))
+	}
+
 	log.Info().
 		Str("thread_id", codexEvent.ThreadID).
-		Int("turn_id", codexEvent.TurnID).
+		Str("turn_id", codexEvent.TurnID).
 		Str("cwd", codexEvent.CWD).
 		Msg("Codex agent turn complete")
 
 	// Desktop notification (if enabled)
 	if c.Bool("desktop") {
-		message := fmt.Sprintf("Turn %d completed", codexEvent.TurnID)
+		message := fmt.Sprintf("Turn %s completed", codexEvent.TurnID)
 		if err := showDesktopNotification(message, "normal"); err != nil {
 			log.Warn().Err(err).Msg("Failed to show desktop notification")
 		}
@@ -133,13 +155,26 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 		text = voice.StripMarkdown(text)
 
 		// Synthesize and play
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Text to synthesize: %q\n", text)
+		}
 		engine := voice.NewVoiceEngine(voiceConfig)
 		audioFile, err := engine.Synthesize(text)
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to synthesize voice")
+			if debug {
+				fmt.Fprintf(os.Stderr, "[DEBUG] Synthesize error: %v\n", err)
+			}
 		} else {
-			if err := engine.Play(audioFile); err != nil {
+			if debug {
+				fmt.Fprintf(os.Stderr, "[DEBUG] Audio file: %s\n", audioFile)
+			}
+			// Use PlayWithOptions with wait=true for hooks
+			if err := engine.PlayWithOptions(audioFile, true); err != nil {
 				log.Warn().Err(err).Msg("Failed to play audio")
+				if debug {
+					fmt.Fprintf(os.Stderr, "[DEBUG] Play error: %v\n", err)
+				}
 			}
 		}
 	}
@@ -200,7 +235,8 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to synthesize voice")
 		} else {
-			if err := engine.Play(audioFile); err != nil {
+			// Use PlayWithOptions with wait=true for hooks
+			if err := engine.PlayWithOptions(audioFile, true); err != nil {
 				log.Warn().Err(err).Msg("Failed to play audio")
 			}
 		}

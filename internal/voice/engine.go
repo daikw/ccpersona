@@ -228,6 +228,12 @@ func (ve *VoiceEngine) synthesizeAivisSpeech(text string) (string, error) {
 
 // Play plays the audio file
 func (ve *VoiceEngine) Play(audioFile string) error {
+	return ve.PlayWithOptions(audioFile, false)
+}
+
+// PlayWithOptions plays the audio file with options
+// If wait is true, blocks until playback completes (useful for hooks)
+func (ve *VoiceEngine) PlayWithOptions(audioFile string, wait bool) error {
 	// Detect the platform and use appropriate player
 	var cmd *exec.Cmd
 
@@ -248,7 +254,16 @@ func (ve *VoiceEngine) Play(audioFile string) error {
 		return fmt.Errorf("no audio player found")
 	}
 
-	// Start playing in background
+	if wait {
+		// For hooks: wait for playback to complete, then clean up
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to play audio: %w", err)
+		}
+		_ = os.Remove(audioFile)
+		return nil
+	}
+
+	// For interactive use: start in background
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to play audio: %w", err)
 	}

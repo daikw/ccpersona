@@ -72,7 +72,7 @@ type SessionEndEvent struct {
 type CodexNotifyEvent struct {
 	Type                 string   `json:"type"`                   // "agent-turn-complete"
 	ThreadID             string   `json:"thread-id"`              // UUID of the thread
-	TurnID               int      `json:"turn-id"`                // Turn number
+	TurnID               string   `json:"turn-id"`                // Turn number (string from Codex)
 	CWD                  string   `json:"cwd"`                    // Current working directory
 	InputMessages        []string `json:"input-messages"`         // User's input messages
 	LastAssistantMessage string   `json:"last-assistant-message"` // Model's final response
