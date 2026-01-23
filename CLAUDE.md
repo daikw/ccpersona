@@ -110,6 +110,40 @@ The `codex-notify` command provides a single interface for both platforms:
 - **Routing**: Routes events to platform-specific handlers
 - **Shared functionality**: Both platforms use the same persona and voice configuration
 
+### Platform-Specific Configuration
+
+ccpersona supports platform-specific configuration files, allowing different personas for different AI assistants.
+
+#### Configuration Fallback Hierarchy
+
+When loading configuration, ccpersona searches in this order (first match wins):
+
+1. **Project platform-specific**: `.claude/<platform>/persona.json`
+2. **Project common**: `.claude/persona.json`
+3. **Global platform-specific**: `~/.claude/<platform>/persona.json`
+4. **Global common**: `~/.claude/persona.json`
+
+Where `<platform>` is one of:
+- `claude-code` - Claude Code
+- `codex` - OpenAI Codex
+- `cursor` - Cursor IDE
+
+#### Example Directory Structure
+
+```
+~/.claude/
+├── persona.json              # Global default (all platforms)
+├── claude-code/
+│   └── persona.json          # Claude Code specific
+└── codex/
+    └── persona.json          # Codex specific
+
+./your-project/.claude/
+├── persona.json              # Project default (all platforms)
+└── codex/
+    └── persona.json          # Project Codex specific
+```
+
 ### Key Design Decisions
 
 - **No shell scripts**: All functionality implemented in Go for cross-platform compatibility

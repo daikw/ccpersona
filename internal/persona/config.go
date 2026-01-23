@@ -12,6 +12,10 @@ import (
 const (
 	ConfigFileName = "persona.json"
 	ClaudeDir      = ".claude"
+
+	// File permissions
+	DirPermission  = 0755 // Directory permission (rwxr-xr-x)
+	FilePermission = 0644 // File permission (rw-r--r--)
 )
 
 // Platform identifiers for platform-specific configuration
@@ -119,7 +123,7 @@ func SaveConfig(projectPath string, config *Config) error {
 	claudeDir := filepath.Join(projectPath, ClaudeDir)
 
 	// Ensure .claude directory exists
-	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+	if err := os.MkdirAll(claudeDir, DirPermission); err != nil {
 		return fmt.Errorf("failed to create .claude directory: %w", err)
 	}
 
@@ -130,7 +134,7 @@ func SaveConfig(projectPath string, config *Config) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, FilePermission); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

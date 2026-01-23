@@ -48,7 +48,7 @@ func (sm *SessionManager) MarkSessionStarted() error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(markerPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, DirPermission); err != nil {
 		return fmt.Errorf("failed to create session directory: %w", err)
 	}
 
