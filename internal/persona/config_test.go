@@ -289,7 +289,63 @@ func TestLoadConfigWithFallback(t *testing.T) {
 	})
 }
 
+func TestGetGlobalConfigDir(t *testing.T) {
+	tests := []struct {
+		platform string
+		expected string
+	}{
+		{PlatformClaudeCode, GlobalDirClaudeCode},
+		{PlatformCodex, GlobalDirCodex},
+		{PlatformCursor, GlobalDirCursor},
+		{"", GlobalDirClaudeCode},
+		{"unknown", GlobalDirClaudeCode},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.platform, func(t *testing.T) {
+			result := GetGlobalConfigDir(tt.platform)
+			if result != tt.expected {
+				t.Errorf("GetGlobalConfigDir(%q) = %q, want %q", tt.platform, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestLoadConfigForPlatform(t *testing.T) {
+	t.Run("ClaudeCodeDoesNotUseSubdirectory", func(t *testing.T) {
+		// Create temp directory with common config only
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-claude-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		// Create common config
+		claudeDir := filepath.Join(tmpDir, ClaudeDir)
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		commonConfig := &Config{Name: "common-persona"}
+		data, _ := json.MarshalIndent(commonConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Claude Code should use common config directly (not look for .claude/claude-code/)
+		config, err := LoadConfigForPlatform(tmpDir, PlatformClaudeCode)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+		}
+		if config.Name != "common-persona" {
+			t.Errorf("Expected common-persona, got %s", config.Name)
+		}
+	})
+
 	t.Run("PlatformSpecificConfigTakesPriority", func(t *testing.T) {
 		// Create temp directory with both common and platform-specific config
 		tmpDir, err := os.MkdirTemp("", "ccpersona-test-platform-*")
