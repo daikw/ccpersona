@@ -96,7 +96,7 @@ The hook process:
 #### OpenAI Codex Integration
 
 The system integrates with OpenAI Codex via the notify hook:
-1. User configures Codex with `command = "ccpersona"` and `args = ["codex-notify"]`
+1. User configures Codex with `notify = ["ccpersona", "codex-notify"]` in `~/.codex/config.toml`
 2. On agent-turn-complete events, ccpersona receives JSON with turn details
 3. The unified hook interface (DetectAndParse) automatically detects Codex events
 4. Appropriate actions are performed (notifications, voice synthesis)

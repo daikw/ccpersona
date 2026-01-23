@@ -111,10 +111,8 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
 Add the following to your Codex config file (`~/.codex/config.toml`):
 
 ```toml
-[notify]
-# Use unified hook command that auto-detects Claude Code or Codex
-command = "ccpersona"
-args = ["notify"]
+# Notification hook that auto-detects Claude Code or Codex
+notify = ["ccpersona", "codex-notify"]
 ```
 
 #### For Cursor
