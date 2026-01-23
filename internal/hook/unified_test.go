@@ -252,6 +252,153 @@ func TestGetClaudeCodeEvent(t *testing.T) {
 	})
 }
 
+func TestDetectAndParseCursorSessionStart(t *testing.T) {
+	jsonData := `{
+		"conversation_id": "cursor-conv-123",
+		"generation_id": "gen-456",
+		"model": "claude-3.5-sonnet",
+		"hook_event_name": "sessionStart",
+		"cursor_version": "0.45.0",
+		"workspace_roots": ["/home/user/project"],
+		"user_email": "user@example.com"
+	}`
+
+	reader := strings.NewReader(jsonData)
+	event, err := DetectAndParse(reader)
+	if err != nil {
+		t.Fatalf("Failed to parse Cursor event: %v", err)
+	}
+
+	if event.Source != "cursor" {
+		t.Errorf("Expected source 'cursor', got '%s'", event.Source)
+	}
+
+	if event.SessionID != "cursor-conv-123" {
+		t.Errorf("Expected session ID 'cursor-conv-123', got '%s'", event.SessionID)
+	}
+
+	if event.EventType != "sessionStart" {
+		t.Errorf("Expected event type 'sessionStart', got '%s'", event.EventType)
+	}
+
+	if event.CWD != "/home/user/project" {
+		t.Errorf("Expected CWD '/home/user/project', got '%s'", event.CWD)
+	}
+
+	if !event.IsCursor() {
+		t.Error("Expected IsCursor() to return true")
+	}
+
+	if event.IsClaudeCode() {
+		t.Error("Expected IsClaudeCode() to return false")
+	}
+
+	if event.IsCodex() {
+		t.Error("Expected IsCodex() to return false")
+	}
+}
+
+func TestDetectAndParseCursorBeforeSubmitPrompt(t *testing.T) {
+	jsonData := `{
+		"conversation_id": "cursor-conv-789",
+		"generation_id": "gen-012",
+		"model": "gpt-4o",
+		"hook_event_name": "beforeSubmitPrompt",
+		"cursor_version": "0.45.0",
+		"workspace_roots": ["/home/user/project"],
+		"prompt": "Fix the authentication bug"
+	}`
+
+	reader := strings.NewReader(jsonData)
+	event, err := DetectAndParse(reader)
+	if err != nil {
+		t.Fatalf("Failed to parse Cursor event: %v", err)
+	}
+
+	if event.Source != "cursor" {
+		t.Errorf("Expected source 'cursor', got '%s'", event.Source)
+	}
+
+	if event.EventType != "beforeSubmitPrompt" {
+		t.Errorf("Expected event type 'beforeSubmitPrompt', got '%s'", event.EventType)
+	}
+
+	if len(event.UserInput) != 1 || event.UserInput[0] != "Fix the authentication bug" {
+		t.Errorf("Unexpected user input: %v", event.UserInput)
+	}
+}
+
+func TestDetectAndParseCursorStop(t *testing.T) {
+	jsonData := `{
+		"conversation_id": "cursor-conv-stop",
+		"generation_id": "gen-stop",
+		"model": "claude-3.5-sonnet",
+		"hook_event_name": "stop",
+		"cursor_version": "0.45.0",
+		"workspace_roots": ["/home/user/project"]
+	}`
+
+	reader := strings.NewReader(jsonData)
+	event, err := DetectAndParse(reader)
+	if err != nil {
+		t.Fatalf("Failed to parse Cursor stop event: %v", err)
+	}
+
+	if event.Source != "cursor" {
+		t.Errorf("Expected source 'cursor', got '%s'", event.Source)
+	}
+
+	if event.EventType != "stop" {
+		t.Errorf("Expected event type 'stop', got '%s'", event.EventType)
+	}
+}
+
+func TestGetCursorEvent(t *testing.T) {
+	t.Run("returns event for Cursor source", func(t *testing.T) {
+		jsonData := `{
+			"conversation_id": "cursor-conv-test",
+			"generation_id": "gen-test",
+			"model": "claude-3.5-sonnet",
+			"hook_event_name": "sessionStart",
+			"cursor_version": "0.45.0",
+			"workspace_roots": ["/project"]
+		}`
+
+		reader := strings.NewReader(jsonData)
+		event, err := DetectAndParse(reader)
+		if err != nil {
+			t.Fatalf("Failed to parse: %v", err)
+		}
+
+		rawEvent, ok := event.GetCursorEvent()
+		if !ok {
+			t.Error("Expected GetCursorEvent to return true for Cursor event")
+		}
+		if rawEvent == nil {
+			t.Error("Expected non-nil raw event")
+		}
+	})
+
+	t.Run("returns false for Claude Code source", func(t *testing.T) {
+		jsonData := `{
+			"session_id": "claude-session",
+			"transcript_path": "/path/transcript.jsonl",
+			"hook_event_name": "SessionStart"
+		}`
+
+		reader := strings.NewReader(jsonData)
+		event, err := DetectAndParse(reader)
+		if err != nil {
+			t.Fatalf("Failed to parse: %v", err)
+		}
+
+		_, ok := event.GetCursorEvent()
+		if ok {
+			t.Error("Expected GetCursorEvent to return false for Claude Code event")
+		}
+	})
+}
+
 func TestParseClaudeCodeEventTypes(t *testing.T) {
 	t.Run("parse PreToolUse event", func(t *testing.T) {
 		jsonData := `{
