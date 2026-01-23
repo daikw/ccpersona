@@ -78,6 +78,36 @@ type CodexNotifyEvent struct {
 	LastAssistantMessage string   `json:"last-assistant-message"` // Model's final response
 }
 
+// CursorHookEvent represents the common hook event data from Cursor
+// See: https://cursor.com/docs/agent/hooks
+// Note: Cursor uses conversation_id instead of session_id, and camelCase event names
+type CursorHookEvent struct {
+	ConversationID string   `json:"conversation_id"`
+	GenerationID   string   `json:"generation_id"`
+	Model          string   `json:"model"`
+	HookEventName  string   `json:"hook_event_name"`
+	CursorVersion  string   `json:"cursor_version"`
+	WorkspaceRoots []string `json:"workspace_roots"`
+	UserEmail      string   `json:"user_email,omitempty"`
+	TranscriptPath string   `json:"transcript_path,omitempty"`
+}
+
+// CursorSessionStartEvent represents Cursor's sessionStart hook event
+type CursorSessionStartEvent struct {
+	CursorHookEvent
+}
+
+// CursorBeforeSubmitPromptEvent represents Cursor's beforeSubmitPrompt hook event
+type CursorBeforeSubmitPromptEvent struct {
+	CursorHookEvent
+	Prompt string `json:"prompt"`
+}
+
+// CursorStopEvent represents Cursor's stop hook event
+type CursorStopEvent struct {
+	CursorHookEvent
+}
+
 // ParseHookEvent reads and parses the hook event from stdin
 func ParseHookEvent(r io.Reader) (*HookEvent, error) {
 	var event HookEvent

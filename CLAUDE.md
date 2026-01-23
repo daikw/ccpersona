@@ -40,13 +40,18 @@ ccpersona is a persona management system that automatically applies different "p
    - Manager handles persona CRUD operations and AI assistant integration
 
 2. **Hook System** (`internal/hook/`)
-   - **types.go**: Defines event types for both Claude Code and Codex
+   - **types.go**: Defines event types for Claude Code, Codex, and Cursor
      - Claude Code events: UserPromptSubmit, Stop, Notification, PreToolUse, PostToolUse, PreCompact
      - Codex events: CodexNotifyEvent (agent-turn-complete)
+     - Cursor events: sessionStart, beforeSubmitPrompt, stop (camelCase naming)
    - **unified.go**: Unified hook interface with auto-detection
-     - DetectAndParse(): Automatically detects Claude Code or Codex events from JSON
-     - UnifiedHookEvent: Normalized event structure for both platforms
+     - DetectAndParse(): Automatically detects Claude Code, Codex, or Cursor events from JSON
+     - UnifiedHookEvent: Normalized event structure for all platforms
      - Platform-specific handlers route events to appropriate logic
+   - **Platform Detection**:
+     - Codex: `"type": "agent-turn-complete"` field
+     - Cursor: `"conversation_id"` field (uses camelCase event names)
+     - Claude Code: `"session_id"` + `"hook_event_name"` fields (uses PascalCase event names)
 
 3. **Voice Synthesis** (`internal/voice/`)
    - Default: reads Stop hook JSON event from stdin (expects JSON with transcript_path)

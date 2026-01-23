@@ -7,12 +7,12 @@ import (
 	"io"
 )
 
-// UnifiedHookEvent represents a normalized hook event that works for both Claude Code and Codex
+// UnifiedHookEvent represents a normalized hook event that works for Claude Code, Codex, and Cursor
 type UnifiedHookEvent struct {
-	Source     string      // "claude-code" or "codex"
-	SessionID  string      // Session/Thread identifier
+	Source     string      // "claude-code", "codex", or "cursor"
+	SessionID  string      // Session/Thread/Conversation identifier
 	CWD        string      // Current working directory
-	EventType  string      // Event type (e.g., "user-prompt-submit", "agent-turn-complete")
+	EventType  string      // Event type (e.g., "UserPromptSubmit", "agent-turn-complete", "sessionStart")
 	UserInput  []string    // User's input messages
 	AIResponse string      // AI's response message
 	RawEvent   interface{} // Original event for type-specific handling
@@ -41,6 +41,12 @@ func DetectAndParse(r io.Reader) (*UnifiedHookEvent, error) {
 	}
 
 	if _, hasHookEventName := generic["hook_event_name"]; hasHookEventName {
+		// Distinguish between Claude Code and Cursor by checking for conversation_id
+		// Cursor uses conversation_id, Claude Code uses session_id
+		if _, hasConversationID := generic["conversation_id"]; hasConversationID {
+			// This is a Cursor event
+			return parseCursorEvent(data, generic)
+		}
 		// This is a Claude Code event
 		return parseClaudeCodeEvent(data, generic)
 	}
@@ -162,6 +168,81 @@ func parseClaudeCodeEvent(data []byte, generic map[string]interface{}) (*Unified
 	}
 }
 
+func parseCursorEvent(data []byte, generic map[string]interface{}) (*UnifiedHookEvent, error) {
+	hookEventName, _ := generic["hook_event_name"].(string)
+
+	// Get CWD from workspace_roots if available
+	cwd := ""
+	if roots, ok := generic["workspace_roots"].([]interface{}); ok && len(roots) > 0 {
+		if root, ok := roots[0].(string); ok {
+			cwd = root
+		}
+	}
+
+	switch hookEventName {
+	case "sessionStart":
+		var event CursorSessionStartEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse Cursor sessionStart event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "cursor",
+			SessionID:  event.ConversationID,
+			CWD:        cwd,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: "",
+			RawEvent:   &event,
+		}, nil
+
+	case "beforeSubmitPrompt":
+		var event CursorBeforeSubmitPromptEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse Cursor beforeSubmitPrompt event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "cursor",
+			SessionID:  event.ConversationID,
+			CWD:        cwd,
+			EventType:  hookEventName,
+			UserInput:  []string{event.Prompt},
+			AIResponse: "",
+			RawEvent:   &event,
+		}, nil
+
+	case "stop":
+		var event CursorStopEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse Cursor stop event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "cursor",
+			SessionID:  event.ConversationID,
+			CWD:        cwd,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: "",
+			RawEvent:   &event,
+		}, nil
+
+	default:
+		// For other Cursor events, parse as generic CursorHookEvent
+		var event CursorHookEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse Cursor event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "cursor",
+			SessionID:  event.ConversationID,
+			CWD:        cwd,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: "",
+			RawEvent:   &event,
+		}, nil
+	}
+}
+
 // IsCodex returns true if the event is from Codex
 func (e *UnifiedHookEvent) IsCodex() bool {
 	return e.Source == "codex"
@@ -170,6 +251,11 @@ func (e *UnifiedHookEvent) IsCodex() bool {
 // IsClaudeCode returns true if the event is from Claude Code
 func (e *UnifiedHookEvent) IsClaudeCode() bool {
 	return e.Source == "claude-code"
+}
+
+// IsCursor returns true if the event is from Cursor
+func (e *UnifiedHookEvent) IsCursor() bool {
+	return e.Source == "cursor"
 }
 
 // GetCodexEvent returns the underlying Codex event if available
@@ -183,6 +269,14 @@ func (e *UnifiedHookEvent) GetCodexEvent() (*CodexNotifyEvent, bool) {
 // GetClaudeCodeEvent returns the underlying Claude Code event if available
 func (e *UnifiedHookEvent) GetClaudeCodeEvent() (interface{}, bool) {
 	if e.IsClaudeCode() {
+		return e.RawEvent, true
+	}
+	return nil, false
+}
+
+// GetCursorEvent returns the underlying Cursor event if available
+func (e *UnifiedHookEvent) GetCursorEvent() (interface{}, bool) {
+	if e.IsCursor() {
 		return e.RawEvent, true
 	}
 	return nil, false
