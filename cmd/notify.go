@@ -64,9 +64,36 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 		Msg("Received hook event")
 
 	// Handle based on event source and type
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Routing: IsCodex=%v, IsCursor=%v, IsClaudeCode=%v\n",
+			unifiedEvent.IsCodex(), unifiedEvent.IsCursor(), unifiedEvent.IsClaudeCode())
+	}
 	if unifiedEvent.IsCodex() {
 		// Codex notify hook - triggered on agent-turn-complete
 		return handleCodexAgentTurnComplete(ctx, c, unifiedEvent)
+	} else if unifiedEvent.IsCursor() {
+		// Cursor events - route to appropriate handler
+		switch unifiedEvent.EventType {
+		case "sessionStart":
+			// Apply persona at session start (platform-aware)
+			if err := persona.HandleSessionStartForPlatform(unifiedEvent.Source); err != nil {
+				log.Error().Err(err).Msg("Failed to handle session start")
+			}
+			return nil
+		case "beforeSubmitPrompt":
+			// Could validate prompts here if needed
+			return nil
+		case "afterAgentResponse":
+			// Voice synthesis using direct AI response text
+			return handleDirectResponseVoice(ctx, c, unifiedEvent)
+		case "stop":
+			// Stop event doesn't contain AI response, skip voice synthesis
+			log.Debug().Msg("Cursor stop event received (no voice synthesis)")
+			return nil
+		default:
+			log.Debug().Str("event_type", unifiedEvent.EventType).Msg("Unhandled Cursor event type")
+			return nil
+		}
 	} else if unifiedEvent.IsClaudeCode() {
 		// Claude Code events - route to appropriate handler
 		switch unifiedEvent.EventType {
@@ -76,9 +103,12 @@ func handleNotify(ctx context.Context, c *cli.Command) error {
 				log.Error().Err(err).Msg("Failed to handle session start")
 			}
 			return nil
-		case "Stop", "SubagentStop":
+		case "Stop":
 			// Voice synthesis for assistant response
-			return handleVoiceSynthesisForEvent(ctx, c, unifiedEvent)
+			return handleStopEventVoice(ctx, c, unifiedEvent)
+		case "SubagentStop":
+			log.Debug().Msg("SubagentStop event ignored for voice synthesis")
+			return nil
 		case "Notification":
 			// Desktop and voice notification
 			return handleNotificationEvent(ctx, c, unifiedEvent)
@@ -153,6 +183,12 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 		reader := voice.NewTranscriptReader(voiceConfig)
 		text := reader.ProcessText(codexEvent.LastAssistantMessage)
 		text = voice.StripMarkdown(text)
+		text = strings.TrimSpace(text)
+
+		if text == "" {
+			log.Debug().Msg("No text to synthesize after processing, skipping")
+			return nil
+		}
 
 		// Synthesize and play
 		if debug {
@@ -182,14 +218,202 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 	return nil
 }
 
-func handleVoiceSynthesisForEvent(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
+func handleStopEventVoice(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
+	debug := os.Getenv("CCPERSONA_DEBUG") != ""
+
 	if !c.Bool("voice") {
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Voice flag not set, skipping voice synthesis\n")
+		}
 		return nil
 	}
 
-	// This would be similar to handleVoice command
-	// but using the event's transcript path
-	log.Debug().Msg("Voice synthesis for event not yet implemented")
+	// Get transcript path from the event
+	var transcriptPath string
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] RawEvent type: %T\n", event.RawEvent)
+	}
+	switch e := event.RawEvent.(type) {
+	case *hook.StopEvent:
+		transcriptPath = e.TranscriptPath
+	case *hook.CursorStopEvent:
+		transcriptPath = e.TranscriptPath
+	default:
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Unknown event type for stop event: %T\n", event.RawEvent)
+		}
+		return nil
+	}
+
+	if transcriptPath == "" {
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] No transcript path in event\n")
+		}
+		return nil
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Transcript path: %s\n", transcriptPath)
+	}
+
+	// Load persona config for voice settings (platform-aware)
+	voiceConfig := voice.DefaultConfig()
+	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
+	if config != nil && config.Voice != nil {
+		if config.Voice.Provider != "" {
+			voiceConfig.EnginePriority = config.Voice.Provider
+		}
+		if config.Voice.Speaker > 0 {
+			// Apply speaker ID to the appropriate engine based on priority
+			if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
+				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.Speaker)
+			} else {
+				voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
+			}
+		}
+	}
+
+	// Read latest assistant message from transcript
+	reader := voice.NewTranscriptReader(voiceConfig)
+	text, err := reader.GetLatestAssistantMessage(transcriptPath)
+	if err != nil {
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Failed to get assistant message: %v\n", err)
+		}
+		log.Warn().Err(err).Msg("Failed to get assistant message from transcript")
+		return nil
+	}
+
+	// Process text according to reading mode
+	text = reader.ProcessText(text)
+	text = voice.StripMarkdown(text)
+
+	if text == "" {
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] No text to synthesize after processing\n")
+		}
+		return nil
+	}
+
+	// Skip duplicate messages
+	dedup := voice.NewDedupTracker(event.SessionID)
+	if dedup.IsDuplicate(text) {
+		log.Debug().Msg("Skipping duplicate voice synthesis")
+		return nil
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Text to synthesize: %q\n", text)
+	}
+
+	// Synthesize and play
+	engine := voice.NewVoiceEngine(voiceConfig)
+	audioFile, err := engine.Synthesize(text)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to synthesize voice")
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Synthesize error: %v\n", err)
+		}
+		return nil
+	}
+
+	dedup.Record(text)
+	go dedup.Cleanup()
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Audio file: %s\n", audioFile)
+	}
+
+	// Use PlayWithOptions with wait=true for hooks
+	if err := engine.PlayWithOptions(audioFile, true); err != nil {
+		log.Warn().Err(err).Msg("Failed to play audio")
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Play error: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+// handleDirectResponseVoice synthesizes voice from the AIResponse field directly
+// Used for Cursor's afterAgentResponse event which provides the AI response in the event payload
+func handleDirectResponseVoice(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
+	debug := os.Getenv("CCPERSONA_DEBUG") != ""
+
+	if !c.Bool("voice") {
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Voice flag not set, skipping voice synthesis\n")
+		}
+		return nil
+	}
+
+	text := event.AIResponse
+	if text == "" {
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] No AI response in event\n")
+		}
+		return nil
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] AI response length: %d\n", len(text))
+	}
+
+	// Load persona config for voice settings (platform-aware)
+	voiceConfig := voice.DefaultConfig()
+	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
+	if config != nil && config.Voice != nil {
+		if config.Voice.Provider != "" {
+			voiceConfig.EnginePriority = config.Voice.Provider
+		}
+		if config.Voice.Speaker > 0 {
+			if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
+				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.Speaker)
+			} else {
+				voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
+			}
+		}
+	}
+
+	// Process text according to reading mode
+	reader := voice.NewTranscriptReader(voiceConfig)
+	text = reader.ProcessText(text)
+	text = voice.StripMarkdown(text)
+
+	if text == "" {
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] No text to synthesize after processing\n")
+		}
+		return nil
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Text to synthesize: %q\n", text)
+	}
+
+	// Synthesize and play
+	engine := voice.NewVoiceEngine(voiceConfig)
+	audioFile, err := engine.Synthesize(text)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to synthesize voice")
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Synthesize error: %v\n", err)
+		}
+		return nil
+	}
+
+	if debug {
+		fmt.Fprintf(os.Stderr, "[DEBUG] Audio file: %s\n", audioFile)
+	}
+
+	// Use PlayWithOptions with wait=true for hooks
+	if err := engine.PlayWithOptions(audioFile, true); err != nil {
+		log.Warn().Err(err).Msg("Failed to play audio")
+		if debug {
+			fmt.Fprintf(os.Stderr, "[DEBUG] Play error: %v\n", err)
+		}
+	}
+
 	return nil
 }
 

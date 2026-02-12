@@ -104,6 +104,7 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	}
 
 	var text string
+	var dedupSessionID string // set when running as stop hook
 
 	if c.Bool("transcript") {
 		// User explicitly wants to read from transcript
@@ -180,10 +181,30 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 
 		// Process text according to reading mode
 		text = reader.ProcessText(text)
+		dedupSessionID = event.SessionID
 	}
 
 	// Strip markdown if mdstrip is available
 	text = voice.StripMarkdown(text)
+	text = strings.TrimSpace(text)
+
+	if text == "" {
+		log.Debug().Msg("No text to synthesize after processing, skipping")
+		return nil
+	}
+
+	// Skip duplicate messages when running as stop hook
+	if dedupSessionID != "" {
+		dedup := voice.NewDedupTracker(dedupSessionID)
+		if dedup.IsDuplicate(text) {
+			log.Debug().Msg("Skipping duplicate voice synthesis")
+			return nil
+		}
+		defer func() {
+			dedup.Record(text)
+			go dedup.Cleanup()
+		}()
+	}
 
 	fmt.Fprintf(os.Stderr, "📢 Reading text: %s\n", text)
 

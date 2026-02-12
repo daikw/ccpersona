@@ -100,7 +100,7 @@ func (tr *TranscriptReader) getMessageSimple(file *os.File) (string, error) {
 		if msg.Type == "assistant" && msg.Message.Role == "assistant" {
 			// Find first text content
 			for _, content := range msg.Message.Content {
-				if content.Type == "text" && content.Text != "" {
+				if content.Type == "text" && strings.TrimSpace(content.Text) != "" {
 					log.Debug().Str("text_length", fmt.Sprintf("%d", len(content.Text))).Msg("Found assistant message")
 					return content.Text, nil
 				}
@@ -266,8 +266,9 @@ func (tr *TranscriptReader) ProcessText(text string) string {
 	switch normalizedMode {
 	case ModeShort:
 		// First line only (formerly first_line)
+		text = strings.TrimSpace(text)
 		if idx := strings.Index(text, "\n"); idx != -1 {
-			text = text[:idx]
+			text = strings.TrimSpace(text[:idx])
 		}
 
 	case ModeFull:
