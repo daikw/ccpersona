@@ -353,6 +353,54 @@ func TestDetectAndParseCursorStop(t *testing.T) {
 	}
 }
 
+func TestDetectAndParseCursorAfterAgentResponse(t *testing.T) {
+	jsonData := `{
+		"conversation_id": "cursor-conv-response",
+		"generation_id": "gen-response",
+		"model": "claude-3.5-sonnet",
+		"hook_event_name": "afterAgentResponse",
+		"cursor_version": "0.45.0",
+		"workspace_roots": ["/home/user/project"],
+		"text": "This is the AI response text."
+	}`
+
+	reader := strings.NewReader(jsonData)
+	event, err := DetectAndParse(reader)
+	if err != nil {
+		t.Fatalf("Failed to parse Cursor afterAgentResponse event: %v", err)
+	}
+
+	if event.Source != "cursor" {
+		t.Errorf("Expected source 'cursor', got '%s'", event.Source)
+	}
+
+	if event.EventType != "afterAgentResponse" {
+		t.Errorf("Expected event type 'afterAgentResponse', got '%s'", event.EventType)
+	}
+
+	if event.AIResponse != "This is the AI response text." {
+		t.Errorf("Expected AI response 'This is the AI response text.', got '%s'", event.AIResponse)
+	}
+
+	// Verify we can get the typed event
+	rawEvent, ok := event.GetCursorEvent()
+	if !ok {
+		t.Error("Expected GetCursorEvent to return true")
+	}
+	if rawEvent == nil {
+		t.Error("Expected non-nil raw event")
+	}
+
+	// Type assert to CursorAfterAgentResponseEvent
+	if afterEvent, ok := rawEvent.(*CursorAfterAgentResponseEvent); ok {
+		if afterEvent.Text != "This is the AI response text." {
+			t.Errorf("Expected Text 'This is the AI response text.', got '%s'", afterEvent.Text)
+		}
+	} else {
+		t.Errorf("Expected *CursorAfterAgentResponseEvent, got %T", rawEvent)
+	}
+}
+
 func TestGetCursorEvent(t *testing.T) {
 	t.Run("returns event for Cursor source", func(t *testing.T) {
 		jsonData := `{

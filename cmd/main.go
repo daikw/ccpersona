@@ -216,8 +216,8 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:    "notify",
-				Aliases: []string{"notification_hook", "codex-notify", "codex_hook"},
-				Usage:   "Handle notifications (auto-detects Claude Code or Codex)",
+				Aliases: []string{"notification_hook"},
+				Usage:   "Handle notifications (auto-detects Claude Code, Codex, or Cursor)",
 				Action:  handleNotify,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{

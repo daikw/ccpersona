@@ -111,8 +111,8 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
 Add the following to your Codex config file (`~/.codex/config.toml`):
 
 ```toml
-# Notification hook that auto-detects Claude Code or Codex
-notify = ["ccpersona", "codex-notify"]
+# Notification hook that auto-detects platform
+notify = ["ccpersona", "notify"]
 ```
 
 #### For Cursor
@@ -123,21 +123,18 @@ Run `ccpersona init` and select "Cursor" when prompted. This will create `.curso
 {
   "version": 1,
   "hooks": {
-    "beforeSubmitPrompt": [
-      {
-        "command": "ccpersona hook"
-      }
+    "sessionStart": [
+      { "command": "ccpersona hook" }
     ],
-    "stop": [
-      {
-        "command": "ccpersona voice"
-      }
+    "afterAgentResponse": [
+      { "command": "ccpersona notify --voice" }
     ]
   }
 }
 ```
 
-Now the persona will be applied automatically when you submit prompts.
+- **sessionStart**: Applies persona when conversation starts
+- **afterAgentResponse**: Synthesizes voice from AI response (provides `text` field directly)
 
 ## Usage
 
@@ -371,25 +368,29 @@ ccpersona integrates with Claude Code through the UserPromptSubmit hook:
 
 ccpersona integrates with OpenAI Codex through the notify hook:
 
-1. Configure Codex to run `ccpersona codex-notify` on agent-turn-complete events
+1. Configure Codex to run `ccpersona notify` on agent-turn-complete events
 2. When an agent turn completes, ccpersona receives the event in JSON format
-3. The unified hook interface automatically detects whether it's from Claude Code or Codex
+3. The unified hook interface automatically detects the platform
 4. Appropriate actions (voice synthesis, notifications) are performed based on the event type
 
 #### Unified Hook Interface
 
-The `codex-notify` command provides a unified interface that automatically detects and handles events from both Claude Code and OpenAI Codex:
+The `notify` command provides a unified interface that automatically detects and handles events from Claude Code, OpenAI Codex, and Cursor:
 
 - **Auto-detection**: Analyzes the JSON structure to determine the source platform
+  - Codex: `"type": "agent-turn-complete"` field
+  - Cursor: `"conversation_id"` field
+  - Claude Code: `"session_id"` + `"hook_event_name"` fields
 - **Codex events**: Handles `agent-turn-complete` events with turn completion notifications
+- **Cursor events**: Handles `afterAgentResponse` for voice synthesis (provides AI response directly)
 - **Claude Code events**: Routes `UserPromptSubmit`, `Stop`, and `Notification` events to appropriate handlers
-- **Persona support**: Applies personas for both platforms using the same `.claude/persona.json` configuration
-- **Voice synthesis**: Works with both platforms using the configured voice engine
+- **Persona support**: Applies personas for all platforms using platform-specific configuration
+- **Voice synthesis**: Works with all platforms using the configured voice engine
 
 This design provides:
 - Simple setup (works immediately after brew install)
 - Cross-platform compatibility (Windows/Mac/Linux)
-- Multi-platform AI assistant support (Claude Code and OpenAI Codex)
+- Multi-platform AI assistant support (Claude Code, OpenAI Codex, and Cursor)
 - Robust error handling (silent failures to avoid disrupting the AI assistant)
 - Session tracking (prevents duplicate persona applications)
 - Advanced customization options
