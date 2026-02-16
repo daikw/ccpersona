@@ -106,6 +106,15 @@ type CursorBeforeSubmitPromptEvent struct {
 // CursorStopEvent represents Cursor's stop hook event
 type CursorStopEvent struct {
 	CursorHookEvent
+	Status    string `json:"status,omitempty"` // completed/aborted/error
+	LoopCount int    `json:"loop_count,omitempty"`
+}
+
+// CursorAfterAgentResponseEvent represents Cursor's afterAgentResponse hook event
+// This is the recommended hook for voice synthesis as it provides the AI response directly
+type CursorAfterAgentResponseEvent struct {
+	CursorHookEvent
+	Text string `json:"text"` // The final AI response text
 }
 
 // ParseHookEvent reads and parses the hook event from stdin

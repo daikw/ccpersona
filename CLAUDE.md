@@ -43,7 +43,7 @@ ccpersona is a persona management system that automatically applies different "p
    - **types.go**: Defines event types for Claude Code, Codex, and Cursor
      - Claude Code events: UserPromptSubmit, Stop, Notification, PreToolUse, PostToolUse, PreCompact
      - Codex events: CodexNotifyEvent (agent-turn-complete)
-     - Cursor events: sessionStart, beforeSubmitPrompt, stop (camelCase naming)
+     - Cursor events: sessionStart, afterAgentResponse, stop (camelCase naming)
    - **unified.go**: Unified hook interface with auto-detection
      - DetectAndParse(): Automatically detects Claude Code, Codex, or Cursor events from JSON
      - UnifiedHookEvent: Normalized event structure for all platforms
@@ -66,7 +66,7 @@ ccpersona is a persona management system that automatically applies different "p
    - Uses urfave/cli v3 (note: v3 has different API from v2)
    - Single entry point in `cmd/main.go`
    - All commands return nil on success to avoid disrupting hooks
-   - **codex-notify**: Unified command that works with both Claude Code and Codex
+   - **notify**: Unified command that auto-detects and handles events from Claude Code, Codex, and Cursor
 
 ### Hook Integration
 
@@ -101,19 +101,43 @@ The hook process:
 #### OpenAI Codex Integration
 
 The system integrates with OpenAI Codex via the notify hook:
-1. User configures Codex with `notify = ["ccpersona", "codex-notify"]` in `~/.codex/config.toml`
+1. User configures Codex with `notify = ["ccpersona", "notify"]` in `~/.codex/config.toml`
 2. On agent-turn-complete events, ccpersona receives JSON with turn details
 3. The unified hook interface (DetectAndParse) automatically detects Codex events
 4. Appropriate actions are performed (notifications, voice synthesis)
 
+#### Cursor Integration
+
+The system integrates with Cursor via hooks configured in `~/.cursor/hooks.json`:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      { "command": "ccpersona hook" }
+    ],
+    "afterAgentResponse": [
+      { "command": "ccpersona notify --voice" }
+    ]
+  }
+}
+```
+
+- **sessionStart**: Applies persona at conversation start
+- **afterAgentResponse**: Synthesizes voice from the AI response (recommended for voice)
+  - This hook provides the `text` field with the AI's response directly
+  - Unlike Claude Code's `stop` event, Cursor's `stop` doesn't include the response text
+
 #### Unified Hook Interface
 
-The `codex-notify` command provides a single interface for both platforms:
+The `notify` command provides a single interface for all platforms:
 - **Auto-detection**: Parses stdin JSON and identifies the platform by structure
   - Codex events have `"type": "agent-turn-complete"` field
-  - Claude Code events have `"hook_event_name"` field
+  - Cursor events have `"conversation_id"` field
+  - Claude Code events have `"session_id"` + `"hook_event_name"` fields
 - **Routing**: Routes events to platform-specific handlers
-- **Shared functionality**: Both platforms use the same persona and voice configuration
+- **Shared functionality**: All platforms use the same persona and voice configuration
 
 ### Platform-Specific Configuration
 

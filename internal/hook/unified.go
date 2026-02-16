@@ -225,6 +225,21 @@ func parseCursorEvent(data []byte, generic map[string]interface{}) (*UnifiedHook
 			RawEvent:   &event,
 		}, nil
 
+	case "afterAgentResponse":
+		var event CursorAfterAgentResponseEvent
+		if err := json.Unmarshal(data, &event); err != nil {
+			return nil, fmt.Errorf("failed to parse Cursor afterAgentResponse event: %w", err)
+		}
+		return &UnifiedHookEvent{
+			Source:     "cursor",
+			SessionID:  event.ConversationID,
+			CWD:        cwd,
+			EventType:  hookEventName,
+			UserInput:  []string{},
+			AIResponse: event.Text, // AI response is directly in the event
+			RawEvent:   &event,
+		}, nil
+
 	default:
 		// For other Cursor events, parse as generic CursorHookEvent
 		var event CursorHookEvent
