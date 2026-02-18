@@ -79,10 +79,18 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 				voiceConfig.VoicevoxSpeaker = personaConfig.Voice.Speaker
 			}
 		}
+		if personaConfig.Voice.Volume > 0 {
+			voiceConfig.VolumeScale = personaConfig.Voice.Volume
+		}
+		if personaConfig.Voice.Speed > 0 {
+			voiceConfig.SpeedScale = personaConfig.Voice.Speed
+		}
 		log.Debug().
 			Str("persona", personaConfig.Name).
 			Str("voice_provider", personaConfig.Voice.Provider).
 			Int("voice_speaker", personaConfig.Voice.Speaker).
+			Float64("voice_volume", personaConfig.Voice.Volume).
+			Float64("voice_speed", personaConfig.Voice.Speed).
 			Msg("Applied persona voice config")
 	} else {
 		log.Debug().Msg("No persona voice config found, using defaults or file config")

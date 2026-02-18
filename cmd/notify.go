@@ -177,6 +177,12 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 					voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
 				}
 			}
+			if config.Voice.Volume > 0 {
+				voiceConfig.VolumeScale = config.Voice.Volume
+			}
+			if config.Voice.Speed > 0 {
+				voiceConfig.SpeedScale = config.Voice.Speed
+			}
 		}
 
 		// Process text according to reading mode
@@ -451,6 +457,12 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 				} else {
 					voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
 				}
+			}
+			if config.Voice.Volume > 0 {
+				voiceConfig.VolumeScale = config.Voice.Volume
+			}
+			if config.Voice.Speed > 0 {
+				voiceConfig.SpeedScale = config.Voice.Speed
 			}
 		}
 

@@ -7,6 +7,7 @@ type Config struct {
 	VoicevoxSpeaker    int     `json:"voicevox_speaker"`    // VOICEVOX speaker ID
 	AivisSpeechSpeaker int64   `json:"aivisspeech_speaker"` // AivisSpeech speaker ID
 	VolumeScale        float64 `json:"volume_scale"`        // Volume scale (0.0-2.0, default 1.0)
+	SpeedScale         float64 `json:"speed_scale"`         // Speed scale (0.5-2.0, default 1.0)
 
 	// Reading settings
 	ReadingMode string `json:"reading_mode"` // short (first line) or full (entire text)
@@ -23,6 +24,7 @@ func DefaultConfig() *Config {
 		VoicevoxSpeaker:    3,          // ずんだもん
 		AivisSpeechSpeaker: 1512153248, // Default AivisSpeech speaker
 		VolumeScale:        1.0,        // Default volume
+		SpeedScale:         1.0,        // Default speed
 		ReadingMode:        "short",    // First line only
 		MaxChars:           0,          // No limit by default
 		UUIDMode:           false,

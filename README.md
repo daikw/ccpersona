@@ -225,8 +225,10 @@ Manage settings in `.claude/persona.json` for each project:
 {
   "name": "zundamon",
   "voice": {
-    "engine": "voicevox",
-    "speaker_id": 3
+    "provider": "voicevox",
+    "speaker": 3,
+    "volume": 1.0,
+    "speed": 1.0
   },
   "override_global": true,
   "custom_instructions": "Additional project-specific instructions"
@@ -284,19 +286,19 @@ If you work on multiple devices (e.g., Mac + Jetson terminals), you can run a si
 
 3. **Configure different speaker IDs per device:**
    ```json
-   // Jetson #1: .claude/voice.json
+   // Jetson #1: .claude/config.json
    {
      "default_provider": "aivisspeech",
      "providers": {
-       "aivisspeech": { "speaker_id": 888753760 }
+       "aivisspeech": { "speaker": 888753760 }
      }
    }
 
-   // Jetson #2: .claude/voice.json
+   // Jetson #2: .claude/config.json
    {
      "default_provider": "aivisspeech",
      "providers": {
-       "aivisspeech": { "speaker_id": 1234567890 }
+       "aivisspeech": { "speaker": 1234567890 }
      }
    }
    ```
