@@ -33,6 +33,7 @@ type VoiceOptions struct {
 	Provider string
 	Voice    string
 	Speed    float64
+	Volume   float64 // 0 = use default (1.0)
 	Format   string
 	Quality  string
 	APIKey   string
@@ -199,6 +200,7 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 	synthOptions := provider.SynthesizeOptions{
 		Voice:           options.Voice,
 		Speed:           options.Speed,
+		Volume:          options.Volume,
 		Format:          options.Format,
 		Quality:         options.Quality,
 		Model:           options.Model,
@@ -211,6 +213,15 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 	// Add provider-specific options directly to dedicated fields
 	synthOptions.Engine = options.Engine
 	synthOptions.SampleRate = options.SampleRate
+
+	// Volume is passed through but not yet implemented by individual providers.
+	// Log so users can track when/if this is applied.
+	if options.Volume != 0 && options.Volume != 1.0 {
+		log.Debug().
+			Str("provider", options.Provider).
+			Float64("volume", options.Volume).
+			Msg("volume option passed to provider (may not be supported)")
+	}
 
 	// Synthesize
 	audioStream, err := prov.Synthesize(ctx, text, synthOptions)

@@ -83,6 +83,14 @@ func (ve *VoiceEngine) Synthesize(text string) (string, error) {
 	}
 
 	log.Info().Str("engine", engine).Msg("Using voice engine")
+	log.Debug().
+		Str("engine", engine).
+		Int("voicevox_speaker", ve.config.VoicevoxSpeaker).
+		Int64("aivisspeech_speaker", ve.config.AivisSpeechSpeaker).
+		Float64("volume_scale", ve.config.VolumeScale).
+		Float64("speed_scale", ve.config.SpeedScale).
+		Str("engine_priority", ve.config.EnginePriority).
+		Msg("Voice synthesis config")
 
 	switch engine {
 	case EngineVoicevox:
@@ -117,11 +125,16 @@ func (ve *VoiceEngine) synthesizeVoicevox(text string) (string, error) {
 		return "", fmt.Errorf("failed to read query response: %w", err)
 	}
 
-	// Apply volume scale if not default
-	if ve.config.VolumeScale != 1.0 {
+	// Apply volume/speed scale if not default
+	if ve.config.VolumeScale != 1.0 || ve.config.SpeedScale != 1.0 {
 		var query map[string]interface{}
 		if err := json.Unmarshal(queryData, &query); err == nil {
-			query["volumeScale"] = ve.config.VolumeScale
+			if ve.config.VolumeScale != 1.0 {
+				query["volumeScale"] = ve.config.VolumeScale
+			}
+			if ve.config.SpeedScale != 1.0 {
+				query["speedScale"] = ve.config.SpeedScale
+			}
 			queryData, _ = json.Marshal(query)
 		}
 	}
@@ -183,11 +196,16 @@ func (ve *VoiceEngine) synthesizeAivisSpeech(text string) (string, error) {
 		return "", fmt.Errorf("failed to read query response: %w", err)
 	}
 
-	// Apply volume scale if not default
-	if ve.config.VolumeScale != 1.0 {
+	// Apply volume/speed scale if not default
+	if ve.config.VolumeScale != 1.0 || ve.config.SpeedScale != 1.0 {
 		var query map[string]interface{}
 		if err := json.Unmarshal(queryData, &query); err == nil {
-			query["volumeScale"] = ve.config.VolumeScale
+			if ve.config.VolumeScale != 1.0 {
+				query["volumeScale"] = ve.config.VolumeScale
+			}
+			if ve.config.SpeedScale != 1.0 {
+				query["speedScale"] = ve.config.SpeedScale
+			}
 			queryData, _ = json.Marshal(query)
 		}
 	}

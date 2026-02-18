@@ -17,72 +17,42 @@ import (
 )
 
 func handleVoice(ctx context.Context, c *cli.Command) error {
-	// Create voice config with defaults
-	voiceConfig := voice.DefaultConfig()
-	voiceConfig.ReadingMode = c.String("mode")
-
-	// Load voice config file
 	fileConfig := loadVoiceConfig(c)
 
-	// Determine provider (CLI flag takes priority, then config file, then default)
-	provider := c.String("provider")
-	if fileConfig != nil && provider == "aivisspeech" {
-		// If using default, check if config has a different default
-		if effectiveProvider := fileConfig.GetEffectiveProvider(""); effectiveProvider != "" {
-			provider = effectiveProvider
-		}
-	}
-
-	// Apply provider to engine priority for local engines
-	if provider == "voicevox" || provider == "aivisspeech" {
-		voiceConfig.EnginePriority = provider
-	}
-
-	// Apply settings from config file
-	if fileConfig != nil {
-		if providerConfig := fileConfig.GetProviderConfig(provider); providerConfig != nil {
-			// Apply local engine settings
-			if provider == "voicevox" || provider == "aivisspeech" {
-				if providerConfig.Speaker > 0 && c.Int("speaker") == 0 {
-					if provider == "aivisspeech" {
-						voiceConfig.AivisSpeechSpeaker = int64(providerConfig.Speaker)
-					} else {
-						voiceConfig.VoicevoxSpeaker = providerConfig.Speaker
-					}
-				}
-				if providerConfig.Volume > 0 {
-					voiceConfig.VolumeScale = providerConfig.Volume
-				}
-			}
-			log.Debug().Str("provider", provider).Msg("Applied voice config from file")
-		}
-	}
-
-	// Apply speaker ID from CLI flag (takes priority over config file)
-	cliSpeakerID := c.Int("speaker")
-	if cliSpeakerID > 0 {
-		voiceConfig.VoicevoxSpeaker = int(cliSpeakerID)
-		voiceConfig.AivisSpeechSpeaker = cliSpeakerID
-	}
-
-	// Load persona config and apply voice settings (if CLI flag not specified)
 	personaConfig, err := persona.LoadConfigWithFallback()
+	personaInput := toPersonaVoiceInput(personaConfig)
 	if err == nil && personaConfig != nil && personaConfig.Voice != nil {
-		if personaConfig.Voice.Provider != "" && c.String("provider") == "aivisspeech" {
-			voiceConfig.EnginePriority = personaConfig.Voice.Provider
-			provider = personaConfig.Voice.Provider
-		}
-		if personaConfig.Voice.Speaker > 0 && cliSpeakerID == 0 {
-			if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
-				voiceConfig.AivisSpeechSpeaker = int64(personaConfig.Voice.Speaker)
-			} else {
-				voiceConfig.VoicevoxSpeaker = personaConfig.Voice.Speaker
-			}
-		}
+		log.Debug().
+			Str("persona", personaConfig.Name).
+			Str("voice_provider", personaConfig.Voice.Provider).
+			Int("voice_speaker", personaConfig.Voice.Speaker).
+			Float64("voice_volume", personaConfig.Voice.Volume).
+			Float64("voice_speed", personaConfig.Voice.Speed).
+			Msg("Applied persona voice config")
+	} else {
+		log.Debug().Msg("No persona voice config found, using defaults or file config")
+	}
+
+	// Only pass cliProvider when explicitly set by the user.
+	// The flag has a non-empty default ("aivisspeech"), so c.String("provider") is always non-empty;
+	// using IsSet() prevents the default from silently overriding persona/file config.
+	cliProvider := ""
+	if c.IsSet("provider") {
+		cliProvider = c.String("provider")
+	}
+	voiceConfig, baseOpts := voice.Resolve(personaInput, fileConfig, cliProvider)
+	voiceConfig.ReadingMode = c.String("mode")
+
+	// CLI speaker overrides everything (highest priority)
+	if cliSpeaker := c.Int("speaker"); cliSpeaker > 0 {
+		voiceConfig.VoicevoxSpeaker = int(cliSpeaker)
+		voiceConfig.AivisSpeechSpeaker = cliSpeaker
 	}
 
 	// Create voice manager
 	manager := voice.NewVoiceManager(voiceConfig)
+
+	provider := baseOpts.Provider
 
 	// Handle list voices
 	if c.Bool("list-voices") {
@@ -208,8 +178,8 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 
 	fmt.Fprintf(os.Stderr, "📢 Reading text: %s\n", text)
 
-	// Build voice options from config file
-	options := buildVoiceOptions(c, provider, fileConfig)
+	// Overlay output-only CLI flags on top of resolved options.
+	options := buildVoiceOptions(c, baseOpts)
 
 	// Synthesize voice
 	audioFile, err := manager.Synthesize(ctx, text, options)
@@ -237,91 +207,32 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// buildVoiceOptions creates VoiceOptions from CLI flags and config file
-func buildVoiceOptions(c *cli.Command, provider string, fileConfig *voice.VoiceConfigFile) voice.VoiceOptions {
+// buildVoiceOptions overlays output-destination CLI flags onto already-resolved options.
+// All provider/speed/volume settings are expected to be set by voice.Resolve() already.
+func buildVoiceOptions(c *cli.Command, base voice.VoiceOptions) voice.VoiceOptions {
 	output := c.String("output")
 	toStdout := output == "-"
-	playAudio := output == "" // Play if no output specified
 
-	options := voice.VoiceOptions{
-		Provider:   provider,
-		Voice:      c.String("voice"),
-		OutputPath: output,
-		PlayAudio:  playAudio,
-		ToStdout:   toStdout,
-		// Defaults
-		Speed:           1.0,
-		Format:          "mp3",
-		Model:           "tts-1",
-		Stability:       0.5,
-		SimilarityBoost: 0.5,
-		Style:           0.0,
-		UseSpeakerBoost: true,
-		Region:          "us-east-1",
-		Engine:          "neural",
-		SampleRate:      "22050",
-	}
+	base.OutputPath = output
+	base.PlayAudio = output == "" // play if no output path specified
+	base.ToStdout = toStdout
 
-	// If stdout, don't save to output path
 	if toStdout {
-		options.OutputPath = ""
+		base.OutputPath = ""
 	}
 
-	// Apply settings from config file
-	if fileConfig != nil {
-		if providerConfig := fileConfig.GetProviderConfig(provider); providerConfig != nil {
-			// Common settings
-			if providerConfig.Voice != "" && options.Voice == "" {
-				options.Voice = providerConfig.Voice
-			}
-			if providerConfig.Model != "" {
-				options.Model = providerConfig.Model
-			}
-			if providerConfig.Format != "" {
-				options.Format = providerConfig.Format
-			}
-			if providerConfig.Speed > 0 {
-				options.Speed = providerConfig.Speed
-			}
-			if providerConfig.APIKey != "" {
-				options.APIKey = providerConfig.APIKey
-			}
-
-			// ElevenLabs-specific
-			if providerConfig.Stability > 0 {
-				options.Stability = providerConfig.Stability
-			}
-			if providerConfig.SimilarityBoost > 0 {
-				options.SimilarityBoost = providerConfig.SimilarityBoost
-			}
-			if providerConfig.Style > 0 {
-				options.Style = providerConfig.Style
-			}
-			// UseSpeakerBoost defaults to true, only set if explicitly configured
-			if providerConfig.UseSpeakerBoost != nil {
-				options.UseSpeakerBoost = *providerConfig.UseSpeakerBoost
-			}
-
-			// Polly-specific
-			if providerConfig.Region != "" {
-				options.Region = providerConfig.Region
-			}
-			if providerConfig.Engine != "" {
-				options.Engine = providerConfig.Engine
-			}
-			if providerConfig.SampleRate != "" {
-				options.SampleRate = providerConfig.SampleRate
-			}
-		}
+	// --voice CLI flag overrides resolved voice name
+	if v := c.String("voice"); v != "" {
+		base.Voice = v
 	}
 
-	return options
+	return base
 }
 
 // Voice config management handlers
 
 func handleVoiceConfigShow(ctx context.Context, c *cli.Command) error {
-	loader := voice.NewVoiceConfigLoader()
+	loader := voice.NewConfigLoader()
 
 	// Try to load config
 	workDir, _ := os.Getwd()
@@ -355,7 +266,7 @@ func handleVoiceConfigShow(ctx context.Context, c *cli.Command) error {
 }
 
 func handleVoiceConfigValidate(ctx context.Context, c *cli.Command) error {
-	loader := voice.NewVoiceConfigLoader()
+	loader := voice.NewConfigLoader()
 
 	// Try to load config
 	workDir, _ := os.Getwd()
@@ -423,8 +334,8 @@ func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
 }
 
 // Helper function for loading voice config in handlers
-func loadVoiceConfig(c *cli.Command) *voice.VoiceConfigFile {
-	loader := voice.NewVoiceConfigLoader()
+func loadVoiceConfig(c *cli.Command) *voice.ConfigFile {
+	loader := voice.NewConfigLoader()
 
 	// Custom config path
 	if configPath := c.String("config"); configPath != "" {
