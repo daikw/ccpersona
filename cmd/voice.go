@@ -33,8 +33,14 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 		log.Debug().Msg("No persona voice config found, using defaults or file config")
 	}
 
-	// Resolve merges all config sources; CLI provider flag has highest priority for provider selection.
-	voiceConfig, baseOpts := voice.Resolve(personaInput, fileConfig, c.String("provider"))
+	// Only pass cliProvider when explicitly set by the user.
+	// The flag has a non-empty default ("aivisspeech"), so c.String("provider") is always non-empty;
+	// using IsSet() prevents the default from silently overriding persona/file config.
+	cliProvider := ""
+	if c.IsSet("provider") {
+		cliProvider = c.String("provider")
+	}
+	voiceConfig, baseOpts := voice.Resolve(personaInput, fileConfig, cliProvider)
 	voiceConfig.ReadingMode = c.String("mode")
 
 	// CLI speaker overrides everything (highest priority)

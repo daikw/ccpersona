@@ -121,7 +121,9 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 		cfg.EnginePriority = persona.Provider
 	}
 	if persona.Speaker > 0 {
-		if cfg.EnginePriority == EngineAivisSpeech {
+		// Use effectiveProvider (fully resolved, includes CLI override) so the speaker
+		// always lands in the correct field even when persona.Provider is empty.
+		if effectiveProvider == EngineAivisSpeech {
 			cfg.AivisSpeechSpeaker = int64(persona.Speaker)
 		} else {
 			cfg.VoicevoxSpeaker = persona.Speaker
@@ -139,6 +141,11 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 	// Layer 1: cliProvider (provider name; speaker/flags applied by caller)
 	if cliProvider != "" {
 		cfg.EnginePriority = cliProvider
+	} else if effectiveProvider != "" {
+		// Sync EnginePriority with the resolved provider when no CLI override.
+		// This ensures local engine callers always get a consistent EnginePriority
+		// regardless of which config layer set the provider.
+		cfg.EnginePriority = effectiveProvider
 	}
 
 	opts.Provider = effectiveProvider

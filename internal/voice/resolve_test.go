@@ -144,6 +144,41 @@ func TestResolve_ProviderConfigOverridesDefaults(t *testing.T) {
 	}
 }
 
+// TestResolve_EmptyCLIProviderDoesNotOverridePersona ensures that passing an empty
+// cliProvider (= flag not explicitly set) does not shadow persona/file provider.
+func TestResolve_EmptyCLIProviderDoesNotOverridePersona(t *testing.T) {
+	personaInput := PersonaVoiceInput{Provider: "voicevox"}
+
+	cfg, opts := Resolve(personaInput, nil, "") // empty cliProvider
+
+	if cfg.EnginePriority != "voicevox" {
+		t.Errorf("expected EnginePriority=voicevox, got %q", cfg.EnginePriority)
+	}
+	if opts.Provider != "voicevox" {
+		t.Errorf("expected opts.Provider=voicevox, got %q", opts.Provider)
+	}
+}
+
+// TestResolve_CLIProviderVoicevox_PersonaSpeakerGoesToVoicevox ensures that when the
+// CLI explicitly requests voicevox, a persona speaker is written to VoicevoxSpeaker
+// even if persona.Provider is empty (regression guard for the cfg.EnginePriority bug).
+func TestResolve_CLIProviderVoicevox_PersonaSpeakerGoesToVoicevox(t *testing.T) {
+	personaInput := PersonaVoiceInput{
+		Provider: "", // persona doesn't set provider
+		Speaker:  99,
+	}
+
+	cfg, _ := Resolve(personaInput, nil, "voicevox")
+
+	if cfg.VoicevoxSpeaker != 99 {
+		t.Errorf("expected VoicevoxSpeaker=99, got %d", cfg.VoicevoxSpeaker)
+	}
+	// AivisSpeech speaker should remain at default
+	if cfg.AivisSpeechSpeaker == 99 {
+		t.Errorf("AivisSpeechSpeaker should not be 99 when provider=voicevox")
+	}
+}
+
 func TestResolve_PersonaOverridesProviderConfig(t *testing.T) {
 	fileConfig := &ConfigFile{
 		Providers: map[string]ProviderConfig{

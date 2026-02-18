@@ -214,6 +214,15 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 	synthOptions.Engine = options.Engine
 	synthOptions.SampleRate = options.SampleRate
 
+	// Volume is passed through but not yet implemented by individual providers.
+	// Log so users can track when/if this is applied.
+	if options.Volume != 0 && options.Volume != 1.0 {
+		log.Debug().
+			Str("provider", options.Provider).
+			Float64("volume", options.Volume).
+			Msg("volume option passed to provider (may not be supported)")
+	}
+
 	// Synthesize
 	audioStream, err := prov.Synthesize(ctx, text, synthOptions)
 	if err != nil {
