@@ -33,6 +33,7 @@ type VoiceOptions struct {
 	Provider string
 	Voice    string
 	Speed    float64
+	Volume   float64 // 0 = use default (1.0)
 	Format   string
 	Quality  string
 	APIKey   string
@@ -199,6 +200,7 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 	synthOptions := provider.SynthesizeOptions{
 		Voice:           options.Voice,
 		Speed:           options.Speed,
+		Volume:          options.Volume,
 		Format:          options.Format,
 		Quality:         options.Quality,
 		Model:           options.Model,

@@ -33,6 +33,7 @@ type Voice struct {
 type SynthesizeOptions struct {
 	Voice    string  `json:"voice"`
 	Speed    float64 `json:"speed,omitempty"`    // Speed multiplier (0.25-4.0)
+	Volume   float64 `json:"volume,omitempty"`   // Volume multiplier (0.0-2.0); providers that don't support it log a debug message
 	Format   string  `json:"format,omitempty"`   // Output format (mp3, wav, etc.)
 	Quality  string  `json:"quality,omitempty"`  // Quality setting (hd, standard)
 	Language string  `json:"language,omitempty"` // Language code

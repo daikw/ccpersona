@@ -132,6 +132,20 @@ func handleLegacyNotification(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
+// toPersonaVoiceInput converts a persona.Config's Voice field to voice.PersonaVoiceInput.
+// Returns a zero-value input if config or its Voice field is nil.
+func toPersonaVoiceInput(config *persona.Config) voice.PersonaVoiceInput {
+	if config == nil || config.Voice == nil {
+		return voice.PersonaVoiceInput{}
+	}
+	return voice.PersonaVoiceInput{
+		Provider: config.Voice.Provider,
+		Speaker:  config.Voice.Speaker,
+		Volume:   config.Voice.Volume,
+		Speed:    config.Voice.Speed,
+	}
+}
+
 func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
 	debug := os.Getenv("CCPERSONA_DEBUG") != ""
 
@@ -161,29 +175,9 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 
 	// Voice notification (if enabled)
 	if c.Bool("voice") && codexEvent.LastAssistantMessage != "" {
-		voiceConfig := voice.DefaultConfig()
-
-		// Load persona config for voice settings (platform-aware)
+		fileConfig := loadVoiceConfig(c)
 		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-		if config != nil && config.Voice != nil {
-			if config.Voice.Provider != "" {
-				voiceConfig.EnginePriority = config.Voice.Provider
-			}
-			if config.Voice.Speaker > 0 {
-				// Apply speaker ID to the appropriate engine based on priority
-				if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
-					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.Speaker)
-				} else {
-					voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
-				}
-			}
-			if config.Voice.Volume > 0 {
-				voiceConfig.VolumeScale = config.Voice.Volume
-			}
-			if config.Voice.Speed > 0 {
-				voiceConfig.SpeedScale = config.Voice.Speed
-			}
-		}
+		voiceConfig, opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
 
 		// Process text according to reading mode
 		reader := voice.NewTranscriptReader(voiceConfig)
@@ -196,12 +190,12 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 			return nil
 		}
 
-		// Synthesize and play
 		if debug {
 			fmt.Fprintf(os.Stderr, "[DEBUG] Text to synthesize: %q\n", text)
 		}
-		engine := voice.NewVoiceEngine(voiceConfig)
-		audioFile, err := engine.Synthesize(text)
+
+		manager := voice.NewVoiceManager(voiceConfig)
+		audioFile, err := manager.Synthesize(ctx, text, opts)
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to synthesize voice")
 			if debug {
@@ -211,7 +205,7 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 			if debug {
 				fmt.Fprintf(os.Stderr, "[DEBUG] Audio file: %s\n", audioFile)
 			}
-			// Use PlayWithOptions with wait=true for hooks
+			engine := voice.NewVoiceEngine(voiceConfig)
 			if err := engine.PlayWithOptions(audioFile, true); err != nil {
 				log.Warn().Err(err).Msg("Failed to play audio")
 				if debug {
@@ -262,22 +256,9 @@ func handleStopEventVoice(ctx context.Context, c *cli.Command, event *hook.Unifi
 		fmt.Fprintf(os.Stderr, "[DEBUG] Transcript path: %s\n", transcriptPath)
 	}
 
-	// Load persona config for voice settings (platform-aware)
-	voiceConfig := voice.DefaultConfig()
+	fileConfig := loadVoiceConfig(c)
 	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-	if config != nil && config.Voice != nil {
-		if config.Voice.Provider != "" {
-			voiceConfig.EnginePriority = config.Voice.Provider
-		}
-		if config.Voice.Speaker > 0 {
-			// Apply speaker ID to the appropriate engine based on priority
-			if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
-				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.Speaker)
-			} else {
-				voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
-			}
-		}
-	}
+	voiceConfig, opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
 
 	// Read latest assistant message from transcript
 	reader := voice.NewTranscriptReader(voiceConfig)
@@ -312,9 +293,8 @@ func handleStopEventVoice(ctx context.Context, c *cli.Command, event *hook.Unifi
 		fmt.Fprintf(os.Stderr, "[DEBUG] Text to synthesize: %q\n", text)
 	}
 
-	// Synthesize and play
-	engine := voice.NewVoiceEngine(voiceConfig)
-	audioFile, err := engine.Synthesize(text)
+	manager := voice.NewVoiceManager(voiceConfig)
+	audioFile, err := manager.Synthesize(ctx, text, opts)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to synthesize voice")
 		if debug {
@@ -330,7 +310,7 @@ func handleStopEventVoice(ctx context.Context, c *cli.Command, event *hook.Unifi
 		fmt.Fprintf(os.Stderr, "[DEBUG] Audio file: %s\n", audioFile)
 	}
 
-	// Use PlayWithOptions with wait=true for hooks
+	engine := voice.NewVoiceEngine(voiceConfig)
 	if err := engine.PlayWithOptions(audioFile, true); err != nil {
 		log.Warn().Err(err).Msg("Failed to play audio")
 		if debug {
@@ -365,21 +345,9 @@ func handleDirectResponseVoice(ctx context.Context, c *cli.Command, event *hook.
 		fmt.Fprintf(os.Stderr, "[DEBUG] AI response length: %d\n", len(text))
 	}
 
-	// Load persona config for voice settings (platform-aware)
-	voiceConfig := voice.DefaultConfig()
+	fileConfig := loadVoiceConfig(c)
 	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-	if config != nil && config.Voice != nil {
-		if config.Voice.Provider != "" {
-			voiceConfig.EnginePriority = config.Voice.Provider
-		}
-		if config.Voice.Speaker > 0 {
-			if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
-				voiceConfig.AivisSpeechSpeaker = int64(config.Voice.Speaker)
-			} else {
-				voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
-			}
-		}
-	}
+	voiceConfig, opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
 
 	// Process text according to reading mode
 	reader := voice.NewTranscriptReader(voiceConfig)
@@ -397,9 +365,8 @@ func handleDirectResponseVoice(ctx context.Context, c *cli.Command, event *hook.
 		fmt.Fprintf(os.Stderr, "[DEBUG] Text to synthesize: %q\n", text)
 	}
 
-	// Synthesize and play
-	engine := voice.NewVoiceEngine(voiceConfig)
-	audioFile, err := engine.Synthesize(text)
+	manager := voice.NewVoiceManager(voiceConfig)
+	audioFile, err := manager.Synthesize(ctx, text, opts)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to synthesize voice")
 		if debug {
@@ -412,7 +379,7 @@ func handleDirectResponseVoice(ctx context.Context, c *cli.Command, event *hook.
 		fmt.Fprintf(os.Stderr, "[DEBUG] Audio file: %s\n", audioFile)
 	}
 
-	// Use PlayWithOptions with wait=true for hooks
+	engine := voice.NewVoiceEngine(voiceConfig)
 	if err := engine.PlayWithOptions(audioFile, true); err != nil {
 		log.Warn().Err(err).Msg("Failed to play audio")
 		if debug {
@@ -444,34 +411,16 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 
 	// Voice notification
 	if c.Bool("voice") {
-		voiceConfig := voice.DefaultConfig()
+		fileConfig := loadVoiceConfig(c)
 		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-		if config != nil && config.Voice != nil {
-			if config.Voice.Provider != "" {
-				voiceConfig.EnginePriority = config.Voice.Provider
-			}
-			if config.Voice.Speaker > 0 {
-				// Apply speaker ID to the appropriate engine based on priority
-				if voiceConfig.EnginePriority == voice.EngineAivisSpeech {
-					voiceConfig.AivisSpeechSpeaker = int64(config.Voice.Speaker)
-				} else {
-					voiceConfig.VoicevoxSpeaker = config.Voice.Speaker
-				}
-			}
-			if config.Voice.Volume > 0 {
-				voiceConfig.VolumeScale = config.Voice.Volume
-			}
-			if config.Voice.Speed > 0 {
-				voiceConfig.SpeedScale = config.Voice.Speed
-			}
-		}
+		voiceConfig, opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
 
-		engine := voice.NewVoiceEngine(voiceConfig)
-		audioFile, err := engine.Synthesize(message)
+		manager := voice.NewVoiceManager(voiceConfig)
+		audioFile, err := manager.Synthesize(ctx, message, opts)
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to synthesize voice")
 		} else {
-			// Use PlayWithOptions with wait=true for hooks
+			engine := voice.NewVoiceEngine(voiceConfig)
 			if err := engine.PlayWithOptions(audioFile, true); err != nil {
 				log.Warn().Err(err).Msg("Failed to play audio")
 			}
