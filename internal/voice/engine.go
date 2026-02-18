@@ -83,6 +83,13 @@ func (ve *VoiceEngine) Synthesize(text string) (string, error) {
 	}
 
 	log.Info().Str("engine", engine).Msg("Using voice engine")
+	log.Debug().
+		Str("engine", engine).
+		Int("voicevox_speaker", ve.config.VoicevoxSpeaker).
+		Int64("aivisspeech_speaker", ve.config.AivisSpeechSpeaker).
+		Float64("volume_scale", ve.config.VolumeScale).
+		Str("engine_priority", ve.config.EnginePriority).
+		Msg("Voice synthesis config")
 
 	switch engine {
 	case EngineVoicevox:

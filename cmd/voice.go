@@ -79,6 +79,13 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 				voiceConfig.VoicevoxSpeaker = personaConfig.Voice.Speaker
 			}
 		}
+		log.Debug().
+			Str("persona", personaConfig.Name).
+			Str("voice_provider", personaConfig.Voice.Provider).
+			Int("voice_speaker", personaConfig.Voice.Speaker).
+			Msg("Applied persona voice config")
+	} else {
+		log.Debug().Msg("No persona voice config found, using defaults or file config")
 	}
 
 	// Create voice manager
