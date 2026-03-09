@@ -78,7 +78,7 @@ The system integrates with Claude Code via hooks. **SessionStart is the recommen
 ```json
 {
   "hooks": {
-    "session-start": ["ccpersona hook"]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}]
   }
 }
 ```

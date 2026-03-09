@@ -11,9 +11,8 @@ import (
 
 // Manager handles persona operations
 type Manager struct {
-	homeDir      string
-	personasDir  string
-	claudeMdPath string
+	homeDir     string
+	personasDir string
 }
 
 // NewManager creates a new persona manager
@@ -24,9 +23,8 @@ func NewManager() (*Manager, error) {
 	}
 
 	return &Manager{
-		homeDir:      homeDir,
-		personasDir:  filepath.Join(homeDir, ".claude", "personas"),
-		claudeMdPath: filepath.Join(homeDir, ".claude", "CLAUDE.md"),
+		homeDir:     homeDir,
+		personasDir: filepath.Join(homeDir, ".claude", "personas"),
 	}, nil
 }
 
@@ -62,29 +60,6 @@ func (m *Manager) PersonaExists(name string) bool {
 	path := m.GetPersonaPath(name)
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-// ApplyPersona copies the specified persona to CLAUDE.md
-func (m *Manager) ApplyPersona(name string) error {
-	if !m.PersonaExists(name) {
-		return fmt.Errorf("persona '%s' does not exist", name)
-	}
-
-	sourcePath := m.GetPersonaPath(name)
-
-	// Read persona file
-	content, err := os.ReadFile(sourcePath)
-	if err != nil {
-		return fmt.Errorf("failed to read persona file: %w", err)
-	}
-
-	// Write to CLAUDE.md
-	if err := os.WriteFile(m.claudeMdPath, content, 0644); err != nil {
-		return fmt.Errorf("failed to write CLAUDE.md: %w", err)
-	}
-
-	log.Info().Str("persona", name).Msg("Applied persona")
-	return nil
 }
 
 // CreatePersona creates a new persona from a template
@@ -143,28 +118,14 @@ func (m *Manager) ReadPersona(name string) (string, error) {
 	return string(content), nil
 }
 
-// GetCurrentPersona tries to determine the currently active persona
+// GetCurrentPersona returns the currently configured persona name from persona.json
 func (m *Manager) GetCurrentPersona() (string, error) {
-	// Read CLAUDE.md
-	content, err := os.ReadFile(m.claudeMdPath)
+	config, err := LoadConfigWithFallback()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return "none", nil
-		}
-		return "", fmt.Errorf("failed to read CLAUDE.md: %w", err)
+		return "", fmt.Errorf("failed to load persona config: %w", err)
 	}
-
-	// Try to extract persona name from the content
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "# 人格:") || strings.HasPrefix(line, "# Persona:") {
-			parts := strings.Split(line, ":")
-			if len(parts) > 1 {
-				name := strings.TrimSpace(parts[1])
-				return name, nil
-			}
-		}
+	if config == nil {
+		return "none", nil
 	}
-
-	return "unknown", nil
+	return config.Name, nil
 }
