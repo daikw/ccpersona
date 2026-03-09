@@ -6,17 +6,36 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/daikw/ccpersona/internal/voice/provider"
 	"github.com/rs/zerolog/log"
 )
 
+// PlaybackGate はアプリ起動中に再生を直列化する
+type PlaybackGate struct{ mu sync.Mutex }
+
+// globalGate はプロセス内で再生を直列化するシングルトン
+var globalGate = &PlaybackGate{}
+
+// NewPlaybackGate はプロセス共有のグローバル PlaybackGate を返す
+func NewPlaybackGate() *PlaybackGate { return globalGate }
+
+// PlayBlocking は再生を mutex で直列化し、完了まで待機する
+func (g *PlaybackGate) PlayBlocking(engine *VoiceEngine, audioFile string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return engine.PlayWithOptions(audioFile, true) // wait=true
+}
+
 // VoiceManager manages both local engines and cloud providers
 type VoiceManager struct {
 	config          *Config
 	legacyEngine    *VoiceEngine
 	providerFactory provider.Factory
+	gate            *PlaybackGate
 }
 
 // NewVoiceManager creates a new voice manager
@@ -25,6 +44,7 @@ func NewVoiceManager(config *Config) *VoiceManager {
 		config:          config,
 		legacyEngine:    NewVoiceEngine(config),
 		providerFactory: provider.NewFactory(),
+		gate:            NewPlaybackGate(),
 	}
 }
 
@@ -44,6 +64,10 @@ type VoiceOptions struct {
 	SimilarityBoost float64
 	Style           float64
 	UseSpeakerBoost bool
+
+	// Local engine speaker override (0 = use Config default)
+	VoicevoxSpeaker    int
+	AivisSpeechSpeaker int
 
 	// Amazon Polly-specific options
 	Region     string
@@ -158,16 +182,22 @@ func (vm *VoiceManager) Synthesize(ctx context.Context, text string, options Voi
 
 // synthesizeLocal uses the legacy local engines
 func (vm *VoiceManager) synthesizeLocal(text string, options VoiceOptions) (string, error) {
-	if options.Provider != "" {
-		// Override engine priority if provider specified
-		if options.Provider == "voicevox" {
-			vm.config.EnginePriority = EngineVoicevox
-		} else if options.Provider == "aivisspeech" {
-			vm.config.EnginePriority = EngineAivisSpeech
-		}
+	// Copy config to avoid mutating shared state when overriding engine priority.
+	cfg := *vm.config
+	if options.Provider == "voicevox" {
+		cfg.EnginePriority = EngineVoicevox
+	} else if options.Provider == "aivisspeech" {
+		cfg.EnginePriority = EngineAivisSpeech
 	}
-
-	return vm.legacyEngine.Synthesize(text)
+	// Apply per-call speaker overrides from options.
+	if options.VoicevoxSpeaker > 0 {
+		cfg.VoicevoxSpeaker = options.VoicevoxSpeaker
+	}
+	if options.AivisSpeechSpeaker > 0 {
+		cfg.AivisSpeechSpeaker = int64(options.AivisSpeechSpeaker)
+	}
+	engine := NewVoiceEngine(&cfg)
+	return engine.Synthesize(text)
 }
 
 // synthesizeCloud uses cloud providers
@@ -273,6 +303,12 @@ func (vm *VoiceManager) PlayAudio(audioPath string) error {
 	return vm.legacyEngine.Play(audioPath)
 }
 
+// PlayAudioBlocking plays an audio file with blocking serialization via PlaybackGate.
+// MCP での連続呼び出し時に音が重ならないよう、完了まで待機する。
+func (vm *VoiceManager) PlayAudioBlocking(audioPath string) error {
+	return vm.gate.PlayBlocking(vm.legacyEngine, audioPath)
+}
+
 // getFileExtension returns the file extension for a format
 func getFileExtension(format string) string {
 	switch format {
@@ -332,6 +368,6 @@ func (vm *VoiceManager) CleanupTempFiles(maxAge time.Duration) error {
 
 // isVoiceFile checks if a filename looks like a voice synthesis temp file
 func isVoiceFile(filename string) bool {
-	return (len(filename) > 6 && filename[:6] == "voice_") ||
-		(len(filename) > 8 && filename[:8] == "ccpersona_voice_")
+	return strings.HasPrefix(filename, "voice_") ||
+		strings.HasPrefix(filename, "ccpersona_voice_")
 }
