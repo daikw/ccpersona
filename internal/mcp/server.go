@@ -41,7 +41,7 @@ func RunServer(ctx context.Context, version string) error {
 		"テキストを音声合成して読み上げる。必ず現在の作業ディレクトリを project_dir に渡すこと（例: /Users/you/my-project）。これによりプロジェクトごとのペルソナ・音声設定が適用される。",
 		[]adapter.ToolParam{
 			{Name: "text", Description: "読み上げるテキスト", Type: "string", Required: true},
-			{Name: "project_dir", Description: "現在の作業ディレクトリの絶対パス。必須ではないが、常に渡すこと。プロジェクトの .claude/persona.json から音声設定を読み込むために使用する。", Type: "string", Required: true},
+			{Name: "project_dir", Description: "現在の作業ディレクトリの絶対パス。プロジェクトの .claude/persona.json から音声設定（プロバイダー・スピーカー・速度・音量）を読み込むために使用する。", Type: "string", Required: true},
 			{Name: "provider", Description: "TTSプロバイダー (voicevox / aivisspeech / openai / elevenlabs など)", Type: "string"},
 			{Name: "speaker", Description: "スピーカーID（ローカルエンジン用）", Type: "number"},
 		},
