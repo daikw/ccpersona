@@ -6,17 +6,35 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/daikw/ccpersona/internal/voice/provider"
 	"github.com/rs/zerolog/log"
 )
 
+// PlaybackGate はアプリ起動中に再生を直列化する
+type PlaybackGate struct{ mu sync.Mutex }
+
+// NewPlaybackGate はシングルトン用のグローバル gate を返す
+func NewPlaybackGate() *PlaybackGate {
+	return &PlaybackGate{}
+}
+
+// PlayBlocking は再生を mutex で直列化し、完了まで待機する
+func (g *PlaybackGate) PlayBlocking(engine *VoiceEngine, audioFile string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return engine.PlayWithOptions(audioFile, true) // wait=true
+}
+
 // VoiceManager manages both local engines and cloud providers
 type VoiceManager struct {
 	config          *Config
 	legacyEngine    *VoiceEngine
 	providerFactory provider.Factory
+	gate            *PlaybackGate
 }
 
 // NewVoiceManager creates a new voice manager
@@ -25,6 +43,7 @@ func NewVoiceManager(config *Config) *VoiceManager {
 		config:          config,
 		legacyEngine:    NewVoiceEngine(config),
 		providerFactory: provider.NewFactory(),
+		gate:            NewPlaybackGate(),
 	}
 }
 
@@ -272,6 +291,12 @@ func (vm *VoiceManager) PlayAudio(audioPath string) error {
 	return vm.legacyEngine.Play(audioPath)
 }
 
+// PlayAudioBlocking plays an audio file with blocking serialization via PlaybackGate.
+// MCP での連続呼び出し時に音が重ならないよう、完了まで待機する。
+func (vm *VoiceManager) PlayAudioBlocking(audioPath string) error {
+	return vm.gate.PlayBlocking(vm.legacyEngine, audioPath)
+}
+
 // getFileExtension returns the file extension for a format
 func getFileExtension(format string) string {
 	switch format {
@@ -331,6 +356,6 @@ func (vm *VoiceManager) CleanupTempFiles(maxAge time.Duration) error {
 
 // isVoiceFile checks if a filename looks like a voice synthesis temp file
 func isVoiceFile(filename string) bool {
-	return (len(filename) > 6 && filename[:6] == "voice_") ||
-		(len(filename) > 8 && filename[:8] == "ccpersona_voice_")
+	return strings.HasPrefix(filename, "voice_") ||
+		strings.HasPrefix(filename, "ccpersona_voice_")
 }

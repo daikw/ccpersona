@@ -52,24 +52,20 @@ func TestGetFileExtension(t *testing.T) {
 }
 
 func TestIsVoiceFile(t *testing.T) {
-	// The implementation checks:
-	// - len > 6 && starts with "voice_" (so minimum "voice_X" = 7 chars)
-	// - len > 8 && starts with "ccpersona_voice_" (but [:8] is "ccperson", this seems like a bug)
-	// Testing against actual implementation behavior
 	tests := []struct {
 		filename string
 		expected bool
 	}{
-		{"voice_123.mp3", true},         // starts with voice_, len > 6
-		{"voice_abc.wav", true},         // starts with voice_, len > 6
-		{"voice_x", true},               // exactly 7 chars, starts with voice_
-		{"other_file.mp3", false},       // doesn't start with voice_
-		{"voic.mp3", false},             // too short and wrong prefix
-		{"voice", false},                // len = 5, not > 6
-		{"voice_", false},               // len = 6, not > 6 (boundary case)
-		{"", false},                     // empty
-		{"abc", false},                  // too short
-		{"ccpersona_voice_test", false}, // second condition compares [:8] with 16-char string, never matches
+		{"voice_123.mp3", true},        // starts with voice_
+		{"voice_abc.wav", true},        // starts with voice_
+		{"voice_x", true},              // starts with voice_
+		{"other_file.mp3", false},      // doesn't start with voice_
+		{"voic.mp3", false},            // wrong prefix
+		{"voice", false},               // no underscore after voice
+		{"voice_", true},               // exactly "voice_" prefix
+		{"", false},                    // empty
+		{"abc", false},                 // unrelated
+		{"ccpersona_voice_test", true}, // starts with ccpersona_voice_
 	}
 
 	for _, tt := range tests {
