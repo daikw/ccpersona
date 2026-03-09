@@ -189,12 +189,18 @@ func (vm *VoiceManager) synthesizeLocal(text string, options VoiceOptions) (stri
 	} else if options.Provider == "aivisspeech" {
 		cfg.EnginePriority = EngineAivisSpeech
 	}
-	// Apply per-call speaker overrides from options.
+	// Apply per-call overrides from options.
 	if options.VoicevoxSpeaker > 0 {
 		cfg.VoicevoxSpeaker = options.VoicevoxSpeaker
 	}
 	if options.AivisSpeechSpeaker > 0 {
 		cfg.AivisSpeechSpeaker = int64(options.AivisSpeechSpeaker)
+	}
+	if options.Speed > 0 {
+		cfg.SpeedScale = options.Speed
+	}
+	if options.Volume > 0 {
+		cfg.VolumeScale = options.Volume
 	}
 	engine := NewVoiceEngine(&cfg)
 	return engine.Synthesize(text)
