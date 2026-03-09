@@ -136,7 +136,7 @@ func showClaudeCodeHookInstructions() {
 	fmt.Println("")
 	fmt.Println(`   {
      "hooks": {
-       "session-start": ["ccpersona hook"],
+       "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}],
        "Stop": [{"hooks": [{"type": "command", "command": "ccpersona voice"}]}]
      }
    }`)
@@ -153,14 +153,14 @@ func generateCursorHooksConfig() error {
 	hooksConfig := `{
   "version": 1,
   "hooks": {
-    "beforeSubmitPrompt": [
+    "sessionStart": [
       {
         "command": "ccpersona hook"
       }
     ],
-    "stop": [
+    "afterAgentResponse": [
       {
-        "command": "ccpersona voice"
+        "command": "ccpersona notify --voice"
       }
     ]
   }
@@ -172,80 +172,6 @@ func generateCursorHooksConfig() error {
 		return fmt.Errorf("failed to write hooks.json: %w", err)
 	}
 
-	return nil
-}
-
-func handleList(ctx context.Context, c *cli.Command) error {
-	// Deprecated: use 'init' instead (shows list interactively)
-	fmt.Fprintln(os.Stderr, "⚠️  'list' is deprecated. Use 'init' instead (shows list interactively).")
-
-	manager, err := persona.NewManager()
-	if err != nil {
-		return err
-	}
-
-	personas, err := manager.ListPersonas()
-	if err != nil {
-		return err
-	}
-
-	if len(personas) == 0 {
-		fmt.Println("No personas found. Create one with 'ccpersona edit <name>'")
-		return nil
-	}
-
-	fmt.Println("Available personas:")
-	for _, p := range personas {
-		fmt.Printf("  - %s\n", p)
-	}
-
-	return nil
-}
-
-func handleCurrent(ctx context.Context, c *cli.Command) error {
-	// Deprecated: use 'show' without arguments instead
-	fmt.Fprintln(os.Stderr, "⚠️  'current' is deprecated. Use 'show' without arguments instead.")
-	return handleShow(ctx, c)
-}
-
-func handleSet(ctx context.Context, c *cli.Command) error {
-	// Deprecated: use 'init' instead (interactive selection)
-	fmt.Fprintln(os.Stderr, "⚠️  'set' is deprecated. Use 'init' instead (interactive selection).")
-
-	personaName := c.Args().Get(0)
-	if personaName == "" {
-		return fmt.Errorf("persona name is required")
-	}
-
-	manager, err := persona.NewManager()
-	if err != nil {
-		return err
-	}
-
-	if !manager.PersonaExists(personaName) {
-		return fmt.Errorf("persona '%s' does not exist", personaName)
-	}
-
-	config, err := persona.LoadConfig(".")
-	if err != nil {
-		return err
-	}
-
-	if config == nil {
-		config = persona.GetDefaultConfig()
-	}
-
-	config.Name = personaName
-
-	if err := persona.SaveConfig(".", config); err != nil {
-		return err
-	}
-
-	if err := manager.ApplyPersona(personaName); err != nil {
-		return err
-	}
-
-	fmt.Printf("Set active persona to: %s\n", personaName)
 	return nil
 }
 

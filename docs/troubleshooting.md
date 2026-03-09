@@ -230,7 +230,7 @@ To use different speakers on different machines:
    ```json
    {
      "hooks": {
-       "session-start": ["ccpersona hook"],
+       "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}],
        "Stop": [
          {
            "hooks": [

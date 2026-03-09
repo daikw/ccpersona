@@ -24,10 +24,6 @@ func TestNewManager(t *testing.T) {
 	if !strings.HasSuffix(manager.personasDir, filepath.Join(".claude", "personas")) { //nolint:staticcheck // checked for nil above
 		t.Errorf("Invalid personas directory: %s", manager.personasDir)
 	}
-
-	if !strings.HasSuffix(manager.claudeMdPath, filepath.Join(".claude", "CLAUDE.md")) {
-		t.Errorf("Invalid CLAUDE.md path: %s", manager.claudeMdPath)
-	}
 }
 
 func TestListPersonas(t *testing.T) {
@@ -41,9 +37,8 @@ func TestListPersonas(t *testing.T) {
 	}()
 
 	manager := &Manager{
-		homeDir:      tmpDir,
-		personasDir:  filepath.Join(tmpDir, ".claude", "personas"),
-		claudeMdPath: filepath.Join(tmpDir, ".claude", "CLAUDE.md"),
+		homeDir:     tmpDir,
+		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
 	}
 
 	// Test 1: Empty directory
@@ -114,9 +109,8 @@ func TestPersonaExists(t *testing.T) {
 	}()
 
 	manager := &Manager{
-		homeDir:      tmpDir,
-		personasDir:  filepath.Join(tmpDir, ".claude", "personas"),
-		claudeMdPath: filepath.Join(tmpDir, ".claude", "CLAUDE.md"),
+		homeDir:     tmpDir,
+		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
 	}
 
 	// Create personas directory
@@ -151,9 +145,8 @@ func TestCreatePersona(t *testing.T) {
 	}()
 
 	manager := &Manager{
-		homeDir:      tmpDir,
-		personasDir:  filepath.Join(tmpDir, ".claude", "personas"),
-		claudeMdPath: filepath.Join(tmpDir, ".claude", "CLAUDE.md"),
+		homeDir:     tmpDir,
+		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
 	}
 
 	// Test creating new persona
@@ -198,9 +191,8 @@ func TestReadPersona(t *testing.T) {
 	}()
 
 	manager := &Manager{
-		homeDir:      tmpDir,
-		personasDir:  filepath.Join(tmpDir, ".claude", "personas"),
-		claudeMdPath: filepath.Join(tmpDir, ".claude", "CLAUDE.md"),
+		homeDir:     tmpDir,
+		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
 	}
 
 	// Create personas directory
@@ -235,63 +227,6 @@ func TestReadPersona(t *testing.T) {
 	})
 }
 
-func TestApplyPersona(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "ccpersona-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		_ = os.RemoveAll(tmpDir)
-	}()
-
-	manager := &Manager{
-		homeDir:      tmpDir,
-		personasDir:  filepath.Join(tmpDir, ".claude", "personas"),
-		claudeMdPath: filepath.Join(tmpDir, ".claude", "CLAUDE.md"),
-	}
-
-	// Create directories
-	if err := os.MkdirAll(manager.personasDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Dir(manager.claudeMdPath), 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create test persona
-	testContent := "# Test Persona\n\nThis is a test persona."
-	testPath := filepath.Join(manager.personasDir, "test.md")
-	if err := os.WriteFile(testPath, []byte(testContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test applying existing persona
-	t.Run("ApplyExisting", func(t *testing.T) {
-		err := manager.ApplyPersona("test")
-		if err != nil {
-			t.Errorf("Failed to apply persona: %v", err)
-		}
-
-		// Verify CLAUDE.md was created with correct content
-		content, err := os.ReadFile(manager.claudeMdPath)
-		if err != nil {
-			t.Errorf("Failed to read CLAUDE.md: %v", err)
-		}
-
-		if string(content) != testContent {
-			t.Errorf("CLAUDE.md content mismatch: expected %q, got %q", testContent, string(content))
-		}
-	})
-
-	// Test applying non-existing persona
-	t.Run("ApplyNonExisting", func(t *testing.T) {
-		err := manager.ApplyPersona("nonexistent")
-		if err == nil {
-			t.Error("Expected error when applying non-existing persona")
-		}
-	})
-}
-
 func TestGetCurrentPersona(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "ccpersona-test-*")
 	if err != nil {
@@ -301,19 +236,35 @@ func TestGetCurrentPersona(t *testing.T) {
 		_ = os.RemoveAll(tmpDir)
 	}()
 
+	// Override home directory
+	originalHome := os.Getenv("HOME")
+	_ = os.Setenv("HOME", tmpDir)
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
+
 	manager := &Manager{
-		homeDir:      tmpDir,
-		personasDir:  filepath.Join(tmpDir, ".claude", "personas"),
-		claudeMdPath: filepath.Join(tmpDir, ".claude", "CLAUDE.md"),
+		homeDir:     tmpDir,
+		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
 	}
 
 	// Create .claude directory
-	if err := os.MkdirAll(filepath.Dir(manager.claudeMdPath), 0755); err != nil {
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	// Test 1: No CLAUDE.md file
-	t.Run("NoCLAUDEmd", func(t *testing.T) {
+	// Test 1: No persona.json
+	t.Run("NoConfig", func(t *testing.T) {
+		// Change to a temp dir with no persona.json
+		origWd, _ := os.Getwd()
+		tmpProject, _ := os.MkdirTemp("", "ccpersona-proj-*")
+		defer func() {
+			_ = os.Chdir(origWd)
+			_ = os.RemoveAll(tmpProject)
+		}()
+		_ = os.Chdir(tmpProject)
+
 		current, err := manager.GetCurrentPersona()
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
@@ -323,10 +274,18 @@ func TestGetCurrentPersona(t *testing.T) {
 		}
 	})
 
-	// Test 2: CLAUDE.md with persona name
-	t.Run("WithPersonaName", func(t *testing.T) {
-		content := "# 人格: ずんだもん\n\n## 口調\nなのだ！"
-		if err := os.WriteFile(manager.claudeMdPath, []byte(content), 0644); err != nil {
+	// Test 2: With persona.json
+	t.Run("WithConfig", func(t *testing.T) {
+		origWd, _ := os.Getwd()
+		tmpProject, _ := os.MkdirTemp("", "ccpersona-proj-*")
+		defer func() {
+			_ = os.Chdir(origWd)
+			_ = os.RemoveAll(tmpProject)
+		}()
+		_ = os.Chdir(tmpProject)
+
+		config := &Config{Name: "ずんだもん"}
+		if err := SaveConfig(tmpProject, config); err != nil {
 			t.Fatal(err)
 		}
 
@@ -336,22 +295,6 @@ func TestGetCurrentPersona(t *testing.T) {
 		}
 		if current != "ずんだもん" {
 			t.Errorf("Expected 'ずんだもん', got %s", current)
-		}
-	})
-
-	// Test 3: CLAUDE.md without persona name
-	t.Run("WithoutPersonaName", func(t *testing.T) {
-		content := "# Some other content\n\n## Not a persona"
-		if err := os.WriteFile(manager.claudeMdPath, []byte(content), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		current, err := manager.GetCurrentPersona()
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		if current != "unknown" {
-			t.Errorf("Expected 'unknown', got %s", current)
 		}
 	})
 }

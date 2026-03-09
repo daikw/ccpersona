@@ -81,7 +81,7 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
 ```json
 {
   "hooks": {
-    "session-start": ["ccpersona hook"],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}],
     "Stop": [
       {
         "hooks": [
