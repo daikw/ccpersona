@@ -79,6 +79,9 @@ func TestResolve_PersonaOverridesFileDefaults(t *testing.T) {
 	if cfg.AivisSpeechSpeaker != 42 {
 		t.Errorf("expected AivisSpeechSpeaker=42, got %v", cfg.AivisSpeechSpeaker)
 	}
+	if opts.AivisSpeechSpeaker != 42 {
+		t.Errorf("expected opts.AivisSpeechSpeaker=42, got %v", opts.AivisSpeechSpeaker)
+	}
 }
 
 func TestResolve_CLIProviderOverridesPersona(t *testing.T) {

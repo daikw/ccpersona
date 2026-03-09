@@ -75,8 +75,10 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 			if provCfg.Speaker > 0 {
 				if effectiveProvider == EngineAivisSpeech {
 					cfg.AivisSpeechSpeaker = int64(provCfg.Speaker)
+					opts.AivisSpeechSpeaker = provCfg.Speaker
 				} else {
 					cfg.VoicevoxSpeaker = provCfg.Speaker
+					opts.VoicevoxSpeaker = provCfg.Speaker
 				}
 			}
 			// Cloud-provider-specific fields
@@ -125,8 +127,10 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 		// always lands in the correct field even when persona.Provider is empty.
 		if effectiveProvider == EngineAivisSpeech {
 			cfg.AivisSpeechSpeaker = int64(persona.Speaker)
+			opts.AivisSpeechSpeaker = persona.Speaker
 		} else {
 			cfg.VoicevoxSpeaker = persona.Speaker
+			opts.VoicevoxSpeaker = persona.Speaker
 		}
 	}
 	if persona.Volume > 0 {
