@@ -15,13 +15,15 @@ import (
 
 // mockSynthesizer records calls to Synthesize.
 type mockSynthesizer struct {
-	called   bool
+	called     bool
+	lastOpts   voice.VoiceOptions
 	returnPath string
 	returnErr  error
 }
 
-func (m *mockSynthesizer) Synthesize(_ context.Context, _ string, _ voice.VoiceOptions) (string, error) {
+func (m *mockSynthesizer) Synthesize(_ context.Context, _ string, opts voice.VoiceOptions) (string, error) {
 	m.called = true
+	m.lastOpts = opts
 	return m.returnPath, m.returnErr
 }
 
@@ -130,6 +132,10 @@ func TestSpeakService_Speak_WithProviderAndSpeaker(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, synth.called)
 	assert.True(t, player.called)
+	// speaker が VoiceOptions に正しく反映されていることを確認
+	assert.Equal(t, 888753760, synth.lastOpts.VoicevoxSpeaker)
+	assert.Equal(t, 888753760, synth.lastOpts.AivisSpeechSpeaker)
+	assert.Equal(t, "", synth.lastOpts.Voice, "cloud voice should be cleared when speaker is set")
 }
 
 func TestSpeakService_Speak_WithPersonaVoiceConfig(t *testing.T) {

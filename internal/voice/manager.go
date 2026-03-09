@@ -17,10 +17,11 @@ import (
 // PlaybackGate はアプリ起動中に再生を直列化する
 type PlaybackGate struct{ mu sync.Mutex }
 
-// NewPlaybackGate はシングルトン用のグローバル gate を返す
-func NewPlaybackGate() *PlaybackGate {
-	return &PlaybackGate{}
-}
+// globalGate はプロセス内で再生を直列化するシングルトン
+var globalGate = &PlaybackGate{}
+
+// NewPlaybackGate はプロセス共有のグローバル PlaybackGate を返す
+func NewPlaybackGate() *PlaybackGate { return globalGate }
 
 // PlayBlocking は再生を mutex で直列化し、完了まで待機する
 func (g *PlaybackGate) PlayBlocking(engine *VoiceEngine, audioFile string) error {
@@ -63,6 +64,10 @@ type VoiceOptions struct {
 	SimilarityBoost float64
 	Style           float64
 	UseSpeakerBoost bool
+
+	// Local engine speaker override (0 = use Config default)
+	VoicevoxSpeaker    int
+	AivisSpeechSpeaker int
 
 	// Amazon Polly-specific options
 	Region     string
@@ -183,6 +188,13 @@ func (vm *VoiceManager) synthesizeLocal(text string, options VoiceOptions) (stri
 		cfg.EnginePriority = EngineVoicevox
 	} else if options.Provider == "aivisspeech" {
 		cfg.EnginePriority = EngineAivisSpeech
+	}
+	// Apply per-call speaker overrides from options.
+	if options.VoicevoxSpeaker > 0 {
+		cfg.VoicevoxSpeaker = options.VoicevoxSpeaker
+	}
+	if options.AivisSpeechSpeaker > 0 {
+		cfg.AivisSpeechSpeaker = int64(options.AivisSpeechSpeaker)
 	}
 	engine := NewVoiceEngine(&cfg)
 	return engine.Synthesize(text)

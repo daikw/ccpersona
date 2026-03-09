@@ -59,17 +59,14 @@ func (s *SpeakService) Speak(ctx context.Context, req SpeakRequest) error {
 		}
 	}
 
-	// Load persona config to get voice settings.
-	personaCfg, err := persona.LoadConfigForPlatform(projectDir, "")
-	if err != nil {
-		log.Warn().Err(err).Msg("failed to load persona config; using defaults")
-	}
-
-	// Also try global fallback if no project config was found.
+	// Load persona config: project dir first, then global (~/.claude) only.
+	// Deliberately avoid LoadConfigWithFallback() which uses cwd and may resolve
+	// a persona from a different project when project_dir is explicitly given.
+	personaCfg, _ := persona.LoadConfigForPlatform(projectDir, "")
 	if personaCfg == nil {
-		personaCfg, err = persona.LoadConfigWithFallback()
-		if err != nil {
-			log.Warn().Err(err).Msg("failed to load global persona config; using defaults")
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			personaCfg, _ = persona.LoadConfigForPlatform(homeDir, "")
 		}
 	}
 
@@ -83,6 +80,8 @@ func (s *SpeakService) Speak(ctx context.Context, req SpeakRequest) error {
 
 	// Apply request-level speaker override.
 	if req.Speaker > 0 {
+		opts.VoicevoxSpeaker = req.Speaker
+		opts.AivisSpeechSpeaker = req.Speaker
 		opts.Voice = "" // clear cloud voice when explicit speaker is given
 	}
 

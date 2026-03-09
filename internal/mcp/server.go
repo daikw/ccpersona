@@ -52,7 +52,7 @@ func RunServer(ctx context.Context, version string) error {
 			projectDir := mcp.ParseString(req, "project_dir", "")
 
 			log.Debug().
-				Str("text", text).
+				Int("text_len", len(text)).
 				Str("provider", provider).
 				Int("speaker", speaker).
 				Str("project_dir", projectDir).
