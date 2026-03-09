@@ -1,6 +1,8 @@
 package voice
 
 import (
+	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -76,6 +78,37 @@ func TestIsVoiceFile(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// TestSynthesizeLocalNoRace verifies that concurrent calls to synthesizeLocal with
+// different providers do not race on the shared VoiceManager config field.
+// Run with: go test -race ./internal/voice/...
+func TestSynthesizeLocalNoRace(t *testing.T) {
+	config := DefaultConfig()
+	config.EnginePriority = EngineAivisSpeech
+	manager := NewVoiceManager(config)
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	providers := []string{"voicevox", "aivisspeech", ""}
+	ctx := context.Background()
+
+	for i := 0; i < goroutines; i++ {
+		provider := providers[i%len(providers)]
+		go func(p string) {
+			defer wg.Done()
+			// synthesizeLocal will fail to reach a real engine, but the race
+			// detector will catch any concurrent writes to vm.config.
+			_ , _ = manager.Synthesize(ctx, "test", VoiceOptions{Provider: p})
+		}(provider)
+	}
+
+	wg.Wait()
+
+	// The original config must not have been mutated by any goroutine.
+	assert.Equal(t, EngineAivisSpeech, config.EnginePriority)
 }
 
 func TestVoiceOptions(t *testing.T) {

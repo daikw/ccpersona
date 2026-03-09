@@ -158,16 +158,15 @@ func (vm *VoiceManager) Synthesize(ctx context.Context, text string, options Voi
 
 // synthesizeLocal uses the legacy local engines
 func (vm *VoiceManager) synthesizeLocal(text string, options VoiceOptions) (string, error) {
-	if options.Provider != "" {
-		// Override engine priority if provider specified
-		if options.Provider == "voicevox" {
-			vm.config.EnginePriority = EngineVoicevox
-		} else if options.Provider == "aivisspeech" {
-			vm.config.EnginePriority = EngineAivisSpeech
-		}
+	// Copy config to avoid mutating shared state when overriding engine priority.
+	cfg := *vm.config
+	if options.Provider == "voicevox" {
+		cfg.EnginePriority = EngineVoicevox
+	} else if options.Provider == "aivisspeech" {
+		cfg.EnginePriority = EngineAivisSpeech
 	}
-
-	return vm.legacyEngine.Synthesize(text)
+	engine := NewVoiceEngine(&cfg)
+	return engine.Synthesize(text)
 }
 
 // synthesizeCloud uses cloud providers
