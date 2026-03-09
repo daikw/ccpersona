@@ -1,6 +1,7 @@
 package persona
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,9 +64,8 @@ func TestHandleSessionStart(t *testing.T) {
 		_ = w.Close()
 		os.Stdout = origStdout
 
-		buf := make([]byte, 4096)
-		n, _ := r.Read(buf)
-		output := string(buf[:n])
+		outputBytes, _ := io.ReadAll(r)
+		output := string(outputBytes)
 
 		if err != nil {
 			t.Errorf("Failed to handle session start: %v", err)
@@ -83,15 +83,52 @@ func TestHandleSessionStart(t *testing.T) {
 		_ = w2.Close()
 		os.Stdout = origStdout
 
-		buf2 := make([]byte, 4096)
-		n2, _ := r2.Read(buf2)
-		output2 := string(buf2[:n2])
+		outputBytes2, _ := io.ReadAll(r2)
+		output2 := string(outputBytes2)
 
 		if err != nil {
 			t.Errorf("Failed on second call: %v", err)
 		}
 		if output != output2 {
 			t.Errorf("Expected same output on second call, got: %q", output2)
+		}
+	})
+
+	t.Run("WithCustomInstructions", func(t *testing.T) {
+		personasDir := filepath.Join(tmpDir, ".claude", "personas")
+		if err := os.MkdirAll(personasDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.WriteFile(filepath.Join(personasDir, "custom-test.md"), []byte("# 人格: custom-test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		config := &Config{
+			Name:               "custom-test",
+			CustomInstructions: "## カスタム指示\nこれはカスタム指示です。",
+		}
+		if err := SaveConfig(projectDir, config); err != nil {
+			t.Fatal(err)
+		}
+
+		origStdout := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		err := HandleSessionStart()
+
+		_ = w.Close()
+		os.Stdout = origStdout
+
+		outputBytes, _ := io.ReadAll(r)
+		output := string(outputBytes)
+
+		if err != nil {
+			t.Errorf("Failed to handle session start: %v", err)
+		}
+		if !strings.Contains(output, "カスタム指示") {
+			t.Errorf("Expected custom instructions in stdout, got: %q", output)
 		}
 	})
 
@@ -122,9 +159,8 @@ func TestHandleSessionStart(t *testing.T) {
 		_ = w.Close()
 		os.Stdout = origStdout
 
-		buf := make([]byte, 4096)
-		n, _ := r.Read(buf)
-		output := string(buf[:n])
+		outputBytes, _ := io.ReadAll(r)
+		output := string(outputBytes)
 
 		if err != nil {
 			t.Errorf("Failed to handle session start: %v", err)

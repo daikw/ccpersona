@@ -153,14 +153,14 @@ func generateCursorHooksConfig() error {
 	hooksConfig := `{
   "version": 1,
   "hooks": {
-    "beforeSubmitPrompt": [
+    "sessionStart": [
       {
         "command": "ccpersona hook"
       }
     ],
-    "stop": [
+    "afterAgentResponse": [
       {
-        "command": "ccpersona voice"
+        "command": "ccpersona notify --voice"
       }
     ]
   }

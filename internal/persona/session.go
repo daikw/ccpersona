@@ -41,6 +41,11 @@ func HandleSessionStartForPlatform(platform string) error {
 	// Output persona content to stdout
 	fmt.Print(content)
 
+	// Append custom instructions if configured
+	if config.CustomInstructions != "" {
+		fmt.Printf("\n%s\n", config.CustomInstructions)
+	}
+
 	// Append speak instruction if voice is configured
 	if config.Voice != nil {
 		fmt.Print("\n## speak ツールの利用\nユーザーへの確認・許可を求める際、作業完了の報告、または自発的に話しかけたい場面では、\nspeak MCP ツールを使って発話してください。\n")
