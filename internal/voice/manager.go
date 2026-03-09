@@ -180,29 +180,12 @@ func (vm *VoiceManager) Synthesize(ctx context.Context, text string, options Voi
 	return vm.synthesizeCloud(ctx, text, options)
 }
 
-// synthesizeLocal uses the legacy local engines
+// synthesizeLocal uses the legacy local engines.
+// Reading-mode fields (ReadingMode, MaxChars, UUIDMode) are taken from vm.config;
+// all synthesis settings (provider, speaker, speed, volume) come from options.
 func (vm *VoiceManager) synthesizeLocal(text string, options VoiceOptions) (string, error) {
-	// Copy config to avoid mutating shared state when overriding engine priority.
-	cfg := *vm.config
-	if options.Provider == "voicevox" {
-		cfg.EnginePriority = EngineVoicevox
-	} else if options.Provider == "aivisspeech" {
-		cfg.EnginePriority = EngineAivisSpeech
-	}
-	// Apply per-call overrides from options.
-	if options.VoicevoxSpeaker > 0 {
-		cfg.VoicevoxSpeaker = options.VoicevoxSpeaker
-	}
-	if options.AivisSpeechSpeaker > 0 {
-		cfg.AivisSpeechSpeaker = int64(options.AivisSpeechSpeaker)
-	}
-	if options.Speed > 0 {
-		cfg.SpeedScale = options.Speed
-	}
-	if options.Volume > 0 {
-		cfg.VolumeScale = options.Volume
-	}
-	engine := NewVoiceEngine(&cfg)
+	cfg := options.ToConfig(vm.config)
+	engine := NewVoiceEngine(cfg)
 	return engine.Synthesize(text)
 }
 

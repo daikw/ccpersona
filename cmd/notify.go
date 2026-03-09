@@ -177,7 +177,8 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 	if c.Bool("voice") && codexEvent.LastAssistantMessage != "" {
 		fileConfig := loadVoiceConfig(c)
 		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-		voiceConfig, opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+		opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+		voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 		// Process text according to reading mode
 		reader := voice.NewTranscriptReader(voiceConfig)
@@ -258,7 +259,8 @@ func handleStopEventVoice(ctx context.Context, c *cli.Command, event *hook.Unifi
 
 	fileConfig := loadVoiceConfig(c)
 	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-	voiceConfig, opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+	opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+	voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 	// Read latest assistant message from transcript
 	reader := voice.NewTranscriptReader(voiceConfig)
@@ -347,7 +349,8 @@ func handleDirectResponseVoice(ctx context.Context, c *cli.Command, event *hook.
 
 	fileConfig := loadVoiceConfig(c)
 	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-	voiceConfig, opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+	opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+	voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 	// Process text according to reading mode
 	reader := voice.NewTranscriptReader(voiceConfig)
@@ -413,7 +416,8 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 	if c.Bool("voice") {
 		fileConfig := loadVoiceConfig(c)
 		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-		voiceConfig, opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+		opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+		voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 		manager := voice.NewVoiceManager(voiceConfig)
 		audioFile, err := manager.Synthesize(ctx, message, opts)

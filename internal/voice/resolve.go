@@ -11,7 +11,9 @@ type PersonaVoiceInput struct {
 	Speed    float64
 }
 
-// Resolve merges all configuration sources into a (*Config, VoiceOptions) pair.
+// Resolve merges all configuration sources into a single VoiceOptions.
+// VoiceOptions is the single source of truth for resolved settings.
+// Callers that need a *Config (legacy VoiceEngine path) call opts.ToConfig().
 //
 // Priority (highest → lowest):
 //  1. cliProvider argument (provider name only; caller applies CLI speaker/flags after)
@@ -19,12 +21,12 @@ type PersonaVoiceInput struct {
 //  3. fileConfig.Providers[effectiveProvider] (per-provider overrides)
 //  4. fileConfig.Defaults (global defaults from config file)
 //  5. DefaultConfig() hard-coded values
-func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider string) (*Config, VoiceOptions) {
-	cfg := DefaultConfig()
+func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider string) VoiceOptions {
+	defaults := DefaultConfig()
 
 	opts := VoiceOptions{
-		Speed:           cfg.SpeedScale,
-		Volume:          cfg.VolumeScale,
+		Speed:           defaults.SpeedScale,
+		Volume:          defaults.VolumeScale,
 		Format:          "mp3",
 		Model:           "tts-1",
 		Stability:       0.5,
@@ -39,11 +41,9 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 	// Layer 4: fileConfig.Defaults
 	if fileConfig != nil && fileConfig.Defaults != nil {
 		if fileConfig.Defaults.Volume > 0 {
-			cfg.VolumeScale = fileConfig.Defaults.Volume
 			opts.Volume = fileConfig.Defaults.Volume
 		}
 		if fileConfig.Defaults.Speed > 0 {
-			cfg.SpeedScale = fileConfig.Defaults.Speed
 			opts.Speed = fileConfig.Defaults.Speed
 		}
 	}
@@ -65,23 +65,18 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 	if fileConfig != nil && effectiveProvider != "" {
 		if provCfg := fileConfig.GetProviderConfig(effectiveProvider); provCfg != nil {
 			if provCfg.Volume > 0 {
-				cfg.VolumeScale = provCfg.Volume
 				opts.Volume = provCfg.Volume
 			}
 			if provCfg.Speed > 0 {
-				cfg.SpeedScale = provCfg.Speed
 				opts.Speed = provCfg.Speed
 			}
 			if provCfg.Speaker > 0 {
 				if effectiveProvider == EngineAivisSpeech {
-					cfg.AivisSpeechSpeaker = int64(provCfg.Speaker)
 					opts.AivisSpeechSpeaker = provCfg.Speaker
 				} else {
-					cfg.VoicevoxSpeaker = provCfg.Speaker
 					opts.VoicevoxSpeaker = provCfg.Speaker
 				}
 			}
-			// Cloud-provider-specific fields
 			if provCfg.APIKey != "" {
 				opts.APIKey = provCfg.APIKey
 			}
@@ -119,37 +114,20 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 	}
 
 	// Layer 2: persona
-	if persona.Provider != "" {
-		cfg.EnginePriority = persona.Provider
-	}
 	if persona.Speaker > 0 {
-		// Use effectiveProvider (fully resolved, includes CLI override) so the speaker
-		// always lands in the correct field even when persona.Provider is empty.
+		// Use effectiveProvider so the speaker always lands in the correct field
+		// even when persona.Provider is empty.
 		if effectiveProvider == EngineAivisSpeech {
-			cfg.AivisSpeechSpeaker = int64(persona.Speaker)
 			opts.AivisSpeechSpeaker = persona.Speaker
 		} else {
-			cfg.VoicevoxSpeaker = persona.Speaker
 			opts.VoicevoxSpeaker = persona.Speaker
 		}
 	}
 	if persona.Volume > 0 {
-		cfg.VolumeScale = persona.Volume
 		opts.Volume = persona.Volume
 	}
 	if persona.Speed > 0 {
-		cfg.SpeedScale = persona.Speed
 		opts.Speed = persona.Speed
-	}
-
-	// Layer 1: cliProvider (provider name; speaker/flags applied by caller)
-	if cliProvider != "" {
-		cfg.EnginePriority = cliProvider
-	} else if effectiveProvider != "" {
-		// Sync EnginePriority with the resolved provider when no CLI override.
-		// This ensures local engine callers always get a consistent EnginePriority
-		// regardless of which config layer set the provider.
-		cfg.EnginePriority = effectiveProvider
 	}
 
 	opts.Provider = effectiveProvider
@@ -160,5 +138,28 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 		Float64("speed", opts.Speed).
 		Msg("Resolved voice config")
 
-	return cfg, opts
+	return opts
+}
+
+// ToConfig converts VoiceOptions into a *Config for the legacy VoiceEngine path.
+// base supplies reading-specific fields (ReadingMode, MaxChars, UUIDMode) that
+// are not part of synthesis options.
+func (o VoiceOptions) ToConfig(base *Config) *Config {
+	cfg := *base
+	if o.Provider != "" {
+		cfg.EnginePriority = o.Provider
+	}
+	if o.AivisSpeechSpeaker > 0 {
+		cfg.AivisSpeechSpeaker = int64(o.AivisSpeechSpeaker)
+	}
+	if o.VoicevoxSpeaker > 0 {
+		cfg.VoicevoxSpeaker = o.VoicevoxSpeaker
+	}
+	if o.Speed > 0 {
+		cfg.SpeedScale = o.Speed
+	}
+	if o.Volume > 0 {
+		cfg.VolumeScale = o.Volume
+	}
+	return &cfg
 }

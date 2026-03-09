@@ -76,7 +76,7 @@ func (s *SpeakService) Speak(ctx context.Context, req SpeakRequest) error {
 	loader := voice.NewConfigLoader()
 	fileConfig, _ := loader.LoadConfig(projectDir)
 
-	_, opts := voice.Resolve(personaInput, fileConfig, req.Provider)
+	opts := voice.Resolve(personaInput, fileConfig, req.Provider)
 
 	// Apply request-level speaker override.
 	if req.Speaker > 0 {
