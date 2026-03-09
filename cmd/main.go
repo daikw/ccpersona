@@ -215,6 +215,11 @@ and behavioral patterns for your AI assistant.`,
 				},
 			},
 			{
+				Name:   "mcp",
+				Usage:  "stdio MCP サーバーとして起動する",
+				Action: handleMCP,
+			},
+			{
 				Name:    "notify",
 				Aliases: []string{"notification_hook"},
 				Usage:   "Handle notifications (auto-detects Claude Code, Codex, or Cursor)",
