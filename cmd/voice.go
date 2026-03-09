@@ -40,14 +40,16 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 	if c.IsSet("provider") {
 		cliProvider = c.String("provider")
 	}
-	voiceConfig, baseOpts := voice.Resolve(personaInput, fileConfig, cliProvider)
-	voiceConfig.ReadingMode = c.String("mode")
+	baseOpts := voice.Resolve(personaInput, fileConfig, cliProvider)
 
 	// CLI speaker overrides everything (highest priority)
-	if cliSpeaker := c.Int("speaker"); cliSpeaker > 0 {
-		voiceConfig.VoicevoxSpeaker = int(cliSpeaker)
-		voiceConfig.AivisSpeechSpeaker = cliSpeaker
+	if cliSpeaker := int(c.Int("speaker")); cliSpeaker > 0 {
+		baseOpts.VoicevoxSpeaker = cliSpeaker
+		baseOpts.AivisSpeechSpeaker = cliSpeaker
 	}
+
+	voiceConfig := baseOpts.ToConfig(voice.DefaultConfig())
+	voiceConfig.ReadingMode = c.String("mode")
 
 	// Create voice manager
 	manager := voice.NewVoiceManager(voiceConfig)

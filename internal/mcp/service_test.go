@@ -158,6 +158,8 @@ func TestSpeakService_Speak_WithPersonaVoiceConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, synth.called)
 	assert.True(t, player.called)
+	assert.Equal(t, "aivisspeech", synth.lastOpts.Provider)
+	assert.Equal(t, 42, synth.lastOpts.AivisSpeechSpeaker)
 }
 
 func TestSpeakService_Speak_EmptyAudioPath(t *testing.T) {

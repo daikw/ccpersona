@@ -5,14 +5,8 @@ import (
 )
 
 func TestResolve_Defaults(t *testing.T) {
-	cfg, opts := Resolve(PersonaVoiceInput{}, nil, "")
+	opts := Resolve(PersonaVoiceInput{}, nil, "")
 
-	if cfg.VolumeScale != 1.0 {
-		t.Errorf("expected VolumeScale=1.0, got %v", cfg.VolumeScale)
-	}
-	if cfg.SpeedScale != 1.0 {
-		t.Errorf("expected SpeedScale=1.0, got %v", cfg.SpeedScale)
-	}
 	if opts.Volume != 1.0 {
 		t.Errorf("expected opts.Volume=1.0, got %v", opts.Volume)
 	}
@@ -32,14 +26,8 @@ func TestResolve_FileConfigDefaults(t *testing.T) {
 		},
 	}
 
-	cfg, opts := Resolve(PersonaVoiceInput{}, fileConfig, "")
+	opts := Resolve(PersonaVoiceInput{}, fileConfig, "")
 
-	if cfg.VolumeScale != 0.8 {
-		t.Errorf("expected VolumeScale=0.8, got %v", cfg.VolumeScale)
-	}
-	if cfg.SpeedScale != 1.5 {
-		t.Errorf("expected SpeedScale=1.5, got %v", cfg.SpeedScale)
-	}
 	if opts.Volume != 0.8 {
 		t.Errorf("expected opts.Volume=0.8, got %v", opts.Volume)
 	}
@@ -59,32 +47,41 @@ func TestResolve_PersonaOverridesFileDefaults(t *testing.T) {
 		Speed:    0.9,
 	}
 
-	cfg, opts := Resolve(personaInput, fileConfig, "")
+	opts := Resolve(personaInput, fileConfig, "")
+	cfg := opts.ToConfig(DefaultConfig())
 
-	if cfg.VolumeScale != 1.2 {
-		t.Errorf("expected VolumeScale=1.2, got %v", cfg.VolumeScale)
-	}
-	if cfg.SpeedScale != 0.9 {
-		t.Errorf("expected SpeedScale=0.9, got %v", cfg.SpeedScale)
-	}
 	if opts.Volume != 1.2 {
 		t.Errorf("expected opts.Volume=1.2, got %v", opts.Volume)
 	}
 	if opts.Speed != 0.9 {
 		t.Errorf("expected opts.Speed=0.9, got %v", opts.Speed)
 	}
+	if opts.Provider != "aivisspeech" {
+		t.Errorf("expected opts.Provider=aivisspeech, got %q", opts.Provider)
+	}
+	if opts.AivisSpeechSpeaker != 42 {
+		t.Errorf("expected opts.AivisSpeechSpeaker=42, got %v", opts.AivisSpeechSpeaker)
+	}
+	// ToConfig should propagate all fields
+	if cfg.SpeedScale != 0.9 {
+		t.Errorf("expected cfg.SpeedScale=0.9, got %v", cfg.SpeedScale)
+	}
+	if cfg.VolumeScale != 1.2 {
+		t.Errorf("expected cfg.VolumeScale=1.2, got %v", cfg.VolumeScale)
+	}
 	if cfg.EnginePriority != "aivisspeech" {
-		t.Errorf("expected EnginePriority=aivisspeech, got %v", cfg.EnginePriority)
+		t.Errorf("expected cfg.EnginePriority=aivisspeech, got %v", cfg.EnginePriority)
 	}
 	if cfg.AivisSpeechSpeaker != 42 {
-		t.Errorf("expected AivisSpeechSpeaker=42, got %v", cfg.AivisSpeechSpeaker)
+		t.Errorf("expected cfg.AivisSpeechSpeaker=42, got %v", cfg.AivisSpeechSpeaker)
 	}
 }
 
 func TestResolve_CLIProviderOverridesPersona(t *testing.T) {
 	personaInput := PersonaVoiceInput{Provider: "aivisspeech"}
 
-	cfg, opts := Resolve(personaInput, nil, "voicevox")
+	opts := Resolve(personaInput, nil, "voicevox")
+	cfg := opts.ToConfig(DefaultConfig())
 
 	if cfg.EnginePriority != "voicevox" {
 		t.Errorf("expected EnginePriority=voicevox, got %q", cfg.EnginePriority)
@@ -119,16 +116,13 @@ func TestResolve_ProviderConfigOverridesDefaults(t *testing.T) {
 		},
 	}
 
-	cfg, opts := Resolve(PersonaVoiceInput{}, fileConfig, "openai")
+	opts := Resolve(PersonaVoiceInput{}, fileConfig, "openai")
 
 	if opts.Speed != 1.3 {
 		t.Errorf("expected opts.Speed=1.3, got %v", opts.Speed)
 	}
 	if opts.Volume != 1.1 {
 		t.Errorf("expected opts.Volume=1.1, got %v", opts.Volume)
-	}
-	if cfg.VolumeScale != 1.1 {
-		t.Errorf("expected VolumeScale=1.1, got %v", cfg.VolumeScale)
 	}
 	if opts.APIKey != "sk-test" {
 		t.Errorf("expected APIKey=sk-test, got %q", opts.APIKey)
@@ -149,7 +143,8 @@ func TestResolve_ProviderConfigOverridesDefaults(t *testing.T) {
 func TestResolve_EmptyCLIProviderDoesNotOverridePersona(t *testing.T) {
 	personaInput := PersonaVoiceInput{Provider: "voicevox"}
 
-	cfg, opts := Resolve(personaInput, nil, "") // empty cliProvider
+	opts := Resolve(personaInput, nil, "") // empty cliProvider
+	cfg := opts.ToConfig(DefaultConfig())
 
 	if cfg.EnginePriority != "voicevox" {
 		t.Errorf("expected EnginePriority=voicevox, got %q", cfg.EnginePriority)
@@ -168,13 +163,12 @@ func TestResolve_CLIProviderVoicevox_PersonaSpeakerGoesToVoicevox(t *testing.T) 
 		Speaker:  99,
 	}
 
-	cfg, _ := Resolve(personaInput, nil, "voicevox")
+	opts := Resolve(personaInput, nil, "voicevox")
 
-	if cfg.VoicevoxSpeaker != 99 {
-		t.Errorf("expected VoicevoxSpeaker=99, got %d", cfg.VoicevoxSpeaker)
+	if opts.VoicevoxSpeaker != 99 {
+		t.Errorf("expected VoicevoxSpeaker=99, got %d", opts.VoicevoxSpeaker)
 	}
-	// AivisSpeech speaker should remain at default
-	if cfg.AivisSpeechSpeaker == 99 {
+	if opts.AivisSpeechSpeaker == 99 {
 		t.Errorf("AivisSpeechSpeaker should not be 99 when provider=voicevox")
 	}
 }
@@ -191,7 +185,7 @@ func TestResolve_PersonaOverridesProviderConfig(t *testing.T) {
 		Speed:    0.8,
 	}
 
-	cfg, opts := Resolve(personaInput, fileConfig, "")
+	opts := Resolve(personaInput, fileConfig, "")
 
 	// Persona should win over provider config
 	if opts.Volume != 1.4 {
@@ -199,8 +193,5 @@ func TestResolve_PersonaOverridesProviderConfig(t *testing.T) {
 	}
 	if opts.Speed != 0.8 {
 		t.Errorf("expected opts.Speed=0.8, got %v", opts.Speed)
-	}
-	if cfg.VolumeScale != 1.4 {
-		t.Errorf("expected VolumeScale=1.4, got %v", cfg.VolumeScale)
 	}
 }
