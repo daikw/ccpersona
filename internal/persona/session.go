@@ -33,7 +33,7 @@ func HandleSessionStartForPlatform(platform string) error {
 		return fmt.Errorf("failed to create manager: %w", err)
 	}
 
-	content, err := manager.ReadPersona(config.Name)
+	content, err := manager.ReadPersonaForContext(config.Name)
 	if err != nil {
 		return fmt.Errorf("failed to read persona: %w", err)
 	}
