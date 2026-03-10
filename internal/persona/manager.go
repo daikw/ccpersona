@@ -103,7 +103,7 @@ func (m *Manager) CreatePersona(name string) error {
 	return nil
 }
 
-// ReadPersona reads and returns the content of a persona file
+// ReadPersona reads and returns the raw content of a persona file (including front matter).
 func (m *Manager) ReadPersona(name string) (string, error) {
 	if !m.PersonaExists(name) {
 		return "", fmt.Errorf("persona '%s' does not exist", name)
@@ -116,6 +116,37 @@ func (m *Manager) ReadPersona(name string) (string, error) {
 	}
 
 	return string(content), nil
+}
+
+// ReadPersonaForContext reads a persona file and strips YAML front matter,
+// returning only the body intended as AI context.
+func (m *Manager) ReadPersonaForContext(name string) (string, error) {
+	raw, err := m.ReadPersona(name)
+	if err != nil {
+		return "", err
+	}
+	return stripYAMLFrontMatter(raw), nil
+}
+
+// stripYAMLFrontMatter removes YAML front matter (--- delimited) from markdown content.
+func stripYAMLFrontMatter(content string) string {
+	// UTF-8 BOM 対応
+	content = strings.TrimPrefix(content, "\uFEFF")
+
+	lines := strings.SplitAfter(content, "\n")
+	if len(lines) == 0 || strings.TrimRight(lines[0], "\r\n") != "---" {
+		return content
+	}
+
+	for i := 1; i < len(lines); i++ {
+		line := strings.TrimRight(lines[i], "\r\n")
+		if line == "---" || line == "..." {
+			return strings.Join(lines[i+1:], "")
+		}
+	}
+
+	// 閉じ区切りがない場合は通常の Markdown として扱う
+	return content
 }
 
 // GetCurrentPersona returns the currently configured persona name from persona.json

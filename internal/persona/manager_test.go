@@ -227,6 +227,102 @@ func TestReadPersona(t *testing.T) {
 	})
 }
 
+func TestStripYAMLFrontMatter(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "front matter あり",
+			input: "---\nname: zundamon\ndescription: test\n---\n# 人格\n本文",
+			want:  "# 人格\n本文",
+		},
+		{
+			name:  "front matter なし",
+			input: "# 人格\n本文",
+			want:  "# 人格\n本文",
+		},
+		{
+			name:  "閉じ区切りなし（通常Markdownとして扱う）",
+			input: "---\nname: zundamon\n# 人格\n本文",
+			want:  "---\nname: zundamon\n# 人格\n本文",
+		},
+		{
+			name:  "... で閉じる場合",
+			input: "---\nname: test\n...\n# 人格\n本文",
+			want:  "# 人格\n本文",
+		},
+		{
+			name:  "空文字列",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripYAMLFrontMatter(tt.input)
+			if got != tt.want {
+				t.Errorf("stripYAMLFrontMatter() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReadPersonaForContext(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "ccpersona-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
+
+	manager := &Manager{
+		homeDir:     tmpDir,
+		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
+	}
+	if err := os.MkdirAll(manager.personasDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("front matter が除去される", func(t *testing.T) {
+		content := "---\nname: zundamon\ndescription: test\n---\n# 人格: zundamon\n本文"
+		path := filepath.Join(manager.personasDir, "zundamon.md")
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := manager.ReadPersonaForContext("zundamon")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if strings.Contains(got, "name: zundamon") {
+			t.Errorf("front matter が残っている: %q", got)
+		}
+		if !strings.Contains(got, "# 人格: zundamon") {
+			t.Errorf("本文が含まれていない: %q", got)
+		}
+	})
+
+	t.Run("front matter なしのファイルはそのまま返す", func(t *testing.T) {
+		content := "# 人格: anneli\n本文"
+		path := filepath.Join(manager.personasDir, "anneli.md")
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := manager.ReadPersonaForContext("anneli")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != content {
+			t.Errorf("content mismatch: got %q, want %q", got, content)
+		}
+	})
+}
+
 func TestGetCurrentPersona(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "ccpersona-test-*")
 	if err != nil {
