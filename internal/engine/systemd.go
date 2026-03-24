@@ -71,11 +71,11 @@ func (m *systemdManager) Install(info *EngineInfo) error {
 
 	// Reload and enable
 	if out, err := exec.Command("systemctl", "--user", "daemon-reload").CombinedOutput(); err != nil {
-		log.Warn().Err(err).Str("output", string(out)).Msg("Failed to reload systemd")
+		return fmt.Errorf("failed to reload systemd: %w: %s", err, string(out))
 	}
 	unit := SystemdUnit(info.Type)
 	if out, err := exec.Command("systemctl", "--user", "enable", unit).CombinedOutput(); err != nil {
-		log.Warn().Err(err).Str("output", string(out)).Msg("Failed to enable unit")
+		return fmt.Errorf("failed to enable unit: %w: %s", err, string(out))
 	}
 
 	return nil

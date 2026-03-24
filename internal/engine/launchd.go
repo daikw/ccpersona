@@ -85,7 +85,7 @@ func (m *launchdManager) Install(info *EngineInfo) error {
 
 	// Load the agent
 	if err := m.launchctlLoad(plistPath); err != nil {
-		log.Warn().Err(err).Msg("Failed to load LaunchAgent (may need manual load)")
+		return fmt.Errorf("failed to load LaunchAgent: %w", err)
 	}
 
 	return nil
@@ -106,6 +106,13 @@ func (m *launchdManager) Uninstall(t EngineType) error {
 }
 
 func (m *launchdManager) Start(t EngineType) error {
+	// Stop() が unload するため、まず plist を load し直す必要がある
+	plistPath := m.plistPath(t)
+	if _, err := os.Stat(plistPath); err == nil {
+		// load は既に loaded でもエラーにならない（warning が出るだけ）
+		_ = m.launchctlLoad(plistPath)
+	}
+
 	label := serviceLabel(t)
 	out, err := exec.Command("launchctl", "start", label).CombinedOutput()
 	if err != nil {
@@ -127,7 +134,9 @@ func (m *launchdManager) Stop(t EngineType) error {
 		return nil
 	}
 	// unload でプロセスを停止
-	_ = m.launchctlUnload(plistPath)
+	if err := m.launchctlUnload(plistPath); err != nil {
+		log.Warn().Err(err).Msg("Failed to unload plist during stop")
+	}
 	return nil
 }
 
