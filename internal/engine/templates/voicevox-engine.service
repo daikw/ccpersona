@@ -1,0 +1,14 @@
+[Unit]
+Description=VOICEVOX Engine
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={{.BinaryPath}} --host 127.0.0.1 --port {{.Port}}
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

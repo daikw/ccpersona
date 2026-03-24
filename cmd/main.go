@@ -218,6 +218,41 @@ and behavioral patterns for your AI assistant.`,
 					},
 				},
 			},
+			{
+				Name:  "engine",
+				Usage: "Manage TTS engine background services (VOICEVOX / AivisSpeech)",
+				Commands: []*cli.Command{
+					{
+						Name:      "install",
+						Usage:     "Install engine as a background service",
+						ArgsUsage: "[voicevox|aivisspeech|all]",
+						Action:    handleEngineInstall,
+					},
+					{
+						Name:      "uninstall",
+						Usage:     "Uninstall engine background service",
+						ArgsUsage: "[voicevox|aivisspeech|all]",
+						Action:    handleEngineUninstall,
+					},
+					{
+						Name:      "start",
+						Usage:     "Start engine background service",
+						ArgsUsage: "[voicevox|aivisspeech|all]",
+						Action:    handleEngineStart,
+					},
+					{
+						Name:      "stop",
+						Usage:     "Stop engine background service",
+						ArgsUsage: "[voicevox|aivisspeech|all]",
+						Action:    handleEngineStop,
+					},
+					{
+						Name:   "status",
+						Usage:  "Show engine service status",
+						Action: handleEngineStatus,
+					},
+				},
+			},
 		},
 		Before: func(ctx context.Context, c *cli.Command) error {
 			if c.Bool("verbose") {
