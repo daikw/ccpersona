@@ -32,7 +32,7 @@ func handleEngineInstall(ctx context.Context, c *cli.Command) error {
 	for _, t := range types {
 		info, err := engine.DiscoverEngine(t)
 		if err != nil {
-			fmt.Printf("  %s: %v\n", t, err)
+			fmt.Printf("  %s: binary not found (install the app first)\n", t)
 			errs = append(errs, fmt.Errorf("%s: %w", t, err))
 			continue
 		}

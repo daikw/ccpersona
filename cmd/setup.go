@@ -36,7 +36,8 @@ func handleSetup(ctx context.Context, c *cli.Command) error {
 	for _, t := range engine.AllEngineTypes() {
 		info, discoverErr := engine.DiscoverEngine(t)
 		if discoverErr != nil {
-			fmt.Printf("  %s: binary not found (skipped)\n", t)
+			fmt.Printf("  %s: binary not found\n", t)
+			fmt.Printf("  %s: install the app first (https://github.com/daikw/ccpersona#voice-engines)\n", t)
 			continue
 		}
 
@@ -183,8 +184,23 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 			fmt.Println("")
 			fmt.Println("Recommended actions:")
 			if !aivisAvail && !voicevoxAvail {
-				fmt.Println("  - run 'ccpersona engine install all' to install engine services")
-				fmt.Println("  - or start AivisSpeech / VOICEVOX manually")
+				// Check if engine binaries exist at all
+				anyBinaryFound := false
+				for _, t := range engine.AllEngineTypes() {
+					if _, err := engine.DiscoverEngine(t); err == nil {
+						anyBinaryFound = true
+						break
+					}
+				}
+				if anyBinaryFound {
+					fmt.Println("  - run 'ccpersona engine install all' to install engine services")
+					fmt.Println("  - or start AivisSpeech / VOICEVOX manually")
+				} else {
+					fmt.Println("  - install VOICEVOX or AivisSpeech app first:")
+					fmt.Println("      VOICEVOX:     https://voicevox.hiroshiba.jp/")
+					fmt.Println("      AivisSpeech:  https://aivis-project.com/")
+					fmt.Println("  - then run 'ccpersona engine install all'")
+				}
 			}
 			if projectConfig == nil {
 				fmt.Println("  - run 'ccpersona init' to initialize project")
