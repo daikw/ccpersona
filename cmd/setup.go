@@ -13,7 +13,7 @@ import (
 )
 
 func handleSetup(ctx context.Context, c *cli.Command) error {
-	fmt.Println("🔧 ccpersona セットアップ")
+	fmt.Println("ccpersona setup")
 	fmt.Println("")
 
 	// Run diagnostics first
@@ -23,35 +23,35 @@ func handleSetup(ctx context.Context, c *cli.Command) error {
 
 	// Engine service setup
 	fmt.Println("")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("🔊 音声エンジン サービス設定")
+	fmt.Println("----------------------------------------")
+	fmt.Println("Voice Engine Services")
 	fmt.Println("")
 
 	mgr, err := engine.NewServiceManager()
 	if err != nil {
-		fmt.Printf("  サービスマネージャ初期化失敗: %v\n", err)
+		fmt.Printf("  failed to init service manager: %v\n", err)
 		return nil
 	}
 
 	for _, t := range engine.AllEngineTypes() {
 		info, discoverErr := engine.DiscoverEngine(t)
 		if discoverErr != nil {
-			fmt.Printf("  %s: バイナリ未検出 (スキップ)\n", t)
+			fmt.Printf("  %s: binary not found (skipped)\n", t)
 			continue
 		}
 
 		status, _ := mgr.Status(t)
 		if status != nil && status.Installed {
-			runStatus := "停止"
+			runStatus := "stopped"
 			if status.Running {
-				runStatus = fmt.Sprintf("稼働中 (PID: %d)", status.PID)
+				runStatus = fmt.Sprintf("running (PID: %d)", status.PID)
 			}
-			fmt.Printf("  %s: インストール済み [%s]\n", t, runStatus)
+			fmt.Printf("  %s: installed [%s]\n", t, runStatus)
 			continue
 		}
 
-		fmt.Printf("  %s: バイナリ検出 → %s\n", t, info.BinaryPath)
-		fmt.Printf("  %s: サービス未インストール → 'ccpersona engine install %s' で登録できます\n", t, t)
+		fmt.Printf("  %s: binary found -> %s\n", t, info.BinaryPath)
+		fmt.Printf("  %s: not installed -> run 'ccpersona engine install %s'\n", t, t)
 	}
 
 	return nil
@@ -68,18 +68,18 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 
 	// Get current directory
 	cwd, _ := os.Getwd()
-	fmt.Printf("📍 現在のディレクトリ: %s\n", cwd)
+	fmt.Printf("Directory: %s\n", cwd)
 
 	// Check project persona
 	projectConfig, _ := persona.LoadConfig(".")
 	if projectConfig != nil {
-		fmt.Printf("🎭 プロジェクトペルソナ: %s\n", projectConfig.Name)
+		fmt.Printf("Persona: %s\n", projectConfig.Name)
 		if projectConfig.Voice != nil {
-			fmt.Printf("🔊 音声プロバイダー: %s\n", projectConfig.Voice.Provider)
-			fmt.Printf("🎤 Speaker: %d\n", projectConfig.Voice.Speaker)
+			fmt.Printf("Voice provider: %s\n", projectConfig.Voice.Provider)
+			fmt.Printf("Speaker: %d\n", projectConfig.Voice.Speaker)
 		}
 	} else {
-		fmt.Println("🎭 プロジェクトペルソナ: (未設定)")
+		fmt.Println("Persona: (not configured)")
 		warnings++
 	}
 
@@ -89,15 +89,15 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 	voicevoxAvail, aivisAvail := voiceEngine.CheckEngines()
 
 	if aivisAvail {
-		fmt.Println("🔊 AivisSpeech: 接続OK")
+		fmt.Println("AivisSpeech: connected")
 	} else {
 		issues++
 	}
 	if voicevoxAvail {
-		fmt.Println("🔊 VOICEVOX: 接続OK")
+		fmt.Println("VOICEVOX: connected")
 	}
 	if !aivisAvail && !voicevoxAvail {
-		fmt.Println("🔊 音声エンジン: 未接続")
+		fmt.Println("Voice engine: not connected")
 	}
 
 	// Check persona manager
@@ -121,33 +121,33 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 	// Auto-diagnose if there are issues/warnings, or if forced
 	if forceDiagnose || issues > 0 || warnings > 0 {
 		fmt.Println("")
-		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-		fmt.Println("🔍 診断情報")
+		fmt.Println("----------------------------------------")
+		fmt.Println("Diagnostics")
 		fmt.Println("")
 
 		// Version info
-		fmt.Printf("✅ ccpersona バージョン: %s (%s)\n", version, revision)
+		fmt.Printf("  ccpersona version: %s (%s)\n", version, revision)
 
 		// Personas
 		if manager != nil {
 			personas, _ := manager.ListPersonas()
 			if len(personas) > 0 {
-				fmt.Printf("✅ ペルソナ: %d 個\n", len(personas))
+				fmt.Printf("  personas: %d found\n", len(personas))
 			} else {
-				fmt.Println("⚠️  ペルソナ: 未作成")
+				fmt.Println("  personas: none")
 			}
 		}
 
 		// Voice engines detail
 		if aivisAvail {
-			fmt.Println("✅ AivisSpeech: 接続OK (127.0.0.1:10101)")
+			fmt.Println("  AivisSpeech: connected (127.0.0.1:10101)")
 		} else {
-			fmt.Println("❌ AivisSpeech: 接続できません (127.0.0.1:10101)")
+			fmt.Println("  AivisSpeech: not reachable (127.0.0.1:10101)")
 		}
 		if voicevoxAvail {
-			fmt.Println("✅ VOICEVOX: 接続OK (127.0.0.1:50021)")
+			fmt.Println("  VOICEVOX: connected (127.0.0.1:50021)")
 		} else {
-			fmt.Println("⚠️  VOICEVOX: 接続できません (127.0.0.1:50021)")
+			fmt.Println("  VOICEVOX: not reachable (127.0.0.1:50021)")
 		}
 
 		// Engine service status
@@ -159,13 +159,13 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 				}
 				if svcStatus.Installed {
 					if svcStatus.Running {
-						fmt.Printf("✅ %s サービス: 稼働中 (PID: %d)\n", t, svcStatus.PID)
+						fmt.Printf("  %s service: running (PID: %d)\n", t, svcStatus.PID)
 					} else {
-						fmt.Printf("⚠️  %s サービス: インストール済み・停止中\n", t)
+						fmt.Printf("  %s service: installed, stopped\n", t)
 					}
 				} else {
 					if _, err := engine.DiscoverEngine(t); err == nil {
-						fmt.Printf("⚠️  %s サービス: 未インストール (バイナリ検出済み)\n", t)
+						fmt.Printf("  %s service: not installed (binary available)\n", t)
 					}
 				}
 			}
@@ -173,31 +173,31 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 
 		// Claude Code settings
 		if _, err := os.Stat(settingsPath); err == nil {
-			fmt.Println("✅ Claude Code設定: 検出")
+			fmt.Println("  Claude Code settings: found")
 		} else {
-			fmt.Println("⚠️  Claude Code設定: 見つかりません")
+			fmt.Println("  Claude Code settings: not found")
 		}
 
 		// Summary and recommendations
 		if issues > 0 || warnings > 0 {
 			fmt.Println("")
-			fmt.Println("推奨アクション:")
+			fmt.Println("Recommended actions:")
 			if !aivisAvail && !voicevoxAvail {
-				fmt.Println("  - 'ccpersona engine install all' でサービスをインストールしてください")
-				fmt.Println("  - または AivisSpeech / VOICEVOX を手動で起動してください")
+				fmt.Println("  - run 'ccpersona engine install all' to install engine services")
+				fmt.Println("  - or start AivisSpeech / VOICEVOX manually")
 			}
 			if projectConfig == nil {
-				fmt.Println("  - 'ccpersona init' でプロジェクトを初期化してください")
+				fmt.Println("  - run 'ccpersona init' to initialize project")
 			}
 			if manager != nil {
 				personas, _ := manager.ListPersonas()
 				if len(personas) == 0 {
-					fmt.Println("  - 'ccpersona edit <name>' でペルソナを作成してください")
+					fmt.Println("  - run 'ccpersona edit <name>' to create a persona")
 				}
 			}
 		} else {
 			fmt.Println("")
-			fmt.Println("✅ すべてのチェックに成功しました！")
+			fmt.Println("All checks passed.")
 		}
 	}
 
@@ -206,6 +206,6 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 
 func handleDoctor(ctx context.Context, c *cli.Command) error {
 	// Deprecated: use 'status --diagnose' instead
-	fmt.Fprintln(os.Stderr, "⚠️  'doctor' is deprecated. Use 'status --diagnose' instead.")
+	fmt.Fprintln(os.Stderr, "'doctor' is deprecated. Use 'status --diagnose' instead.")
 	return handleStatusWithDiagnose(ctx, c, true)
 }

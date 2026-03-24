@@ -36,14 +36,14 @@ func handleEngineInstall(ctx context.Context, c *cli.Command) error {
 			errs = append(errs, fmt.Errorf("%s: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s: バイナリ検出 → %s\n", t, info.BinaryPath)
+		fmt.Printf("  %s: binary found -> %s\n", t, info.BinaryPath)
 
 		if err := mgr.Install(info); err != nil {
-			fmt.Printf("  %s: インストール失敗 → %v\n", t, err)
+			fmt.Printf("  %s: install failed -> %v\n", t, err)
 			errs = append(errs, fmt.Errorf("%s install: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s: サービスインストール完了\n", t)
+		fmt.Printf("  %s: service installed\n", t)
 	}
 	return errors.Join(errs...)
 }
@@ -62,11 +62,11 @@ func handleEngineUninstall(ctx context.Context, c *cli.Command) error {
 	var errs []error
 	for _, t := range types {
 		if err := mgr.Uninstall(t); err != nil {
-			fmt.Printf("  %s: アンインストール失敗 → %v\n", t, err)
+			fmt.Printf("  %s: uninstall failed -> %v\n", t, err)
 			errs = append(errs, fmt.Errorf("%s uninstall: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s: サービスアンインストール完了\n", t)
+		fmt.Printf("  %s: service uninstalled\n", t)
 	}
 	return errors.Join(errs...)
 }
@@ -85,11 +85,11 @@ func handleEngineStart(ctx context.Context, c *cli.Command) error {
 	var errs []error
 	for _, t := range types {
 		if err := mgr.Start(t); err != nil {
-			fmt.Printf("  %s: 起動失敗 → %v\n", t, err)
+			fmt.Printf("  %s: start failed -> %v\n", t, err)
 			errs = append(errs, fmt.Errorf("%s start: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s: 起動しました\n", t)
+		fmt.Printf("  %s: started\n", t)
 	}
 	return errors.Join(errs...)
 }
@@ -108,11 +108,11 @@ func handleEngineStop(ctx context.Context, c *cli.Command) error {
 	var errs []error
 	for _, t := range types {
 		if err := mgr.Stop(t); err != nil {
-			fmt.Printf("  %s: 停止失敗 → %v\n", t, err)
+			fmt.Printf("  %s: stop failed -> %v\n", t, err)
 			errs = append(errs, fmt.Errorf("%s stop: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s: 停止しました\n", t)
+		fmt.Printf("  %s: stopped\n", t)
 	}
 	return errors.Join(errs...)
 }
@@ -126,30 +126,30 @@ func handleEngineStatus(ctx context.Context, c *cli.Command) error {
 	for _, t := range engine.AllEngineTypes() {
 		status, err := mgr.Status(t)
 		if err != nil {
-			fmt.Printf("  %s: 状態取得失敗 → %v\n", t, err)
+			fmt.Printf("  %s: failed to get status -> %v\n", t, err)
 			continue
 		}
 
 		info, discoverErr := engine.DiscoverEngine(t)
-		binaryStatus := "未検出"
+		binaryStatus := "not found"
 		if discoverErr == nil {
 			binaryStatus = info.BinaryPath
 		}
 
-		installMark := "未インストール"
+		installMark := "not installed"
 		if status.Installed {
-			installMark = "インストール済み"
+			installMark = "installed"
 		}
 
-		runMark := "停止"
+		runMark := "stopped"
 		if status.Running {
-			runMark = fmt.Sprintf("稼働中 (PID: %d)", status.PID)
+			runMark = fmt.Sprintf("running (PID: %d)", status.PID)
 		}
 
 		fmt.Printf("  %s:\n", t)
-		fmt.Printf("    バイナリ:   %s\n", binaryStatus)
-		fmt.Printf("    サービス:   %s [%s]\n", installMark, status.Label)
-		fmt.Printf("    状態:       %s\n", runMark)
+		fmt.Printf("    binary:  %s\n", binaryStatus)
+		fmt.Printf("    service: %s [%s]\n", installMark, status.Label)
+		fmt.Printf("    status:  %s\n", runMark)
 	}
 	return nil
 }
