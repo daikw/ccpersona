@@ -135,7 +135,7 @@ func envVarName(t EngineType) string {
 func lookPathNames(t EngineType) []string {
 	switch t {
 	case VOICEVOX:
-		return []string{"voicevox-engine", "voicevox_engine", "run"}
+		return []string{"voicevox-engine", "voicevox_engine"}
 	case AivisSpeech:
 		return []string{"aivisspeech-engine", "aivisspeech_engine"}
 	default:
@@ -174,29 +174,20 @@ func macSearchPaths(t EngineType, home string) []string {
 }
 
 func linuxSearchPaths(t EngineType, home string) []string {
-	var paths []string
-	var names []string
 	switch t {
 	case VOICEVOX:
-		names = []string{"voicevox-engine", "run"}
-	case AivisSpeech:
-		names = []string{"aivisspeech-engine", "run"}
-	}
-
-	dirs := []string{
-		"/usr/local/bin",
-		"/usr/bin",
-		"/opt/voicevox_engine",
-		"/opt/aivisspeech_engine",
-		filepath.Join(home, ".local/bin"),
-	}
-
-	for _, dir := range dirs {
-		for _, name := range names {
-			paths = append(paths, filepath.Join(dir, name))
+		return []string{
+			"/opt/voicevox_engine/run",
+			filepath.Join(home, ".local/share/voicevox_engine/run"),
 		}
+	case AivisSpeech:
+		return []string{
+			"/opt/aivisspeech_engine/run",
+			filepath.Join(home, ".local/share/aivisspeech_engine/run"),
+		}
+	default:
+		return nil
 	}
-	return paths
 }
 
 // PortString returns the port as a string.

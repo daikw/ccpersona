@@ -47,14 +47,19 @@ func (m *launchdManager) Install(info *EngineInfo) error {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
+	home, _ := os.UserHomeDir()
+	logDir := filepath.Join(home, "Library", "Logs", "ccpersona")
+
 	data := struct {
 		Label      string
 		BinaryPath string
 		Port       string
+		LogDir     string
 	}{
 		Label:      info.Label,
 		BinaryPath: info.BinaryPath,
 		Port:       info.PortString(),
+		LogDir:     logDir,
 	}
 
 	var buf bytes.Buffer
@@ -62,9 +67,12 @@ func (m *launchdManager) Install(info *EngineInfo) error {
 		return fmt.Errorf("failed to render template: %w", err)
 	}
 
-	// Ensure directory exists
+	// Ensure directories exist
 	if err := os.MkdirAll(m.agentDir, 0755); err != nil {
 		return fmt.Errorf("failed to create LaunchAgents directory: %w", err)
+	}
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
 	// Write plist
@@ -107,11 +115,19 @@ func (m *launchdManager) Start(t EngineType) error {
 }
 
 func (m *launchdManager) Stop(t EngineType) error {
-	label := serviceLabel(t)
-	out, err := exec.Command("launchctl", "stop", label).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("launchctl stop failed: %w: %s", err, string(out))
+	// KeepAlive=true のため stop だけでは再起動される。unload → load で停止状態にする。
+	plistPath := m.plistPath(t)
+	if _, err := os.Stat(plistPath); err != nil {
+		// plist が無ければ stop だけ試みる
+		label := serviceLabel(t)
+		out, err := exec.Command("launchctl", "stop", label).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("launchctl stop failed: %w: %s", err, string(out))
+		}
+		return nil
 	}
+	// unload でプロセスを停止
+	_ = m.launchctlUnload(plistPath)
 	return nil
 }
 
@@ -135,12 +151,15 @@ func (m *launchdManager) Status(t EngineType) (*ServiceStatus, error) {
 
 	for _, line := range strings.Split(string(out), "\n") {
 		if strings.Contains(line, label) {
-			status.Running = true
+			// launchctl list format: PID\tStatus\tLabel
+			// PID is "-" when the service is loaded but not running
 			fields := strings.Fields(line)
 			if len(fields) >= 1 {
 				if pid, err := strconv.Atoi(fields[0]); err == nil && pid > 0 {
+					status.Running = true
 					status.PID = pid
 				}
+				// PID == "-" means loaded but not running → Running stays false
 			}
 			break
 		}

@@ -18,8 +18,8 @@
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/{{.Label}}.stdout.log</string>
+    <string>{{.LogDir}}/{{.Label}}.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/{{.Label}}.stderr.log</string>
+    <string>{{.LogDir}}/{{.Label}}.stderr.log</string>
 </dict>
 </plist>
