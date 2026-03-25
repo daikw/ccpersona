@@ -21,6 +21,12 @@ go test -v -run TestHandleSessionStart  # Run specific test
 echo "テストなのだ！" | ./ccpersona voice --plain
 ```
 
+## Language
+
+- All code comments, commit messages, PR titles/descriptions, issues, and release notes MUST be in English
+- CLI output messages MUST be in English
+- Persona content files (`~/.claude/personas/*.md`) may use any language
+
 ## Development
 
 - `MUST` use `mise` as a tool for tool's version management
