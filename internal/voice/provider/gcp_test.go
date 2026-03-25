@@ -10,6 +10,7 @@ import (
 	"cloud.google.com/go/texttospeech/apiv1/texttospeechpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
 
@@ -282,8 +283,8 @@ func TestGCPProvider_Integration(t *testing.T) {
 		reader, err := p.Synthesize(ctx, "こんにちは、世界！", SynthesizeOptions{
 			Format: "mp3",
 		})
-		assert.NoError(t, err)
-		assert.NotNil(t, reader)
+		require.NoError(t, err)
+		require.NotNil(t, reader)
 		defer func() { _ = reader.Close() }()
 
 		// Read the audio data
@@ -299,8 +300,8 @@ func TestGCPProvider_Integration(t *testing.T) {
 			Speed:  1.5,
 			Format: "mp3",
 		})
-		assert.NoError(t, err)
-		assert.NotNil(t, reader)
+		require.NoError(t, err)
+		require.NotNil(t, reader)
 		defer func() { _ = reader.Close() }()
 
 		data, err := io.ReadAll(reader)
@@ -313,8 +314,8 @@ func TestGCPProvider_Integration(t *testing.T) {
 		reader, err := p.Synthesize(ctx, ssml, SynthesizeOptions{
 			Format: "mp3",
 		})
-		assert.NoError(t, err)
-		assert.NotNil(t, reader)
+		require.NoError(t, err)
+		require.NotNil(t, reader)
 		defer func() { _ = reader.Close() }()
 
 		data, err := io.ReadAll(reader)

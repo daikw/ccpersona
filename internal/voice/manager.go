@@ -267,7 +267,9 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 			return "", fmt.Errorf("failed to create temp file: %w", err)
 		}
 		outputPath = tmpFile.Name()
-		tmpFile.Close()
+		if err := tmpFile.Close(); err != nil {
+			return "", fmt.Errorf("failed to close temp file: %w", err)
+		}
 	}
 
 	// Write audio data to file
