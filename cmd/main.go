@@ -197,7 +197,7 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:   "mcp",
-				Usage:  "stdio MCP サーバーとして起動する",
+				Usage:  "Start as a stdio MCP server",
 				Action: handleMCP,
 			},
 			{

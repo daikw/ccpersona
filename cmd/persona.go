@@ -15,7 +15,7 @@ import (
 )
 
 func handleInit(ctx context.Context, c *cli.Command) error {
-	fmt.Println("🎭 ccpersona プロジェクト初期化")
+	fmt.Println("🎭 ccpersona project initialization")
 	fmt.Println("")
 
 	reader := bufio.NewReader(os.Stdin)
@@ -23,12 +23,12 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 	// Check existing config
 	existingConfig, _ := persona.LoadConfig(".")
 	if existingConfig != nil {
-		fmt.Printf("⚠️  既に設定があります: %s\n", existingConfig.Name)
-		fmt.Print("上書きしますか？ [y/N]: ")
+		fmt.Printf("⚠️  Configuration already exists: %s\n", existingConfig.Name)
+		fmt.Print("Overwrite? [y/N]: ")
 		answer, _ := reader.ReadString('\n')
 		answer = strings.TrimSpace(strings.ToLower(answer))
 		if answer != "y" && answer != "yes" {
-			fmt.Println("キャンセルしました")
+			fmt.Println("Cancelled.")
 			return nil
 		}
 		fmt.Println("")
@@ -49,24 +49,24 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 	var selectedPersona string
 
 	if len(personas) == 0 {
-		fmt.Println("📝 利用可能なペルソナがありません")
-		fmt.Println("   デフォルトのペルソナを作成します")
+		fmt.Println("📝 No personas available")
+		fmt.Println("   Creating default persona")
 		fmt.Println("")
 		selectedPersona = "default"
 	} else {
-		fmt.Println("📝 利用可能なペルソナ:")
+		fmt.Println("📝 Available personas:")
 		for i, p := range personas {
 			fmt.Printf("   %d. %s\n", i+1, p)
 		}
 		fmt.Println("")
-		fmt.Printf("ペルソナを選択してください [1-%d]: ", len(personas))
+		fmt.Printf("Select a persona [1-%d]: ", len(personas))
 
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
 		choice, err := strconv.Atoi(input)
 		if err != nil || choice < 1 || choice > len(personas) {
-			fmt.Println("無効な選択です。デフォルトを使用します。")
+			fmt.Println("Invalid selection. Using default.")
 			selectedPersona = "default"
 		} else {
 			selectedPersona = personas[choice-1]
@@ -75,12 +75,12 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 	}
 
 	// Select AI assistant
-	fmt.Println("🤖 AI アシスタントを選択してください:")
+	fmt.Println("🤖 Select an AI assistant:")
 	fmt.Println("   1. Claude Code")
 	fmt.Println("   2. Cursor")
-	fmt.Println("   3. 両方")
+	fmt.Println("   3. Both")
 	fmt.Println("")
-	fmt.Print("選択 [1-3] (デフォルト: 1): ")
+	fmt.Print("Choice [1-3] (default: 1): ")
 
 	assistantInput, _ := reader.ReadString('\n')
 	assistantInput = strings.TrimSpace(assistantInput)
@@ -101,7 +101,7 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
-	fmt.Println("✅ 設定を作成しました:")
+	fmt.Println("✅ Configuration created:")
 	fmt.Println("   - .claude/persona.json")
 
 	// Generate assistant-specific config
@@ -122,17 +122,17 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 	}
 
 	fmt.Println("")
-	fmt.Printf("   ペルソナ: %s\n", selectedPersona)
+	fmt.Printf("   Persona: %s\n", selectedPersona)
 	fmt.Println("")
-	fmt.Println("次のステップ:")
-	fmt.Println("  - 'ccpersona show' で設定を確認")
-	fmt.Println("  - 'ccpersona edit <name>' でペルソナを編集")
+	fmt.Println("Next steps:")
+	fmt.Println("  - 'ccpersona show' to view configuration")
+	fmt.Println("  - 'ccpersona edit <name>' to edit persona")
 	return nil
 }
 
 func showClaudeCodeHookInstructions() {
 	fmt.Println("")
-	fmt.Println("📌 Claude Code のフック設定を ~/.claude/settings.json に追加してください:")
+	fmt.Println("📌 Add the following hook configuration to ~/.claude/settings.json:")
 	fmt.Println("")
 	fmt.Println(`   {
      "hooks": {
