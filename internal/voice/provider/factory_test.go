@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,14 +34,7 @@ func TestCreateProvider_OpenAI(t *testing.T) {
 	factory := NewFactory()
 
 	t.Run("fails without API key", func(t *testing.T) {
-		// Ensure env var is not set
-		originalKey := os.Getenv("OPENAI_API_KEY")
-		os.Unsetenv("OPENAI_API_KEY")
-		defer func() {
-			if originalKey != "" {
-				os.Setenv("OPENAI_API_KEY", originalKey)
-			}
-		}()
+		t.Setenv("OPENAI_API_KEY", "")
 
 		_, err := factory.CreateProvider("openai", map[string]interface{}{})
 		assert.Error(t, err)
@@ -60,15 +52,7 @@ func TestCreateProvider_OpenAI(t *testing.T) {
 	})
 
 	t.Run("succeeds with API key in env", func(t *testing.T) {
-		originalKey := os.Getenv("OPENAI_API_KEY")
-		os.Setenv("OPENAI_API_KEY", "test-env-api-key")
-		defer func() {
-			if originalKey != "" {
-				os.Setenv("OPENAI_API_KEY", originalKey)
-			} else {
-				os.Unsetenv("OPENAI_API_KEY")
-			}
-		}()
+		t.Setenv("OPENAI_API_KEY", "test-env-api-key")
 
 		provider, err := factory.CreateProvider("openai", map[string]interface{}{})
 		assert.NoError(t, err)
@@ -80,13 +64,7 @@ func TestCreateProvider_ElevenLabs(t *testing.T) {
 	factory := NewFactory()
 
 	t.Run("fails without API key", func(t *testing.T) {
-		originalKey := os.Getenv("ELEVENLABS_API_KEY")
-		os.Unsetenv("ELEVENLABS_API_KEY")
-		defer func() {
-			if originalKey != "" {
-				os.Setenv("ELEVENLABS_API_KEY", originalKey)
-			}
-		}()
+		t.Setenv("ELEVENLABS_API_KEY", "")
 
 		_, err := factory.CreateProvider("elevenlabs", map[string]interface{}{})
 		assert.Error(t, err)
@@ -154,15 +132,7 @@ func TestGetProviderWithDefaults(t *testing.T) {
 	factory := NewFactory()
 
 	t.Run("openai with defaults", func(t *testing.T) {
-		originalKey := os.Getenv("OPENAI_API_KEY")
-		os.Setenv("OPENAI_API_KEY", "test-key")
-		defer func() {
-			if originalKey != "" {
-				os.Setenv("OPENAI_API_KEY", originalKey)
-			} else {
-				os.Unsetenv("OPENAI_API_KEY")
-			}
-		}()
+		t.Setenv("OPENAI_API_KEY", "test-key")
 
 		provider, err := factory.GetProviderWithDefaults("openai")
 		assert.NoError(t, err)
@@ -188,15 +158,7 @@ func TestGetProviderWithDefaults(t *testing.T) {
 	})
 
 	t.Run("elevenlabs with defaults", func(t *testing.T) {
-		originalKey := os.Getenv("ELEVENLABS_API_KEY")
-		os.Setenv("ELEVENLABS_API_KEY", "test-key")
-		defer func() {
-			if originalKey != "" {
-				os.Setenv("ELEVENLABS_API_KEY", originalKey)
-			} else {
-				os.Unsetenv("ELEVENLABS_API_KEY")
-			}
-		}()
+		t.Setenv("ELEVENLABS_API_KEY", "test-key")
 
 		provider, err := factory.GetProviderWithDefaults("elevenlabs")
 		assert.NoError(t, err)
