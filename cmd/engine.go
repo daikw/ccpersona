@@ -4,34 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
+	"github.com/daikw/ccpersona/internal/cliui"
 	"github.com/daikw/ccpersona/internal/engine"
 	"github.com/urfave/cli/v3"
 )
-
-// ANSI color helpers (disabled when stdout is not a terminal)
-var (
-	colorReset  = "\033[0m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[33m"
-	colorRed    = "\033[31m"
-	colorCyan   = "\033[36m"
-	colorBold   = "\033[1m"
-	colorDim    = "\033[2m"
-)
-
-func init() {
-	if fi, err := os.Stdout.Stat(); err != nil || (fi.Mode()&os.ModeCharDevice) == 0 {
-		colorReset = ""
-		colorGreen = ""
-		colorYellow = ""
-		colorRed = ""
-		colorCyan = ""
-		colorBold = ""
-		colorDim = ""
-	}
-}
 
 func parseTarget(c *cli.Command) ([]engine.EngineType, error) {
 	target := c.Args().First()
@@ -56,18 +33,18 @@ func handleEngineInstall(ctx context.Context, c *cli.Command) error {
 	for _, t := range types {
 		info, err := engine.DiscoverEngine(t)
 		if err != nil {
-			fmt.Printf("  %s%s%s: binary not found (install the app first)\n", colorRed, t, colorReset)
+			fmt.Printf("  %s: binary not found (install the app first)\n", cliui.Failure(t))
 			errs = append(errs, fmt.Errorf("%s: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s%s%s: binary found -> %s\n", colorCyan, t, colorReset, info.BinaryPath)
+		fmt.Printf("  %s: binary found -> %s\n", cliui.Label(t), info.BinaryPath)
 
 		if err := mgr.Install(info); err != nil {
-			fmt.Printf("  %s%s%s: %sinstall failed%s -> %v\n", colorCyan, t, colorReset, colorRed, colorReset, err)
+			fmt.Printf("  %s: %s -> %v\n", cliui.Label(t), cliui.Failure("install failed"), err)
 			errs = append(errs, fmt.Errorf("%s install: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s%s%s: %sservice installed%s\n", colorCyan, t, colorReset, colorGreen, colorReset)
+		fmt.Printf("  %s: %s\n", cliui.Label(t), cliui.Success("service installed"))
 	}
 	return errors.Join(errs...)
 }
@@ -86,11 +63,11 @@ func handleEngineUninstall(ctx context.Context, c *cli.Command) error {
 	var errs []error
 	for _, t := range types {
 		if err := mgr.Uninstall(t); err != nil {
-			fmt.Printf("  %s%s%s: %suninstall failed%s -> %v\n", colorCyan, t, colorReset, colorRed, colorReset, err)
+			fmt.Printf("  %s: %s -> %v\n", cliui.Label(t), cliui.Failure("uninstall failed"), err)
 			errs = append(errs, fmt.Errorf("%s uninstall: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s%s%s: %sservice uninstalled%s\n", colorCyan, t, colorReset, colorGreen, colorReset)
+		fmt.Printf("  %s: %s\n", cliui.Label(t), cliui.Success("service uninstalled"))
 	}
 	return errors.Join(errs...)
 }
@@ -109,11 +86,11 @@ func handleEngineStart(ctx context.Context, c *cli.Command) error {
 	var errs []error
 	for _, t := range types {
 		if err := mgr.Start(t); err != nil {
-			fmt.Printf("  %s%s%s: %sstart failed%s -> %v\n", colorCyan, t, colorReset, colorRed, colorReset, err)
+			fmt.Printf("  %s: %s -> %v\n", cliui.Label(t), cliui.Failure("start failed"), err)
 			errs = append(errs, fmt.Errorf("%s start: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s%s%s: %sstarted%s\n", colorCyan, t, colorReset, colorGreen, colorReset)
+		fmt.Printf("  %s: %s\n", cliui.Label(t), cliui.Success("started"))
 	}
 	return errors.Join(errs...)
 }
@@ -132,11 +109,11 @@ func handleEngineStop(ctx context.Context, c *cli.Command) error {
 	var errs []error
 	for _, t := range types {
 		if err := mgr.Stop(t); err != nil {
-			fmt.Printf("  %s%s%s: %sstop failed%s -> %v\n", colorCyan, t, colorReset, colorRed, colorReset, err)
+			fmt.Printf("  %s: %s -> %v\n", cliui.Label(t), cliui.Failure("stop failed"), err)
 			errs = append(errs, fmt.Errorf("%s stop: %w", t, err))
 			continue
 		}
-		fmt.Printf("  %s%s%s: %sstopped%s\n", colorCyan, t, colorReset, colorYellow, colorReset)
+		fmt.Printf("  %s: %s\n", cliui.Label(t), cliui.Warn("stopped"))
 	}
 	return errors.Join(errs...)
 }
@@ -150,29 +127,29 @@ func handleEngineStatus(ctx context.Context, c *cli.Command) error {
 	for _, t := range engine.AllEngineTypes() {
 		status, err := mgr.Status(t)
 		if err != nil {
-			fmt.Printf("  %s%s%s: failed to get status -> %v\n", colorRed, t, colorReset, err)
+			fmt.Printf("  %s: failed to get status -> %v\n", cliui.Failure(t), err)
 			continue
 		}
 
 		info, discoverErr := engine.DiscoverEngine(t)
-		binaryStatus := fmt.Sprintf("%snot found%s", colorRed, colorReset)
+		binaryStatus := cliui.Failure("not found")
 		if discoverErr == nil {
-			binaryStatus = fmt.Sprintf("%s%s%s", colorDim, info.BinaryPath, colorReset)
+			binaryStatus = cliui.Muted(info.BinaryPath)
 		}
 
-		installMark := fmt.Sprintf("%snot installed%s", colorYellow, colorReset)
+		installMark := cliui.Warn("not installed")
 		if status.Installed {
-			installMark = fmt.Sprintf("%sinstalled%s", colorGreen, colorReset)
+			installMark = cliui.Success("installed")
 		}
 
-		runMark := fmt.Sprintf("%sstopped%s", colorYellow, colorReset)
+		runMark := cliui.Warn("stopped")
 		if status.Running {
-			runMark = fmt.Sprintf("%srunning%s (PID: %d)", colorGreen, colorReset, status.PID)
+			runMark = fmt.Sprintf("%s (PID: %d)", cliui.Success("running"), status.PID)
 		}
 
-		fmt.Printf("  %s%s%s%s:\n", colorBold, colorCyan, t, colorReset)
+		fmt.Printf("  %s:\n", cliui.Engine(t))
 		fmt.Printf("    binary:  %s\n", binaryStatus)
-		fmt.Printf("    service: %s %s[%s]%s\n", installMark, colorDim, status.Label, colorReset)
+		fmt.Printf("    service: %s %s\n", installMark, cliui.Muted("["+status.Label+"]"))
 		fmt.Printf("    status:  %s\n", runMark)
 	}
 	return nil

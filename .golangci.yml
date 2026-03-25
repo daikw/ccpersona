@@ -1,0 +1,18 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+  settings:
+    errcheck:
+      exclude-functions:
+        # Best-effort cleanup in defer — errors are not actionable.
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (net/http.Response.Body).Close
+        - os.Remove
+        - os.RemoveAll
+        - os.Setenv
+        - os.Unsetenv

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/daikw/ccpersona/internal/cliui"
 	"github.com/daikw/ccpersona/internal/engine"
 	"github.com/daikw/ccpersona/internal/persona"
 	"github.com/daikw/ccpersona/internal/voice"
@@ -13,7 +14,7 @@ import (
 )
 
 func handleSetup(ctx context.Context, c *cli.Command) error {
-	fmt.Println("ccpersona setup")
+	fmt.Println(cliui.Header("ccpersona setup"))
 	fmt.Println("")
 
 	// Run diagnostics first
@@ -24,35 +25,35 @@ func handleSetup(ctx context.Context, c *cli.Command) error {
 	// Engine service setup
 	fmt.Println("")
 	fmt.Println("----------------------------------------")
-	fmt.Println("Voice Engine Services")
+	fmt.Println(cliui.Header("Voice Engine Services"))
 	fmt.Println("")
 
 	mgr, err := engine.NewServiceManager()
 	if err != nil {
-		fmt.Printf("  failed to init service manager: %v\n", err)
+		fmt.Printf("  %s: %v\n", cliui.Failure("failed to init service manager"), err)
 		return nil
 	}
 
 	for _, t := range engine.AllEngineTypes() {
 		info, discoverErr := engine.DiscoverEngine(t)
 		if discoverErr != nil {
-			fmt.Printf("  %s: binary not found\n", t)
-			fmt.Printf("  %s: install the app first (https://github.com/daikw/ccpersona#voice-engines)\n", t)
+			fmt.Printf("  %s: %s\n", cliui.Label(t), cliui.Failure("binary not found"))
+			fmt.Printf("  %s: install the app first (https://github.com/daikw/ccpersona#voice-engines)\n", cliui.Label(t))
 			continue
 		}
 
 		status, _ := mgr.Status(t)
 		if status != nil && status.Installed {
-			runStatus := "stopped"
+			runStatus := cliui.Warn("stopped")
 			if status.Running {
-				runStatus = fmt.Sprintf("running (PID: %d)", status.PID)
+				runStatus = fmt.Sprintf("%s (PID: %d)", cliui.Success("running"), status.PID)
 			}
-			fmt.Printf("  %s: installed [%s]\n", t, runStatus)
+			fmt.Printf("  %s: %s [%s]\n", cliui.Label(t), cliui.Success("installed"), runStatus)
 			continue
 		}
 
-		fmt.Printf("  %s: binary found -> %s\n", t, info.BinaryPath)
-		fmt.Printf("  %s: not installed -> run 'ccpersona engine install %s'\n", t, t)
+		fmt.Printf("  %s: binary found -> %s\n", cliui.Label(t), cliui.Muted(info.BinaryPath))
+		fmt.Printf("  %s: %s -> run 'ccpersona engine install %s'\n", cliui.Label(t), cliui.Warn("not installed"), t)
 	}
 
 	return nil
@@ -69,18 +70,18 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 
 	// Get current directory
 	cwd, _ := os.Getwd()
-	fmt.Printf("Directory: %s\n", cwd)
+	fmt.Printf("%s %s\n", cliui.Label("Directory:"), cwd)
 
 	// Check project persona
 	projectConfig, _ := persona.LoadConfig(".")
 	if projectConfig != nil {
-		fmt.Printf("Persona: %s\n", projectConfig.Name)
+		fmt.Printf("%s %s\n", cliui.Label("Persona:"), projectConfig.Name)
 		if projectConfig.Voice != nil {
-			fmt.Printf("Voice provider: %s\n", projectConfig.Voice.Provider)
-			fmt.Printf("Speaker: %d\n", projectConfig.Voice.Speaker)
+			fmt.Printf("%s %s\n", cliui.Label("Voice provider:"), projectConfig.Voice.Provider)
+			fmt.Printf("%s %d\n", cliui.Label("Speaker:"), projectConfig.Voice.Speaker)
 		}
 	} else {
-		fmt.Println("Persona: (not configured)")
+		fmt.Printf("%s %s\n", cliui.Label("Persona:"), cliui.Warn("(not configured)"))
 		warnings++
 	}
 
@@ -90,15 +91,15 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 	voicevoxAvail, aivisAvail := voiceEngine.CheckEngines()
 
 	if aivisAvail {
-		fmt.Println("AivisSpeech: connected")
+		fmt.Printf("%s %s\n", cliui.Label("AivisSpeech:"), cliui.Success("connected"))
 	} else {
 		issues++
 	}
 	if voicevoxAvail {
-		fmt.Println("VOICEVOX: connected")
+		fmt.Printf("%s %s\n", cliui.Label("VOICEVOX:"), cliui.Success("connected"))
 	}
 	if !aivisAvail && !voicevoxAvail {
-		fmt.Println("Voice engine: not connected")
+		fmt.Printf("%s %s\n", cliui.Label("Voice engine:"), cliui.Failure("not connected"))
 	}
 
 	// Check persona manager
@@ -123,32 +124,32 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 	if forceDiagnose || issues > 0 || warnings > 0 {
 		fmt.Println("")
 		fmt.Println("----------------------------------------")
-		fmt.Println("Diagnostics")
+		fmt.Println(cliui.Header("Diagnostics"))
 		fmt.Println("")
 
 		// Version info
-		fmt.Printf("  ccpersona version: %s (%s)\n", version, revision)
+		fmt.Printf("  %s %s (%s)\n", cliui.Label("ccpersona version:"), version, revision)
 
 		// Personas
 		if manager != nil {
 			personas, _ := manager.ListPersonas()
 			if len(personas) > 0 {
-				fmt.Printf("  personas: %d found\n", len(personas))
+				fmt.Printf("  %s %s\n", cliui.Label("personas:"), cliui.Success(fmt.Sprintf("%d found", len(personas))))
 			} else {
-				fmt.Println("  personas: none")
+				fmt.Printf("  %s %s\n", cliui.Label("personas:"), cliui.Warn("none"))
 			}
 		}
 
 		// Voice engines detail
 		if aivisAvail {
-			fmt.Println("  AivisSpeech: connected (127.0.0.1:10101)")
+			fmt.Printf("  %s %s\n", cliui.Label("AivisSpeech:"), cliui.Success("connected (127.0.0.1:10101)"))
 		} else {
-			fmt.Println("  AivisSpeech: not reachable (127.0.0.1:10101)")
+			fmt.Printf("  %s %s\n", cliui.Label("AivisSpeech:"), cliui.Failure("not reachable (127.0.0.1:10101)"))
 		}
 		if voicevoxAvail {
-			fmt.Println("  VOICEVOX: connected (127.0.0.1:50021)")
+			fmt.Printf("  %s %s\n", cliui.Label("VOICEVOX:"), cliui.Success("connected (127.0.0.1:50021)"))
 		} else {
-			fmt.Println("  VOICEVOX: not reachable (127.0.0.1:50021)")
+			fmt.Printf("  %s %s\n", cliui.Label("VOICEVOX:"), cliui.Failure("not reachable (127.0.0.1:50021)"))
 		}
 
 		// Engine service status
@@ -160,13 +161,13 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 				}
 				if svcStatus.Installed {
 					if svcStatus.Running {
-						fmt.Printf("  %s service: running (PID: %d)\n", t, svcStatus.PID)
+						fmt.Printf("  %s %s (PID: %d)\n", cliui.Label(fmt.Sprintf("%s service:", t)), cliui.Success("running"), svcStatus.PID)
 					} else {
-						fmt.Printf("  %s service: installed, stopped\n", t)
+						fmt.Printf("  %s %s\n", cliui.Label(fmt.Sprintf("%s service:", t)), cliui.Warn("installed, stopped"))
 					}
 				} else {
 					if _, err := engine.DiscoverEngine(t); err == nil {
-						fmt.Printf("  %s service: not installed (binary available)\n", t)
+						fmt.Printf("  %s %s\n", cliui.Label(fmt.Sprintf("%s service:", t)), cliui.Warn("not installed (binary available)"))
 					}
 				}
 			}
@@ -174,15 +175,15 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 
 		// Claude Code settings
 		if _, err := os.Stat(settingsPath); err == nil {
-			fmt.Println("  Claude Code settings: found")
+			fmt.Printf("  %s %s\n", cliui.Label("Claude Code settings:"), cliui.Success("found"))
 		} else {
-			fmt.Println("  Claude Code settings: not found")
+			fmt.Printf("  %s %s\n", cliui.Label("Claude Code settings:"), cliui.Warn("not found"))
 		}
 
 		// Summary and recommendations
 		if issues > 0 || warnings > 0 {
 			fmt.Println("")
-			fmt.Println("Recommended actions:")
+			fmt.Println(cliui.Header("Recommended actions:"))
 			if !aivisAvail && !voicevoxAvail {
 				// Check if engine binaries exist at all
 				anyBinaryFound := false
@@ -197,8 +198,8 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 					fmt.Println("  - or start AivisSpeech / VOICEVOX manually")
 				} else {
 					fmt.Println("  - install VOICEVOX or AivisSpeech app first:")
-					fmt.Println("      VOICEVOX:     https://voicevox.hiroshiba.jp/")
-					fmt.Println("      AivisSpeech:  https://aivis-project.com/")
+					fmt.Printf("      VOICEVOX:     %s\n", cliui.Muted("https://voicevox.hiroshiba.jp/"))
+					fmt.Printf("      AivisSpeech:  %s\n", cliui.Muted("https://aivis-project.com/"))
 					fmt.Println("  - then run 'ccpersona engine install all'")
 				}
 			}
@@ -213,7 +214,7 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 			}
 		} else {
 			fmt.Println("")
-			fmt.Println("All checks passed.")
+			fmt.Println(cliui.Success("All checks passed."))
 		}
 	}
 

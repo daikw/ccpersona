@@ -38,12 +38,12 @@ func RunServer(ctx context.Context, version string) error {
 
 	srv.AddTool(
 		"speak",
-		"テキストを音声合成して読み上げる。必ず現在の作業ディレクトリを project_dir に渡すこと（例: /Users/you/my-project）。これによりプロジェクトごとのペルソナ・音声設定が適用される。",
+		"Synthesize text to speech. Always pass the current working directory as project_dir (e.g., /Users/you/my-project). This applies per-project persona and voice settings.",
 		[]adapter.ToolParam{
-			{Name: "text", Description: "読み上げるテキスト", Type: "string", Required: true},
-			{Name: "project_dir", Description: "現在の作業ディレクトリの絶対パス。プロジェクトの .claude/persona.json から音声設定（プロバイダー・スピーカー・速度・音量）を読み込むために使用する。", Type: "string", Required: true},
-			{Name: "provider", Description: "TTSプロバイダー (voicevox / aivisspeech / openai / elevenlabs など)", Type: "string"},
-			{Name: "speaker", Description: "スピーカーID（ローカルエンジン用）", Type: "number"},
+			{Name: "text", Description: "Text to synthesize", Type: "string", Required: true},
+			{Name: "project_dir", Description: "Absolute path to the current working directory. Used to load voice settings (provider, speaker, speed, volume) from the project's .claude/persona.json.", Type: "string", Required: true},
+			{Name: "provider", Description: "TTS provider (voicevox / aivisspeech / openai / elevenlabs, etc.)", Type: "string"},
+			{Name: "speaker", Description: "Speaker ID (for local engines)", Type: "number"},
 		},
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			text := mcp.ParseString(req, "text", "")
