@@ -162,6 +162,26 @@ func TestSpeakService_Speak_WithPersonaVoiceConfig(t *testing.T) {
 	assert.Equal(t, 42, synth.lastOpts.AivisSpeechSpeaker)
 }
 
+func TestSpeakService_Speak_SkipsWhenMuted(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	_, err := voice.Mute("test")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = voice.Unmute() })
+
+	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
+	player := &mockPlayer{}
+
+	svc := internalmcp.NewSpeakService(synth, player)
+	err = svc.Speak(context.Background(), internalmcp.SpeakRequest{
+		Text:       "muted",
+		ProjectDir: t.TempDir(),
+	})
+
+	require.NoError(t, err)
+	assert.False(t, synth.called, "Synthesize must NOT be called while globally muted")
+	assert.False(t, player.called, "Playback must NOT be attempted while globally muted")
+}
+
 func TestSpeakService_Speak_EmptyAudioPath(t *testing.T) {
 	// Synthesize returns an empty path (e.g., ToStdout case) — playback should still be attempted.
 	synth := &mockSynthesizer{returnPath: ""}
