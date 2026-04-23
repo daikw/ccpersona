@@ -17,6 +17,11 @@ import (
 )
 
 func handleVoice(ctx context.Context, c *cli.Command) error {
+	if !c.Bool("force") && voice.IsMuted() {
+		log.Debug().Msg("voice synthesis is globally muted, skipping")
+		return nil
+	}
+
 	fileConfig := loadVoiceConfig(c)
 
 	personaConfig, err := persona.LoadConfigWithFallback()
@@ -332,6 +337,59 @@ func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
 	fmt.Println("\nEdit the file to configure your preferred voice providers.")
 	fmt.Println("Use ${ENV_VAR} syntax for sensitive values like API keys.")
 
+	return nil
+}
+
+// Voice mute gate handlers
+
+func handleVoiceMute(ctx context.Context, c *cli.Command) error {
+	status, err := voice.Mute(c.String("reason"))
+	if err != nil {
+		return fmt.Errorf("failed to enable mute: %w", err)
+	}
+	path, _ := voice.MutePath()
+	fmt.Printf("🔇 Voice synthesis muted globally.\n")
+	fmt.Printf("   Marker : %s\n", path)
+	fmt.Printf("   At     : %s\n", status.MutedAt.Format("2006-01-02 15:04:05 MST"))
+	if status.Reason != "" {
+		fmt.Printf("   Reason : %s\n", status.Reason)
+	}
+	fmt.Println("\nRun 'ccpersona voice unmute' to re-enable, or pass --force to bypass for one call.")
+	return nil
+}
+
+func handleVoiceUnmute(ctx context.Context, c *cli.Command) error {
+	wasMuted := voice.IsMuted()
+	if err := voice.Unmute(); err != nil {
+		return fmt.Errorf("failed to disable mute: %w", err)
+	}
+	if wasMuted {
+		fmt.Println("🔊 Voice synthesis unmuted.")
+	} else {
+		fmt.Println("🔊 Voice synthesis was not muted; nothing to do.")
+	}
+	return nil
+}
+
+func handleVoiceStatus(ctx context.Context, c *cli.Command) error {
+	status, err := voice.LoadMuteStatus()
+	if err != nil {
+		return fmt.Errorf("failed to read mute status: %w", err)
+	}
+	if status == nil {
+		fmt.Println("🔊 Voice synthesis: ACTIVE (not muted)")
+		return nil
+	}
+
+	path, _ := voice.MutePath()
+	fmt.Println("🔇 Voice synthesis: MUTED")
+	fmt.Printf("   Marker : %s\n", path)
+	if !status.MutedAt.IsZero() {
+		fmt.Printf("   Since  : %s\n", status.MutedAt.Local().Format("2006-01-02 15:04:05 MST"))
+	}
+	if status.Reason != "" {
+		fmt.Printf("   Reason : %s\n", status.Reason)
+	}
 	return nil
 }
 

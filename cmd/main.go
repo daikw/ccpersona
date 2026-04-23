@@ -115,6 +115,11 @@ and behavioral patterns for your AI assistant.`,
 				Flags: []cli.Flag{
 					// Input mode flags
 					&cli.BoolFlag{
+						Name:  "force",
+						Usage: "Bypass the global mute gate for this invocation",
+						Value: false,
+					},
+					&cli.BoolFlag{
 						Name:  "transcript",
 						Usage: "Read from Claude Code transcript instead of stdin",
 						Value: false,
@@ -165,6 +170,28 @@ and behavioral patterns for your AI assistant.`,
 					},
 				},
 				Commands: []*cli.Command{
+					{
+						Name:   "mute",
+						Usage:  "Globally disable voice synthesis across all paths",
+						Action: handleVoiceMute,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "reason",
+								Usage: "Optional note stored alongside the mute marker",
+								Value: "",
+							},
+						},
+					},
+					{
+						Name:   "unmute",
+						Usage:  "Lift the global voice synthesis mute",
+						Action: handleVoiceUnmute,
+					},
+					{
+						Name:   "status",
+						Usage:  "Show the current global mute state",
+						Action: handleVoiceStatus,
+					},
 					{
 						Name:  "config",
 						Usage: "Manage voice configuration",

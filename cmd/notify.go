@@ -175,6 +175,10 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 
 	// Voice notification (if enabled)
 	if c.Bool("voice") && codexEvent.LastAssistantMessage != "" {
+		if voice.IsMuted() {
+			log.Debug().Msg("voice synthesis is globally muted, skipping Codex turn voice")
+			return nil
+		}
 		fileConfig := loadVoiceConfig(c)
 		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
 		opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
@@ -226,6 +230,11 @@ func handleStopEventVoice(ctx context.Context, c *cli.Command, event *hook.Unifi
 		if debug {
 			fmt.Fprintf(os.Stderr, "[DEBUG] Voice flag not set, skipping voice synthesis\n")
 		}
+		return nil
+	}
+
+	if voice.IsMuted() {
+		log.Debug().Msg("voice synthesis is globally muted, skipping Stop event voice")
 		return nil
 	}
 
@@ -335,6 +344,11 @@ func handleDirectResponseVoice(ctx context.Context, c *cli.Command, event *hook.
 		return nil
 	}
 
+	if voice.IsMuted() {
+		log.Debug().Msg("voice synthesis is globally muted, skipping direct-response voice")
+		return nil
+	}
+
 	text := event.AIResponse
 	if text == "" {
 		if debug {
@@ -414,6 +428,10 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 
 	// Voice notification
 	if c.Bool("voice") {
+		if voice.IsMuted() {
+			log.Debug().Msg("voice synthesis is globally muted, skipping notification voice")
+			return nil
+		}
 		fileConfig := loadVoiceConfig(c)
 		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
 		opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")

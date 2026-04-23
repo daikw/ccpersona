@@ -97,7 +97,7 @@ func TestSynthesizeLocalNoRace(t *testing.T) {
 			defer wg.Done()
 			// synthesizeLocal will fail to reach a real engine, but the race
 			// detector will catch any concurrent writes to vm.config.
-			_ , _ = manager.Synthesize(ctx, "test", VoiceOptions{Provider: p})
+			_, _ = manager.Synthesize(ctx, "test", VoiceOptions{Provider: p})
 		}(provider)
 	}
 

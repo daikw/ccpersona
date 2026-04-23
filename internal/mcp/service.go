@@ -48,6 +48,11 @@ func (s *SpeakService) Speak(ctx context.Context, req SpeakRequest) error {
 		return fmt.Errorf("text cannot be empty")
 	}
 
+	if voice.IsMuted() {
+		log.Debug().Msg("voice synthesis is globally muted, skipping MCP speak")
+		return nil
+	}
+
 	// Resolve project directory for persona/voice config lookup.
 	projectDir := req.ProjectDir
 	if projectDir == "" {
