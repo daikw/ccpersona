@@ -36,6 +36,7 @@ func TestRunServer_CanceledContext(t *testing.T) {
 }
 
 func TestToPersonaVoiceInput_NilVoice(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	// Verify Speak succeeds when persona config has no Voice field (cfg.Voice == nil path).
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}

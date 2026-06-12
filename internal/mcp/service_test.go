@@ -41,6 +41,7 @@ func (m *mockPlayer) PlayAudioBlocking(audioPath string) error {
 }
 
 func TestSpeakService_Speak_HappyPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}
 
@@ -71,6 +72,7 @@ func TestSpeakService_Speak_EmptyText(t *testing.T) {
 }
 
 func TestSpeakService_Speak_SynthesizeError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synthErr := errors.New("engine unavailable")
 	synth := &mockSynthesizer{returnErr: synthErr}
 	player := &mockPlayer{}
@@ -87,6 +89,7 @@ func TestSpeakService_Speak_SynthesizeError(t *testing.T) {
 }
 
 func TestSpeakService_Speak_PlaybackError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	playErr := errors.New("audio device not found")
 	player := &mockPlayer{returnErr: playErr}
@@ -103,6 +106,7 @@ func TestSpeakService_Speak_PlaybackError(t *testing.T) {
 }
 
 func TestSpeakService_Speak_WithProjectDir(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}
 
@@ -118,6 +122,7 @@ func TestSpeakService_Speak_WithProjectDir(t *testing.T) {
 }
 
 func TestSpeakService_Speak_WithProviderAndSpeaker(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}
 
@@ -139,6 +144,7 @@ func TestSpeakService_Speak_WithProviderAndSpeaker(t *testing.T) {
 }
 
 func TestSpeakService_Speak_WithPersonaVoiceConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	// Write a persona config with voice settings to the temp project dir.
 	projectDir := t.TempDir()
 	claudeDir := filepath.Join(projectDir, ".claude")
@@ -183,6 +189,7 @@ func TestSpeakService_Speak_SkipsWhenMuted(t *testing.T) {
 }
 
 func TestSpeakService_Speak_EmptyAudioPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	// Synthesize returns an empty path (e.g., ToStdout case) — playback should still be attempted.
 	synth := &mockSynthesizer{returnPath: ""}
 	player := &mockPlayer{}
