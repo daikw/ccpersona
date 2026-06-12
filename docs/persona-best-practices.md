@@ -109,8 +109,8 @@ Personas work best when combined with matching voice settings in `.claude/person
 {
   "name": "zundamon",
   "voice": {
-    "engine": "aivisspeech",
-    "speaker_id": 888753760
+    "provider": "aivisspeech",
+    "speaker": 888753760
   }
 }
 ```
@@ -121,8 +121,8 @@ For a professional persona, you might use a different voice:
 {
   "name": "professional",
   "voice": {
-    "engine": "openai",
-    "voice": "alloy",
+    "provider": "openai",
+    "speaker": 0,
     "speed": 1.0
   }
 }
