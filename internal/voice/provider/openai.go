@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	OpenAIBaseURL     = "https://api.openai.com/v1"
-	OpenAITTSEndpoint = "/audio/speech"
+	OpenAIBaseURL        = "https://api.openai.com/v1"
+	OpenAITTSEndpoint    = "/audio/speech"
+	OpenAIModelsEndpoint = "/models"
 )
 
 // OpenAIProvider implements the Provider interface for OpenAI Audio API
@@ -148,25 +149,13 @@ func (p *OpenAIProvider) IsAvailable(ctx context.Context) bool {
 		return false
 	}
 
-	// Test with a minimal request to validate API key
-	testText := "test"
-	requestBody := map[string]interface{}{
-		"model": "tts-1",
-		"input": testText,
-		"voice": "alloy",
-	}
-
-	jsonData, err := json.Marshal(requestBody)
+	// Validate the API key with a non-billed GET /models request rather than a
+	// real /audio/speech synthesis, which would incur TTS charges per check.
+	req, err := http.NewRequestWithContext(ctx, "GET", p.baseURL+OpenAIModelsEndpoint, nil)
 	if err != nil {
 		return false
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", p.baseURL+OpenAITTSEndpoint, bytes.NewReader(jsonData))
-	if err != nil {
-		return false
-	}
-
-	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 
 	// Use a shorter timeout for availability check
