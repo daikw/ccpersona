@@ -52,9 +52,9 @@ func handleSet(ctx context.Context, c *cli.Command) error {
 	}
 
 	if !manager.PersonaExists(name) {
-		fmt.Fprintf(os.Stderr, "%s persona '%s' does not exist.\n", cliui.Failure("error:"), name)
-		fmt.Fprintln(os.Stderr, "Run 'ccpersona list' to see available personas.")
-		return fmt.Errorf("persona '%s' does not exist", name)
+		// main prints returned errors; embed the guidance instead of
+		// pre-printing here, which produced a duplicate report.
+		return fmt.Errorf("persona '%s' does not exist\nRun 'ccpersona list' to see available personas", name)
 	}
 
 	global := c.Bool("global")

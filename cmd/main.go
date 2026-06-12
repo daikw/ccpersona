@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/daikw/ccpersona/internal/cliui"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
@@ -313,6 +314,9 @@ and behavioral patterns for your AI assistant.`,
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		log.Fatal().Err(err).Msg("Failed to run application")
+		// Command handlers own their user-facing messages; report the error
+		// once in plain CLI form instead of a zerolog FTL record.
+		fmt.Fprintf(os.Stderr, "%s %v\n", cliui.Failure("error:"), err)
+		os.Exit(1)
 	}
 }
