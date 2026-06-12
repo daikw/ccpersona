@@ -58,11 +58,19 @@ ccpersona is a persona management system that automatically applies different "p
    - With --plain flag: reads plain text from stdin for voice synthesis
    - With --transcript flag: reads from `~/.claude/projects/*.jsonl`
    - As Stop hook: automatically uses transcript path from hook event
-   - Supports VOICEVOX (port 50021) and AivisSpeech (port 10101) engines
+   - Supports VOICEVOX (port 50021) and AivisSpeech (port 10101) engines, plus cloud providers (openai, elevenlabs, polly, gcp)
+   - `config.go` `ProviderConfig`: `base_url` redirects the OpenAI provider to a local OpenAI-compatible TTS server; when set, `api_key` is optional. `timeout_seconds` overrides the default 30 s HTTP timeout for slow GPU inference.
+   - `config.go` `ConfigFile.Engines` (`engines` key): user-defined engine definitions forwarded to the engine registry (see below).
    - Reading modes: short (first line) or full (entire text with optional --chars limit)
    - Cross-platform audio playback (afplay/aplay/paplay/ffplay)
 
-4. **CLI Framework**
+4. **Engine Registry** (`internal/engine/`)
+   - `registry.go` `BuildRegistry()`: merges built-in engines (VOICEVOX, AivisSpeech) with user-defined engines from `ConfigFile.Engines`. User engine names must not collide with built-in names; collisions return an error. Built-ins are listed first in stable order; user engines follow sorted by name.
+   - `registry.go` `EngineDef`: unified definition for both built-in and user-defined engines. `Managed()` is true when `Command` is set; engines without `Command` are external (status/health only, no install/start/stop). `HealthType` defaults to `"openai"` (GET `/v1/models`) for user engines; built-ins use `"voicevox"` (GET `/version`).
+   - `health.go` `CheckHealth()`: performs an HTTP GET to the engine's health URL with a 2 s default timeout.
+   - `render.go` `RenderPlist()` / `RenderSystemdUnit()`: generates launchd plist or systemd unit files for managed engines. User-defined engines with `Dir` or `Env` emit `WorkingDirectory` / `EnvironmentVariables` blocks in addition to the standard fields.
+
+5. **CLI Framework**
    - Uses urfave/cli v3 (note: v3 has different API from v2)
    - Single entry point in `cmd/main.go`
    - All commands return nil on success to avoid disrupting hooks

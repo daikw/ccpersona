@@ -7,7 +7,7 @@ This guide helps you diagnose and fix common issues with ccpersona.
 Run the built-in diagnostic tool:
 
 ```bash
-ccpersona doctor
+ccpersona status --diagnose
 ```
 
 This checks:

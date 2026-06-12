@@ -266,12 +266,117 @@ Input modes:
 The voice synthesis feature supports:
 - **VOICEVOX** - Local voice engine (default port: 50021)
 - **AivisSpeech** - Alternative voice engine (default port: 10101)
+- **OpenAI / OpenAI-compatible** - Cloud TTS or local servers (Irodori-TTS-Server, kani-tts, etc.)
+- **ElevenLabs**, **Amazon Polly**, **GCP** - Cloud TTS providers
 
 Reading modes:
 - `short` - Read only the first line (default)
 - `full` - Read entire message (use `--chars` to limit characters)
 
 Legacy mode names (`first_line`, `full_text`, etc.) are still supported for backward compatibility.
+
+### Voice Provider Configuration
+
+Voice settings live in `.claude/config.json` (project) or `~/.claude/config.json` (global). The top-level keys are:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `default_provider` | string | Provider used when none is specified on the CLI |
+| `providers` | object | Per-provider configuration blocks |
+| `defaults` | object | Global defaults (`volume`, `speed`) |
+| `engines` | object | User-defined TTS engines (see [Engine Registry](#engine-registry)) |
+
+Example with OpenAI cloud provider:
+
+```json
+{
+  "default_provider": "openai",
+  "providers": {
+    "openai": {
+      "api_key": "${OPENAI_API_KEY}",
+      "model": "tts-1",
+      "voice": "nova",
+      "speed": 1.0,
+      "format": "mp3"
+    }
+  }
+}
+```
+
+### OpenAI-Compatible Local TTS Servers
+
+Setting `base_url` in the `openai` provider block redirects requests to a local OpenAI-compatible TTS server (e.g. [Irodori-TTS-Server](https://github.com/daikw/irodori-tts-server) on port 8088, kani-tts on port 8000). When `base_url` is present, `api_key` is optional because local servers typically require no authentication.
+
+Use `timeout_seconds` to extend the HTTP timeout for GPU inference, which can be slow on the first request (default: 30 seconds).
+
+```json
+{
+  "default_provider": "openai",
+  "providers": {
+    "openai": {
+      "base_url": "http://127.0.0.1:8088",
+      "model": "irodori-tts",
+      "voice": "none",
+      "timeout_seconds": 120
+    }
+  }
+}
+```
+
+Then synthesize with:
+
+```bash
+echo "こんにちは！" | ccpersona voice --plain --provider openai
+```
+
+### Engine Registry
+
+The `engines` key in `config.json` lets you declare user-defined TTS engines that the `engine` subcommand can manage alongside the built-in VOICEVOX and AivisSpeech engines.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `base_url` | string | Base URL for health checks (e.g. `http://127.0.0.1:8088`) |
+| `health` | string | Health check type: `"openai"` (GET `/v1/models`) or `"voicevox"` (GET `/version`). Defaults to `"openai"` |
+| `command` | string | Executable to launch. Omit to treat the engine as externally managed (status-only) |
+| `args` | array | Arguments passed to `command` |
+| `dir` | string | Working directory (`~` is expanded) |
+| `env` | object | Extra environment variables for the process |
+
+Engine names must not collide with the built-in names (`voicevox`, `aivisspeech`); the registry returns an error if they do.
+
+`engine status` lists all engines (built-in + user-defined) with their health and service state. Engines without `command` are shown as `external (not managed by ccpersona)` and cannot be installed/started/stopped.
+
+Example: declaring an Irodori-TTS engine and using it end-to-end:
+
+```json
+{
+  "engines": {
+    "irodori": {
+      "base_url": "http://127.0.0.1:8088",
+      "health": "openai",
+      "command": "/usr/local/bin/irodori-tts-server",
+      "args": ["--port", "8088"],
+      "dir": "~/irodori-tts"
+    }
+  },
+  "default_provider": "openai",
+  "providers": {
+    "openai": {
+      "base_url": "http://127.0.0.1:8088",
+      "model": "irodori-tts",
+      "voice": "none",
+      "timeout_seconds": 120
+    }
+  }
+}
+```
+
+Check the engine is running, then synthesize:
+
+```bash
+ccpersona engine status irodori    # shows health + service state
+ccpersona voice --plain --provider openai  # routes through base_url
+```
 
 ## Advanced Usage
 
