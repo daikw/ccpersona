@@ -1,14 +1,12 @@
 package engine
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/rs/zerolog/log"
 )
@@ -27,45 +25,24 @@ func newLaunchdManager() (*launchdManager, error) {
 	}, nil
 }
 
-func (m *launchdManager) plistPath(t EngineType) string {
-	return filepath.Join(m.agentDir, serviceLabel(t)+".plist")
+func (m *launchdManager) plistPath(def *EngineDef) (string, error) {
+	return servicePath(m.agentDir, def.ServiceLabel()+".plist")
 }
 
-func (m *launchdManager) templateName(t EngineType) string {
-	return "templates/" + serviceLabel(t) + ".plist"
-}
-
-func (m *launchdManager) Install(info *EngineInfo) error {
-	// Read and render template
-	tmplData, err := templateFS.ReadFile(m.templateName(info.Type))
-	if err != nil {
-		return fmt.Errorf("failed to read template: %w", err)
+func (m *launchdManager) Install(def *EngineDef) error {
+	if !def.Managed() {
+		return errNotManaged(def)
 	}
 
-	tmpl, err := template.New("plist").Parse(string(tmplData))
+	plistPath, err := m.plistPath(def)
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+		return err
 	}
 
 	home, _ := os.UserHomeDir()
 	logDir := filepath.Join(home, "Library", "Logs", "ccpersona")
 
-	data := struct {
-		Label      string
-		BinaryPath string
-		Port       string
-		LogDir     string
-	}{
-		Label:      info.Label,
-		BinaryPath: info.BinaryPath,
-		Port:       info.PortString(),
-		LogDir:     logDir,
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to render template: %w", err)
-	}
+	contents := RenderPlist(def, logDir)
 
 	// Ensure directories exist
 	if err := os.MkdirAll(m.agentDir, 0755); err != nil {
@@ -76,8 +53,7 @@ func (m *launchdManager) Install(info *EngineInfo) error {
 	}
 
 	// Write plist
-	plistPath := m.plistPath(info.Type)
-	if err := os.WriteFile(plistPath, buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(plistPath, []byte(contents), 0644); err != nil {
 		return fmt.Errorf("failed to write plist: %w", err)
 	}
 
@@ -91,8 +67,14 @@ func (m *launchdManager) Install(info *EngineInfo) error {
 	return nil
 }
 
-func (m *launchdManager) Uninstall(t EngineType) error {
-	plistPath := m.plistPath(t)
+func (m *launchdManager) Uninstall(def *EngineDef) error {
+	if !def.Managed() {
+		return errNotManaged(def)
+	}
+	plistPath, err := m.plistPath(def)
+	if err != nil {
+		return err
+	}
 
 	// Unload first (ignore errors if not loaded)
 	_ = m.launchctlUnload(plistPath)
@@ -105,15 +87,21 @@ func (m *launchdManager) Uninstall(t EngineType) error {
 	return nil
 }
 
-func (m *launchdManager) Start(t EngineType) error {
+func (m *launchdManager) Start(def *EngineDef) error {
+	if !def.Managed() {
+		return errNotManaged(def)
+	}
 	// Stop() が unload するため、まず plist を load し直す必要がある
-	plistPath := m.plistPath(t)
+	plistPath, err := m.plistPath(def)
+	if err != nil {
+		return err
+	}
 	if _, err := os.Stat(plistPath); err == nil {
 		// load は既に loaded でもエラーにならない（warning が出るだけ）
 		_ = m.launchctlLoad(plistPath)
 	}
 
-	label := serviceLabel(t)
+	label := def.ServiceLabel()
 	out, err := exec.Command("launchctl", "start", label).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("launchctl start failed: %w: %s", err, string(out))
@@ -121,12 +109,18 @@ func (m *launchdManager) Start(t EngineType) error {
 	return nil
 }
 
-func (m *launchdManager) Stop(t EngineType) error {
+func (m *launchdManager) Stop(def *EngineDef) error {
+	if !def.Managed() {
+		return errNotManaged(def)
+	}
 	// KeepAlive=true のため stop だけでは再起動される。unload → load で停止状態にする。
-	plistPath := m.plistPath(t)
+	plistPath, err := m.plistPath(def)
+	if err != nil {
+		return err
+	}
 	if _, err := os.Stat(plistPath); err != nil {
 		// plist が無ければ stop だけ試みる
-		label := serviceLabel(t)
+		label := def.ServiceLabel()
 		out, err := exec.Command("launchctl", "stop", label).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("launchctl stop failed: %w: %s", err, string(out))
@@ -140,15 +134,19 @@ func (m *launchdManager) Stop(t EngineType) error {
 	return nil
 }
 
-func (m *launchdManager) Status(t EngineType) (*ServiceStatus, error) {
-	label := serviceLabel(t)
+func (m *launchdManager) Status(def *EngineDef) (*ServiceStatus, error) {
+	label := def.ServiceLabel()
 	status := &ServiceStatus{
-		Engine: t,
-		Label:  label,
+		Name:  def.Name,
+		Label: label,
 	}
 
 	// Check if plist exists
-	if _, err := os.Stat(m.plistPath(t)); err == nil {
+	plistPath, err := m.plistPath(def)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(plistPath); err == nil {
 		status.Installed = true
 	}
 
