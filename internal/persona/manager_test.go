@@ -227,6 +227,29 @@ func TestReadPersona(t *testing.T) {
 	})
 }
 
+func TestValidatePersonaName(t *testing.T) {
+	valid := []string{"default", "zundamon", "my-persona", "persona_1"}
+	for _, name := range valid {
+		if err := validatePersonaName(name); err != nil {
+			t.Errorf("validatePersonaName(%q) should be valid, got %v", name, err)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"..",
+		"../etc/passwd",
+		"foo/bar",
+		`foo\bar`,
+		"sub/dir",
+	}
+	for _, name := range invalid {
+		if err := validatePersonaName(name); err == nil {
+			t.Errorf("validatePersonaName(%q) should return error", name)
+		}
+	}
+}
+
 func TestStripYAMLFrontMatter(t *testing.T) {
 	tests := []struct {
 		name  string

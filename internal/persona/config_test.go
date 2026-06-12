@@ -43,7 +43,6 @@ func TestLoadConfig(t *testing.T) {
 				Provider: "voicevox",
 				Speaker:  3,
 			},
-			OverrideGlobal:     true,
 			CustomInstructions: "Test instructions",
 		}
 
@@ -106,8 +105,7 @@ func TestSaveConfig(t *testing.T) {
 
 	t.Run("SaveNewConfig", func(t *testing.T) {
 		config := &Config{
-			Name:           "save-test",
-			OverrideGlobal: false,
+			Name: "save-test",
 		}
 
 		// Save config
@@ -208,9 +206,6 @@ func TestGetDefaultConfig(t *testing.T) {
 		t.Errorf("Expected default name 'default', got %s", config.Name)
 	}
 
-	if config.OverrideGlobal != false {
-		t.Error("Expected OverrideGlobal to be false")
-	}
 }
 
 func TestLoadConfigWithFallback(t *testing.T) {
