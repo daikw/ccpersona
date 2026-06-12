@@ -34,20 +34,34 @@ func (f *DefaultFactory) ListProviders() []string {
 	return []string{"openai", "elevenlabs", "polly", "gcp"}
 }
 
-// createOpenAIProvider creates an OpenAI provider with configuration
+// createOpenAIProvider creates an OpenAI provider with configuration.
+// When base_url points at an OpenAI-compatible local TTS server (non-official
+// host, e.g. Irodori-TTS or kani-tts), api_key is optional because such servers
+// typically require no auth. For the official OpenAI host (any path/spelling),
+// api_key remains mandatory.
 func (f *DefaultFactory) createOpenAIProvider(config map[string]interface{}) (Provider, error) {
+	baseURL, _ := config["base_url"].(string)
+
+	// Classify by host so that base_url spelling variations pointing at the
+	// official OpenAI host (e.g. with/without /v1 or a trailing slash) cannot
+	// bypass the api_key requirement.
+	official, err := isOfficialOpenAIBaseURL(baseURL)
+	if err != nil {
+		return nil, err
+	}
+
 	// Try to get API key from config first
 	apiKey, ok := config["api_key"].(string)
 	if !ok || apiKey == "" {
 		// Fallback to environment variable
 		apiKey = os.Getenv("OPENAI_API_KEY")
-		if apiKey == "" {
+		if apiKey == "" && official {
 			return nil, fmt.Errorf("OpenAI API key not found in config or OPENAI_API_KEY environment variable")
 		}
 	}
 
 	// Add the API key to config if it was from env
-	if _, exists := config["api_key"]; !exists {
+	if _, exists := config["api_key"]; !exists && apiKey != "" {
 		config["api_key"] = apiKey
 	}
 

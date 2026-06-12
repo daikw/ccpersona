@@ -16,6 +16,22 @@ type ConfigFile struct {
 	DefaultProvider string                    `json:"default_provider,omitempty"`
 	Providers       map[string]ProviderConfig `json:"providers,omitempty"`
 	Defaults        *DefaultsConfig           `json:"defaults,omitempty"`
+	// Engines declares user-defined local TTS engines that the `engine`
+	// subcommand can manage (status/start/stop/install) alongside the built-in
+	// VOICEVOX / AivisSpeech engines. Keyed by unique engine name.
+	Engines map[string]EngineUserConfig `json:"engines,omitempty"`
+}
+
+// EngineUserConfig declares a user-defined TTS engine for the `engine`
+// subcommand. A definition without Command is treated as externally managed
+// (status/health only). Health defaults to "openai" when omitted.
+type EngineUserConfig struct {
+	BaseURL string            `json:"base_url,omitempty"`
+	Health  string            `json:"health,omitempty"` // "voicevox" | "openai"
+	Command string            `json:"command,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Dir     string            `json:"dir,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
 }
 
 // DefaultsConfig represents default values for voice synthesis
@@ -40,6 +56,12 @@ type ProviderConfig struct {
 
 	// OpenAI options
 	// (uses common options)
+	// BaseURL overrides the API endpoint, enabling OpenAI-compatible local TTS
+	// servers (e.g. Irodori-TTS, kani-tts). When set, api_key becomes optional.
+	BaseURL string `json:"base_url,omitempty"`
+	// TimeoutSeconds overrides the HTTP request timeout (default 30). Local GPU
+	// inference can be slow on the first request.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
 
 	// ElevenLabs options
 	Stability       float64 `json:"stability,omitempty"`
