@@ -137,7 +137,8 @@ func showClaudeCodeHookInstructions() {
 	fmt.Println(`   {
      "hooks": {
        "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}],
-       "Stop": [{"hooks": [{"type": "command", "command": "ccpersona voice"}]}]
+       "Stop": [{"hooks": [{"type": "command", "command": "ccpersona voice"}]}],
+       "Notification": [{"hooks": [{"type": "command", "command": "ccpersona notify"}]}]
      }
    }`)
 	fmt.Println("")
@@ -264,9 +265,9 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 	var err error
 
 	if c.Bool("global") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
+		homeDir, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return fmt.Errorf("failed to get home directory: %w", homeErr)
 		}
 		configDir := filepath.Join(homeDir, ".claude")
 		configPath = filepath.Join(configDir, "persona.json")
@@ -276,7 +277,12 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 		}
 
 		config, err = persona.LoadConfig(homeDir)
-		if err != nil || config == nil {
+		if err != nil {
+			// A parse failure must not be swallowed into a default that would
+			// overwrite the existing (broken) config on save.
+			return fmt.Errorf("failed to load global config: %w", err)
+		}
+		if config == nil {
 			config = persona.GetDefaultConfig()
 			if err := persona.SaveConfig(homeDir, config); err != nil {
 				return fmt.Errorf("failed to create global config: %w", err)
