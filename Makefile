@@ -4,7 +4,8 @@
 BINARY_NAME := ccpersona
 MAIN_PATH := ./cmd
 BUILD_DIR := ./dist
-INSTALL_PATH := $(GOPATH)/bin
+GOPATH_VAL := $(or $(GOPATH),$(shell go env GOPATH))
+INSTALL_PATH := $(GOPATH_VAL)/bin
 
 # Build flags
 LDFLAGS := -ldflags "-X main.version=$$(git describe --tags --always) -X main.revision=$$(git rev-parse --short HEAD)"
