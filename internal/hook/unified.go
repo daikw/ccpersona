@@ -20,6 +20,13 @@ type UnifiedHookEvent struct {
 
 // DetectAndParse automatically detects the hook source and parses the event
 func DetectAndParse(r io.Reader) (*UnifiedHookEvent, error) {
+	return DetectAndParseForSource(r, "")
+}
+
+// DetectAndParseForSource parses hook input with an optional source hint.
+// Some lifecycle payloads intentionally share the same wire shape across
+// assistants, so callers that know the invoking platform can pass it here.
+func DetectAndParseForSource(r io.Reader, sourceHint string) (*UnifiedHookEvent, error) {
 	// Read all data from reader
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -41,7 +48,7 @@ func DetectAndParse(r io.Reader) (*UnifiedHookEvent, error) {
 	}
 
 	if _, hasHookEventName := generic["hook_event_name"]; hasHookEventName {
-		if isCodexLifecycleEvent(generic) {
+		if sourceHint == "codex" {
 			return parseCodexLifecycleEvent(data)
 		}
 		// Distinguish between Claude Code and Cursor by checking for conversation_id
@@ -55,19 +62,6 @@ func DetectAndParse(r io.Reader) (*UnifiedHookEvent, error) {
 	}
 
 	return nil, fmt.Errorf("unknown hook event format")
-}
-
-// isCodexLifecycleEvent reports whether a hook_event_name payload is from
-// Codex hooks.json rather than Claude Code. Codex lifecycle hooks include
-// Codex-specific fields documented in the hook schema; Claude Code payloads
-// used by ccpersona do not carry this pair today.
-func isCodexLifecycleEvent(generic map[string]interface{}) bool {
-	if _, hasHookEventName := generic["hook_event_name"]; !hasHookEventName {
-		return false
-	}
-	_, hasModel := generic["model"]
-	_, hasPermissionMode := generic["permission_mode"]
-	return hasModel && hasPermissionMode
 }
 
 func parseCodexEvent(data []byte) (*UnifiedHookEvent, error) {
