@@ -188,10 +188,10 @@ func TestOpenAIProvider_IsAvailable(t *testing.T) {
 		assert.False(t, provider.IsAvailable(ctx))
 	})
 
-	t.Run("probes {base_url}/models for local server without API key", func(t *testing.T) {
+	t.Run("probes {base_url}/v1/models for local server without API key", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "GET", r.Method)
-			assert.Equal(t, OpenAIModelsEndpoint, r.URL.Path)
+			assert.Equal(t, "/v1"+OpenAIModelsEndpoint, r.URL.Path)
 			// No auth header expected for keyless local servers.
 			assert.Empty(t, r.Header.Get("Authorization"))
 			w.WriteHeader(http.StatusOK)
@@ -228,6 +228,7 @@ func TestOpenAIProvider_SynthesizeReflectsConfig(t *testing.T) {
 		var gotBody map[string]interface{}
 		var gotAuth string
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/v1"+OpenAITTSEndpoint, r.URL.Path)
 			gotAuth = r.Header.Get("Authorization")
 			_ = json.NewDecoder(r.Body).Decode(&gotBody)
 			w.WriteHeader(http.StatusOK)
@@ -302,6 +303,17 @@ func TestOpenAIProviderFromConfig(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, provider)
 		assert.Equal(t, "https://custom.openai.com/v1", provider.baseURL)
+	})
+
+	t.Run("normalizes root-style base URL to /v1", func(t *testing.T) {
+		config := map[string]interface{}{
+			"base_url": "http://localhost:8088",
+		}
+		provider, err := OpenAIProviderFromConfig(config)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, provider)
+		assert.Equal(t, "http://localhost:8088/v1", provider.baseURL)
 	})
 
 	t.Run("succeeds with base_url and no API key", func(t *testing.T) {

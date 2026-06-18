@@ -122,6 +122,19 @@ func TestBuildRegistry_ExternalEngine(t *testing.T) {
 	}
 }
 
+func TestEngineDef_BuiltinManagedWithoutCommand(t *testing.T) {
+	def := &EngineDef{
+		Name:        "voicevox",
+		DisplayName: "VOICEVOX",
+		BaseURL:     "http://127.0.0.1:50021",
+		HealthType:  HealthVoicevox,
+		builtinType: VOICEVOX,
+	}
+	if !def.Managed() {
+		t.Error("built-in Managed() = false, want true even without Command")
+	}
+}
+
 func TestBuildRegistry_NameCollision(t *testing.T) {
 	_, err := BuildRegistry(map[string]UserEngineConfig{
 		"voicevox": {BaseURL: "http://127.0.0.1:50021", Command: "x"},

@@ -32,6 +32,9 @@ func (m *systemdManager) Install(def *EngineDef) error {
 	if !def.Managed() {
 		return errNotManaged(def)
 	}
+	if def.Command == "" {
+		return fmt.Errorf("%s: engine command is required for install", def.Name)
+	}
 
 	unitPath, err := m.unitPath(def)
 	if err != nil {

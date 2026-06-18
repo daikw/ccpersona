@@ -202,6 +202,29 @@ func isOfficialOpenAIBaseURL(baseURL string) (official bool, err error) {
 	return u.Host == openAIOfficialHost, nil
 }
 
+// normalizeOpenAIBaseURL returns the API base URL used when appending endpoint
+// paths. Local OpenAI-compatible server examples often use the server root; in
+// that case we normalize to /v1 so requests hit /v1/models and /v1/audio/speech.
+func normalizeOpenAIBaseURL(baseURL string) (string, error) {
+	if baseURL == "" {
+		return OpenAIBaseURL, nil
+	}
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid base_url %q: %w", baseURL, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("invalid base_url %q: scheme must be http or https", baseURL)
+	}
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/v1"
+	}
+	u.Path = strings.TrimRight(u.Path, "/")
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String(), nil
+}
+
 // OpenAIProviderFromConfig creates an OpenAI provider from configuration.
 // api_key is required for the official OpenAI endpoint, but optional when
 // base_url points at an OpenAI-compatible local TTS server (no auth).
@@ -221,7 +244,11 @@ func OpenAIProviderFromConfig(config map[string]interface{}) (*OpenAIProvider, e
 
 	// Optional base URL override
 	if baseURL != "" {
-		provider.baseURL = strings.TrimSuffix(baseURL, "/")
+		normalized, err := normalizeOpenAIBaseURL(baseURL)
+		if err != nil {
+			return nil, err
+		}
+		provider.baseURL = normalized
 	}
 
 	// Optional HTTP timeout override (local GPU inference can be slow on first call)

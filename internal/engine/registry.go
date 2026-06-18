@@ -37,10 +37,13 @@ type EngineDef struct {
 	builtinType EngineType
 }
 
-// Managed reports whether the engine has a service spec (Command set) and can
-// therefore be installed/started/stopped/uninstalled.
+// Managed reports whether ccpersona owns a service identity for the engine and
+// can manage lifecycle operations. Built-ins remain manageable even when binary
+// discovery fails, so users can stop or uninstall a previously installed
+// service after the app binary moved or was removed. Install still requires a
+// Command because rendering a new service file needs the executable path.
 func (d *EngineDef) Managed() bool {
-	return d.Command != ""
+	return d.Builtin() || d.Command != ""
 }
 
 // Builtin reports whether the engine is a built-in (VOICEVOX/AivisSpeech).

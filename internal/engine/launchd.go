@@ -33,6 +33,9 @@ func (m *launchdManager) Install(def *EngineDef) error {
 	if !def.Managed() {
 		return errNotManaged(def)
 	}
+	if def.Command == "" {
+		return fmt.Errorf("%s: engine command is required for install", def.Name)
+	}
 
 	plistPath, err := m.plistPath(def)
 	if err != nil {

@@ -3,6 +3,7 @@ package voice
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -266,7 +267,11 @@ func validateProviderConfig(name string, config *ProviderConfig) []string {
 
 	switch name {
 	case "openai":
-		if config.APIKey == "" {
+		official, err := isOfficialOpenAIConfigBaseURL(config.BaseURL)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", name, err))
+		}
+		if config.APIKey == "" && official {
 			errors = append(errors, fmt.Sprintf("%s: api_key is required (use ${OPENAI_API_KEY} for env var)", name))
 		}
 	case "elevenlabs":
@@ -299,6 +304,20 @@ func validateProviderConfig(name string, config *ProviderConfig) []string {
 	}
 
 	return errors
+}
+
+func isOfficialOpenAIConfigBaseURL(baseURL string) (bool, error) {
+	if baseURL == "" {
+		return true, nil
+	}
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return false, fmt.Errorf("invalid base_url %q: %w", baseURL, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false, fmt.Errorf("invalid base_url %q: scheme must be http or https", baseURL)
+	}
+	return u.Host == "api.openai.com", nil
 }
 
 func contains(slice []string, item string) bool {

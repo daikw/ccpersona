@@ -113,6 +113,19 @@ func TestCreateProvider_OpenAI(t *testing.T) {
 		assert.Equal(t, "openai", provider.Name())
 	})
 
+	t.Run("normalizes root-style local base_url to /v1", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+
+		config := map[string]interface{}{
+			"base_url": "http://127.0.0.1:8088",
+		}
+		provider, err := factory.CreateProvider("openai", config)
+		assert.NoError(t, err)
+		openAIProvider, ok := provider.(*OpenAIProvider)
+		assert.True(t, ok)
+		assert.Equal(t, "http://127.0.0.1:8088/v1", openAIProvider.baseURL)
+	})
+
 	t.Run("fails for non-http(s) base_url scheme", func(t *testing.T) {
 		t.Setenv("OPENAI_API_KEY", "")
 
