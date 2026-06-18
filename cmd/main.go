@@ -106,6 +106,13 @@ and behavioral patterns for your AI assistant.`,
 				Aliases: []string{"user_prompt_submit_hook"},
 				Usage:   "Execute as Claude Code UserPromptSubmit hook",
 				Action:  handleHook,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "platform",
+						Usage: "Platform hint for ambiguous hook payloads: claude-code, codex, cursor",
+						Value: "",
+					},
+				},
 			},
 			{
 				Name:    "voice",

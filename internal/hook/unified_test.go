@@ -158,6 +158,86 @@ func TestDetectAndParseClaudeCodeSessionStart(t *testing.T) {
 	}
 }
 
+func TestDetectAndParseClaudeCodeSessionStartWithModelAndPermissionMode(t *testing.T) {
+	jsonData := `{
+		"session_id": "session-start-123",
+		"transcript_path": "/path/to/transcript.jsonl",
+		"cwd": "/home/user/project",
+		"hook_event_name": "SessionStart",
+		"model": "claude-sonnet-4-20250514",
+		"permission_mode": "default",
+		"source": "startup"
+	}`
+
+	reader := strings.NewReader(jsonData)
+	event, err := DetectAndParse(reader)
+	if err != nil {
+		t.Fatalf("Failed to parse Claude Code SessionStart event: %v", err)
+	}
+
+	if event.Source != "claude-code" {
+		t.Errorf("Expected source 'claude-code', got '%s'", event.Source)
+	}
+
+	if event.EventType != "SessionStart" {
+		t.Errorf("Expected event type 'SessionStart', got '%s'", event.EventType)
+	}
+
+	if event.SessionID != "session-start-123" {
+		t.Errorf("Expected session ID 'session-start-123', got '%s'", event.SessionID)
+	}
+
+	if !event.IsClaudeCode() {
+		t.Error("Expected IsClaudeCode() to return true")
+	}
+
+	if event.IsCodex() {
+		t.Error("Expected IsCodex() to return false")
+	}
+}
+
+func TestDetectAndParseCodexSessionStartWithSourceHint(t *testing.T) {
+	jsonData := `{
+		"session_id": "codex-session-123",
+		"transcript_path": "/path/to/codex-transcript.jsonl",
+		"cwd": "/home/user/project",
+		"hook_event_name": "SessionStart",
+		"model": "gpt-5.5",
+		"permission_mode": "default",
+		"source": "startup"
+	}`
+
+	reader := strings.NewReader(jsonData)
+	event, err := DetectAndParseForSource(reader, "codex")
+	if err != nil {
+		t.Fatalf("Failed to parse Codex SessionStart event with source hint: %v", err)
+	}
+
+	if event.Source != "codex" {
+		t.Errorf("Expected source 'codex', got '%s'", event.Source)
+	}
+
+	if event.EventType != "SessionStart" {
+		t.Errorf("Expected event type 'SessionStart', got '%s'", event.EventType)
+	}
+
+	if event.SessionID != "codex-session-123" {
+		t.Errorf("Expected session ID 'codex-session-123', got '%s'", event.SessionID)
+	}
+
+	if event.CWD != "/home/user/project" {
+		t.Errorf("Expected CWD '/home/user/project', got '%s'", event.CWD)
+	}
+
+	if !event.IsCodex() {
+		t.Error("Expected IsCodex() to return true")
+	}
+
+	if event.IsClaudeCode() {
+		t.Error("Expected IsClaudeCode() to return false")
+	}
+}
+
 func TestDetectAndParseClaudeCodeSessionEnd(t *testing.T) {
 	jsonData := `{
 		"session_id": "session-end-456",

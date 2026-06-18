@@ -78,6 +78,23 @@ type CodexNotifyEvent struct {
 	LastAssistantMessage string   `json:"last-assistant-message"` // Model's final response
 }
 
+// CodexLifecycleEvent represents Codex hooks.json lifecycle events.
+// These use hook_event_name like Claude Code, but include Codex-specific
+// fields such as model and permission_mode.
+type CodexLifecycleEvent struct {
+	SessionID            string `json:"session_id"`
+	TranscriptPath       string `json:"transcript_path"`
+	CWD                  string `json:"cwd,omitempty"`
+	HookEventName        string `json:"hook_event_name"`
+	Model                string `json:"model"`
+	PermissionMode       string `json:"permission_mode"`
+	Source               string `json:"source,omitempty"`
+	TurnID               string `json:"turn_id,omitempty"`
+	Prompt               string `json:"prompt,omitempty"`
+	StopHookActive       bool   `json:"stop_hook_active,omitempty"`
+	LastAssistantMessage string `json:"last_assistant_message,omitempty"`
+}
+
 // CursorHookEvent represents the common hook event data from Cursor
 // See: https://cursor.com/docs/agent/hooks
 // Note: Cursor uses conversation_id instead of session_id, and camelCase event names
