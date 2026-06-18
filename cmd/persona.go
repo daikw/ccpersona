@@ -213,12 +213,6 @@ func handleShow(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-func handleCreate(ctx context.Context, c *cli.Command) error {
-	// Deprecated: use 'edit' instead (creates if not exists)
-	fmt.Fprintln(os.Stderr, "⚠️  'create' is deprecated. Use 'edit' instead (creates if not exists).")
-	return handleEdit(ctx, c)
-}
-
 func handleEdit(ctx context.Context, c *cli.Command) error {
 	personaName := c.Args().Get(0)
 	if personaName == "" {

@@ -173,6 +173,56 @@ func TestResolve_CLIProviderVoicevox_PersonaSpeakerGoesToVoicevox(t *testing.T) 
 	}
 }
 
+func TestResolve_ProviderConfigBaseURLAndTimeout(t *testing.T) {
+	fileConfig := &ConfigFile{
+		Providers: map[string]ProviderConfig{
+			"openai": {
+				BaseURL:        "http://localhost:8088/v1",
+				TimeoutSeconds: 120,
+				Model:          "irodori-tts",
+				Voice:          "none",
+			},
+		},
+	}
+
+	opts := Resolve(PersonaVoiceInput{}, fileConfig, "openai")
+
+	if opts.BaseURL != "http://localhost:8088/v1" {
+		t.Errorf("expected BaseURL=http://localhost:8088/v1, got %q", opts.BaseURL)
+	}
+	if opts.TimeoutSeconds != 120 {
+		t.Errorf("expected TimeoutSeconds=120, got %d", opts.TimeoutSeconds)
+	}
+	if opts.Model != "irodori-tts" {
+		t.Errorf("expected Model=irodori-tts, got %q", opts.Model)
+	}
+	if opts.Voice != "none" {
+		t.Errorf("expected Voice=none, got %q", opts.Voice)
+	}
+}
+
+// TestResolve_OfficialOpenAIDefaultsUnchanged guards the official-OpenAI path:
+// without a base_url in config, BaseURL stays empty and Model defaults to tts-1.
+func TestResolve_OfficialOpenAIDefaultsUnchanged(t *testing.T) {
+	fileConfig := &ConfigFile{
+		Providers: map[string]ProviderConfig{
+			"openai": {APIKey: "sk-test"},
+		},
+	}
+
+	opts := Resolve(PersonaVoiceInput{}, fileConfig, "openai")
+
+	if opts.BaseURL != "" {
+		t.Errorf("expected empty BaseURL, got %q", opts.BaseURL)
+	}
+	if opts.TimeoutSeconds != 0 {
+		t.Errorf("expected TimeoutSeconds=0, got %d", opts.TimeoutSeconds)
+	}
+	if opts.Model != "tts-1" {
+		t.Errorf("expected default Model=tts-1, got %q", opts.Model)
+	}
+}
+
 func TestResolve_PersonaOverridesProviderConfig(t *testing.T) {
 	fileConfig := &ConfigFile{
 		Providers: map[string]ProviderConfig{

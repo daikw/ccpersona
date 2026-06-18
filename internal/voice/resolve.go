@@ -89,6 +89,12 @@ func Resolve(persona PersonaVoiceInput, fileConfig *ConfigFile, cliProvider stri
 			if provCfg.Format != "" {
 				opts.Format = provCfg.Format
 			}
+			if provCfg.BaseURL != "" {
+				opts.BaseURL = provCfg.BaseURL
+			}
+			if provCfg.TimeoutSeconds > 0 {
+				opts.TimeoutSeconds = provCfg.TimeoutSeconds
+			}
 			if provCfg.Stability > 0 {
 				opts.Stability = provCfg.Stability
 			}

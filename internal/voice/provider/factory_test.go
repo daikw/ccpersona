@@ -58,6 +58,84 @@ func TestCreateProvider_OpenAI(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, provider)
 	})
+
+	t.Run("succeeds with base_url and empty API key (local server)", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+
+		config := map[string]interface{}{
+			"base_url": "http://localhost:8088/v1",
+		}
+		provider, err := factory.CreateProvider("openai", config)
+		assert.NoError(t, err)
+		assert.NotNil(t, provider)
+		assert.Equal(t, "openai", provider.Name())
+	})
+
+	t.Run("fails without base_url and empty API key (official OpenAI)", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+
+		_, err := factory.CreateProvider("openai", map[string]interface{}{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "API key not found")
+	})
+
+	t.Run("fails when base_url is official host without /v1 and no API key", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+
+		config := map[string]interface{}{
+			"base_url": "https://api.openai.com",
+		}
+		_, err := factory.CreateProvider("openai", config)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "API key not found")
+	})
+
+	t.Run("fails when base_url is official host with trailing slash and no API key", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+
+		config := map[string]interface{}{
+			"base_url": "https://api.openai.com/v1/",
+		}
+		_, err := factory.CreateProvider("openai", config)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "API key not found")
+	})
+
+	t.Run("succeeds for loopback local server without API key", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+
+		config := map[string]interface{}{
+			"base_url": "http://127.0.0.1:8088",
+		}
+		provider, err := factory.CreateProvider("openai", config)
+		assert.NoError(t, err)
+		assert.NotNil(t, provider)
+		assert.Equal(t, "openai", provider.Name())
+	})
+
+	t.Run("normalizes root-style local base_url to /v1", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+
+		config := map[string]interface{}{
+			"base_url": "http://127.0.0.1:8088",
+		}
+		provider, err := factory.CreateProvider("openai", config)
+		assert.NoError(t, err)
+		openAIProvider, ok := provider.(*OpenAIProvider)
+		assert.True(t, ok)
+		assert.Equal(t, "http://127.0.0.1:8088/v1", openAIProvider.baseURL)
+	})
+
+	t.Run("fails for non-http(s) base_url scheme", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+
+		config := map[string]interface{}{
+			"base_url": "ftp://localhost:8088",
+		}
+		_, err := factory.CreateProvider("openai", config)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "scheme must be http or https")
+	})
 }
 
 func TestCreateProvider_ElevenLabs(t *testing.T) {
