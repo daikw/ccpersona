@@ -15,6 +15,7 @@ func TestNewManager(t *testing.T) {
 
 	if manager == nil {
 		t.Fatal("Expected manager, got nil")
+		return
 	}
 
 	if manager.homeDir == "" { //nolint:staticcheck // checked for nil above

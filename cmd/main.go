@@ -127,6 +127,13 @@ and behavioral patterns for your AI assistant.`,
 				Usage:       "Execute as Claude Code hook (SessionStart recommended)",
 				Description: "The 'user_prompt_submit_hook' alias is legacy and kept for backward compatibility; prefer 'hook' wired to the SessionStart event.",
 				Action:      handleHook,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "platform",
+						Usage: "Platform hint for ambiguous hook payloads: claude-code, codex, cursor",
+						Value: "",
+					},
+				},
 			},
 			{
 				Name:    "voice",

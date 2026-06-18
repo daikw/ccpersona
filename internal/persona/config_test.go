@@ -63,6 +63,7 @@ func TestLoadConfig(t *testing.T) {
 		}
 		if config == nil {
 			t.Fatal("Expected config, got nil")
+			return
 		}
 		if config.Name != testConfig.Name { //nolint:staticcheck // checked for nil above
 			t.Errorf("Expected name %s, got %s", testConfig.Name, config.Name)
@@ -200,6 +201,7 @@ func TestGetDefaultConfig(t *testing.T) {
 
 	if config == nil {
 		t.Fatal("Expected default config, got nil")
+		return
 	}
 
 	if config.Name != "default" { //nolint:staticcheck // checked for nil above
@@ -252,6 +254,7 @@ func TestLoadConfigWithFallback(t *testing.T) {
 		}
 		if config == nil {
 			t.Fatal("Expected config, got nil")
+			return
 		}
 		if config.Name != "project-persona" {
 			t.Errorf("Expected project-persona, got %s", config.Name)
@@ -335,6 +338,7 @@ func TestLoadConfigForPlatform(t *testing.T) {
 		}
 		if config == nil {
 			t.Fatal("Expected config, got nil")
+			return
 		}
 		if config.Name != "common-persona" {
 			t.Errorf("Expected common-persona, got %s", config.Name)
@@ -380,6 +384,7 @@ func TestLoadConfigForPlatform(t *testing.T) {
 		}
 		if config == nil {
 			t.Fatal("Expected config, got nil")
+			return
 		}
 		if config.Name != "codex-persona" {
 			t.Errorf("Expected codex-persona, got %s", config.Name)
@@ -414,6 +419,7 @@ func TestLoadConfigForPlatform(t *testing.T) {
 		}
 		if config == nil {
 			t.Fatal("Expected config, got nil")
+			return
 		}
 		if config.Name != "common-persona" {
 			t.Errorf("Expected common-persona, got %s", config.Name)
@@ -448,6 +454,7 @@ func TestLoadConfigForPlatform(t *testing.T) {
 		}
 		if config == nil {
 			t.Fatal("Expected config, got nil")
+			return
 		}
 		if config.Name != "common-persona" {
 			t.Errorf("Expected common-persona, got %s", config.Name)

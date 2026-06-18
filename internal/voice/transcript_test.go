@@ -109,13 +109,13 @@ func TestGetLatestAssistantMessageWindowCrossing(t *testing.T) {
 	// outside the initial tail window.
 	padding := strings.Repeat("x", tailWindowSize+512*1024)
 	writeJSONLine(t, f, TranscriptMessage{
-		Type: "user",
-		UUID: "user-1",
+		Type:    "user",
+		UUID:    "user-1",
 		Message: messageBody("user", "text", padding),
 	})
 	writeJSONLine(t, f, TranscriptMessage{
-		Type: "assistant",
-		UUID: "assistant-1",
+		Type:    "assistant",
+		UUID:    "assistant-1",
 		Message: messageBody("assistant", "text", "Found after window growth"),
 	})
 
@@ -158,6 +158,46 @@ func TestGetLatestAssistantMessageNoAssistantInTail(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no assistant message found") {
 		t.Errorf("Expected 'no assistant message found', got: %v", err)
+	}
+}
+
+// TestGetLatestAssistantMessageSkipsTextlessAssistantInTail verifies simple
+// mode keeps growing the tail window when the newest assistant line has no
+// usable text content. getMessageSimple requires non-empty assistant text, so
+// stopping at a tool-use-only assistant line would miss earlier text.
+func TestGetLatestAssistantMessageSkipsTextlessAssistantInTail(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "textless_assistant_in_tail.jsonl")
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "assistant-1",
+		Message: messageBody("assistant", "text", "Text before tool use"),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "user",
+		UUID:    "user-1",
+		Message: messageBody("user", "text", strings.Repeat("x", tailWindowSize+512*1024)),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "assistant-2",
+		Message: messageBody("assistant", "tool_use", ""),
+	})
+
+	reader := NewTranscriptReader(DefaultConfig())
+	text, err := reader.GetLatestAssistantMessage(testFile)
+	if err != nil {
+		t.Fatalf("Failed to get assistant message: %v", err)
+	}
+	if text != "Text before tool use" {
+		t.Errorf("Expected 'Text before tool use', got '%s'", text)
 	}
 }
 

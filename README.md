@@ -108,6 +108,26 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
 
 #### For OpenAI Codex
 
+For Codex `hooks.json` lifecycle hooks, pass the platform explicitly because
+Claude Code and Codex share the same `SessionStart` payload shape:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ccpersona hook --platform codex"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 Add the following to your Codex config file (`~/.codex/config.toml`):
 
 ```toml
@@ -382,6 +402,8 @@ The `notify` command provides a unified interface that automatically detects and
   - Codex: `"type": "agent-turn-complete"` field
   - Cursor: `"conversation_id"` field
   - Claude Code: `"session_id"` + `"hook_event_name"` fields
+- **Platform hints**: Use `ccpersona hook --platform codex` or `CCPERSONA_PLATFORM=codex`
+  for Codex lifecycle hooks whose payload shape overlaps Claude Code
 - **Codex events**: Handles `agent-turn-complete` events with turn completion notifications
 - **Cursor events**: Handles `afterAgentResponse` for voice synthesis (provides AI response directly)
 - **Claude Code events**: Routes `UserPromptSubmit`, `Stop`, and `Notification` events to appropriate handlers

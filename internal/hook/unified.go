@@ -20,6 +20,13 @@ type UnifiedHookEvent struct {
 
 // DetectAndParse automatically detects the hook source and parses the event
 func DetectAndParse(r io.Reader) (*UnifiedHookEvent, error) {
+	return DetectAndParseForSource(r, "")
+}
+
+// DetectAndParseForSource parses hook input with an optional source hint.
+// Some lifecycle payloads intentionally share the same wire shape across
+// assistants, so callers that know the invoking platform can pass it here.
+func DetectAndParseForSource(r io.Reader, sourceHint string) (*UnifiedHookEvent, error) {
 	// Read all data from reader
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -46,6 +53,9 @@ func DetectAndParse(r io.Reader) (*UnifiedHookEvent, error) {
 	// multiple signals rather than trusting a single field, so one schema change
 	// cannot silently misroute a Cursor event into the Claude Code parser.
 	if _, hasHookEventName := generic["hook_event_name"]; hasHookEventName {
+		if sourceHint == "codex" {
+			return parseCodexLifecycleEvent(data)
+		}
 		if isCursorEvent(generic) {
 			return parseCursorEvent(data, generic)
 		}
@@ -135,6 +145,28 @@ func parseCodexEvent(data []byte) (*UnifiedHookEvent, error) {
 		CWD:        event.CWD,
 		EventType:  event.Type,
 		UserInput:  event.InputMessages,
+		AIResponse: event.LastAssistantMessage,
+		RawEvent:   &event,
+	}, nil
+}
+
+func parseCodexLifecycleEvent(data []byte) (*UnifiedHookEvent, error) {
+	var event CodexLifecycleEvent
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, fmt.Errorf("failed to parse Codex lifecycle event: %w", err)
+	}
+
+	userInput := []string{}
+	if event.Prompt != "" {
+		userInput = []string{event.Prompt}
+	}
+
+	return &UnifiedHookEvent{
+		Source:     "codex",
+		SessionID:  event.SessionID,
+		CWD:        event.CWD,
+		EventType:  event.HookEventName,
+		UserInput:  userInput,
 		AIResponse: event.LastAssistantMessage,
 		RawEvent:   &event,
 	}, nil

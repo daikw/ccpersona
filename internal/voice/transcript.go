@@ -184,15 +184,15 @@ const tailWindowSize = 1024 * 1024 // 1MB
 // mode-specific stop condition is met or the whole file has been read.
 //
 // The stop condition differs per mode because of what each consumer needs:
-//   - simple mode reads only the newest assistant line, so one assistant line
-//     in the window is enough.
+//   - simple mode reads only the newest assistant text, so one usable assistant
+//     text block in the window is enough.
 //   - UUID mode joins every fragment of the newest assistant message, which
 //     spans multiple JSONL lines. A window holding only one assistant UUID may
 //     have cut off earlier fragments of that same message, so we require two
 //     distinct assistant UUIDs: seeing an older message's UUID proves all
 //     fragments of the newer one lie after it, i.e. fully inside the window.
 func (tr *TranscriptReader) readLinesReverse(file *os.File) ([]string, error) {
-	stop := containsAssistantLine
+	stop := containsAssistantTextLine
 	if tr.config.UUIDMode {
 		stop = containsTwoAssistantUUIDs
 	}
@@ -293,15 +293,21 @@ func fileSize(file *os.File) (int64, error) {
 	return info.Size(), nil
 }
 
-// containsAssistantLine reports whether any line parses as an assistant message.
-func containsAssistantLine(lines []string) bool {
+// containsAssistantTextLine reports whether any line parses as an assistant
+// message containing non-empty text, matching getMessageSimple's usable input.
+func containsAssistantTextLine(lines []string) bool {
 	for _, line := range lines {
 		var msg TranscriptMessage
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			continue
 		}
-		if msg.Type == "assistant" {
-			return true
+		if msg.Type != "assistant" || msg.Message.Role != "assistant" {
+			continue
+		}
+		for _, content := range msg.Message.Content {
+			if content.Type == "text" && strings.TrimSpace(content.Text) != "" {
+				return true
+			}
 		}
 	}
 	return false
