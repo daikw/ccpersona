@@ -286,9 +286,10 @@ func (ve *VoiceEngine) PlayWithOptions(audioFile string, wait bool) error {
 		return fmt.Errorf("failed to play audio: %w", err)
 	}
 
-	// Clean up the file after a delay
+	// Remove the file once playback finishes. If the process outlives this
+	// goroutine (e.g. on exit), the temp file is left to the OS, same as before.
 	go func() {
-		time.Sleep(10 * time.Second)
+		_ = cmd.Wait()
 		_ = os.Remove(audioFile)
 	}()
 

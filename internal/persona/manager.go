@@ -50,6 +50,23 @@ func (m *Manager) ListPersonas() ([]string, error) {
 	return personas, nil
 }
 
+// validatePersonaName returns an error if name is not a safe single filename component.
+func validatePersonaName(name string) error {
+	if name == "" {
+		return fmt.Errorf("persona name cannot be empty")
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("persona name must not contain path separators: %q", name)
+	}
+	if name == ".." {
+		return fmt.Errorf("persona name must not be '..': %q", name)
+	}
+	if filepath.Base(name) != name {
+		return fmt.Errorf("persona name must be a single filename component: %q", name)
+	}
+	return nil
+}
+
 // GetPersonaPath returns the full path to a persona file
 func (m *Manager) GetPersonaPath(name string) string {
 	return filepath.Join(m.personasDir, name+".md")
@@ -57,6 +74,9 @@ func (m *Manager) GetPersonaPath(name string) string {
 
 // PersonaExists checks if a persona exists
 func (m *Manager) PersonaExists(name string) bool {
+	if err := validatePersonaName(name); err != nil {
+		return false
+	}
 	path := m.GetPersonaPath(name)
 	_, err := os.Stat(path)
 	return err == nil
@@ -64,12 +84,15 @@ func (m *Manager) PersonaExists(name string) bool {
 
 // CreatePersona creates a new persona from a template
 func (m *Manager) CreatePersona(name string) error {
+	if err := validatePersonaName(name); err != nil {
+		return err
+	}
 	if m.PersonaExists(name) {
 		return fmt.Errorf("persona '%s' already exists", name)
 	}
 
 	// Ensure personas directory exists
-	if err := os.MkdirAll(m.personasDir, 0755); err != nil {
+	if err := os.MkdirAll(m.personasDir, DirPermission); err != nil {
 		return fmt.Errorf("failed to create personas directory: %w", err)
 	}
 
@@ -95,7 +118,7 @@ func (m *Manager) CreatePersona(name string) error {
 `, name)
 
 	path := m.GetPersonaPath(name)
-	if err := os.WriteFile(path, []byte(template), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(template), FilePermission); err != nil {
 		return fmt.Errorf("failed to create persona file: %w", err)
 	}
 
@@ -105,6 +128,9 @@ func (m *Manager) CreatePersona(name string) error {
 
 // ReadPersona reads and returns the raw content of a persona file (including front matter).
 func (m *Manager) ReadPersona(name string) (string, error) {
+	if err := validatePersonaName(name); err != nil {
+		return "", err
+	}
 	if !m.PersonaExists(name) {
 		return "", fmt.Errorf("persona '%s' does not exist", name)
 	}

@@ -156,8 +156,12 @@ func TestOpenAIProvider_IsAvailable(t *testing.T) {
 		assert.False(t, provider.IsAvailable(ctx))
 	})
 
-	t.Run("returns true when API responds OK", func(t *testing.T) {
+	t.Run("uses non-billed GET /models for the check", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Must not hit the billed synthesis endpoint.
+			assert.Equal(t, "GET", r.Method)
+			assert.Equal(t, OpenAIModelsEndpoint, r.URL.Path)
+			assert.Contains(t, r.Header.Get("Authorization"), "Bearer test-api-key")
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()

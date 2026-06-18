@@ -4,7 +4,6 @@ package persona
 type Config struct {
 	Name               string       `json:"name"`
 	Voice              *VoiceConfig `json:"voice,omitempty"`
-	OverrideGlobal     bool         `json:"override_global,omitempty"`
 	CustomInstructions string       `json:"custom_instructions,omitempty"`
 }
 

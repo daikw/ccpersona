@@ -527,6 +527,110 @@ func TestGetCursorEvent(t *testing.T) {
 	})
 }
 
+// TestDetectAndParseSourceBoundaries covers the most fragile source-detection
+// boundaries: Cursor vs Claude Code disambiguation, and Codex source detection
+// decoupled from the concrete "type" value.
+func TestDetectAndParseSourceBoundaries(t *testing.T) {
+	tests := []struct {
+		name       string
+		jsonData   string
+		wantSource string // empty => expect an error
+		wantType   string
+	}{
+		{
+			name: "hook_event_name without conversation_id is Claude Code",
+			jsonData: `{
+				"session_id": "s-1",
+				"transcript_path": "/t.jsonl",
+				"hook_event_name": "Stop"
+			}`,
+			wantSource: "claude-code",
+			wantType:   "Stop",
+		},
+		{
+			name: "conversation_id plus Cursor fields is Cursor",
+			jsonData: `{
+				"conversation_id": "c-1",
+				"generation_id": "g-1",
+				"hook_event_name": "Stop",
+				"cursor_version": "0.45.0",
+				"workspace_roots": ["/project"]
+			}`,
+			wantSource: "cursor",
+			wantType:   "Stop",
+		},
+		{
+			name: "camelCase event name with conversation_id is Cursor",
+			jsonData: `{
+				"conversation_id": "c-2",
+				"hook_event_name": "sessionStart"
+			}`,
+			wantSource: "cursor",
+			wantType:   "sessionStart",
+		},
+		{
+			name: "Codex agent-turn-complete is Codex",
+			jsonData: `{
+				"type": "agent-turn-complete",
+				"thread-id": "t-1",
+				"turn-id": "1",
+				"cwd": "/project",
+				"input-messages": [],
+				"last-assistant-message": "Done"
+			}`,
+			wantSource: "codex",
+			wantType:   "agent-turn-complete",
+		},
+		{
+			name: "unknown Codex type with thread-id corroboration parses as Codex",
+			jsonData: `{
+				"type": "session-start",
+				"thread-id": "t-2",
+				"turn-id": "2",
+				"cwd": "/project"
+			}`,
+			wantSource: "codex",
+			wantType:   "session-start",
+		},
+		{
+			name: "unknown type without Codex-specific fields is unknown",
+			jsonData: `{
+				"type": "session-start",
+				"cwd": "/project"
+			}`,
+			wantSource: "",
+		},
+		{
+			name:       "no type and no hook_event_name is unknown",
+			jsonData:   `{"some_field": "value"}`,
+			wantSource: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event, err := DetectAndParse(strings.NewReader(tt.jsonData))
+
+			if tt.wantSource == "" {
+				if err == nil {
+					t.Fatalf("expected error, got source=%q", event.Source)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if event.Source != tt.wantSource {
+				t.Errorf("source: want %q, got %q", tt.wantSource, event.Source)
+			}
+			if event.EventType != tt.wantType {
+				t.Errorf("event type: want %q, got %q", tt.wantType, event.EventType)
+			}
+		})
+	}
+}
+
 func TestParseClaudeCodeEventTypes(t *testing.T) {
 	t.Run("parse PreToolUse event", func(t *testing.T) {
 		jsonData := `{

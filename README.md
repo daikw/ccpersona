@@ -250,7 +250,6 @@ Manage settings in `.claude/persona.json` for each project:
     "volume": 1.0,
     "speed": 1.0
   },
-  "override_global": true,
   "custom_instructions": "Additional project-specific instructions"
 }
 ```
@@ -334,13 +333,13 @@ Now each device produces a distinct voice, making it easy to identify which sess
 
 - Global personas: `~/.claude/personas/`
 - Project configuration: `<project>/.claude/persona.json`
-- Session tracking: `/tmp/ccpersona-sessions/`
+- Voice/provider config: `<project>/.claude/config.json` or `~/.claude/config.json`
 
 ## Development
 
 ### Requirements
 
-- Go 1.21 or later
+- Go 1.25 or later
 - Make
 
 ### Build
@@ -379,12 +378,12 @@ git push origin --tags
 
 #### Claude Code Integration
 
-ccpersona integrates with Claude Code through the UserPromptSubmit hook:
+ccpersona integrates with Claude Code through the SessionStart hook (recommended):
 
-1. Configure Claude Code to run `ccpersona hook` on each prompt submission
-2. When you submit a prompt, ccpersona checks for `.claude/persona.json` in the current directory
-3. If found and it's a new session, the persona instructions are output
-4. Claude Code receives these instructions and adjusts its behavior accordingly
+1. Configure Claude Code to run `ccpersona hook` on SessionStart (see Quick Start above)
+2. At the start of each session, ccpersona checks for `.claude/persona.json` in the current directory
+3. If found, the persona instructions are output to stdout and Claude Code applies them
+4. The legacy UserPromptSubmit hook is still supported for backward compatibility
 
 #### OpenAI Codex Integration
 
@@ -416,7 +415,7 @@ This design provides:
 - Cross-platform compatibility (Windows/Mac/Linux)
 - Multi-platform AI assistant support (Claude Code, OpenAI Codex, and Cursor)
 - Robust error handling (silent failures to avoid disrupting the AI assistant)
-- Session tracking (prevents duplicate persona applications)
+- Idempotent persona application (SessionStart fires once per session; re-running is always safe)
 - Advanced customization options
 
 ### Security Notes

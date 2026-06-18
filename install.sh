@@ -185,6 +185,24 @@ main() {
         error "Download failed. Check your network connection or verify the version exists."
     fi
 
+    # Verify checksum (fail closed: if a sha256 tool is available, both the
+    # checksums.txt download and the verification must succeed)
+    CHECKSUMS_URL="${GITHUB_BASE_URL}/releases/download/${VERSION}/checksums.txt"
+    CHECKSUMS_PATH="${TMP_DIR}/checksums.txt"
+    if command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1; then
+        if ! download "$CHECKSUMS_URL" "$CHECKSUMS_PATH"; then
+            error "Could not download checksums.txt; aborting to avoid installing an unverified binary."
+        fi
+        info "Verifying checksum..."
+        if command -v sha256sum >/dev/null 2>&1; then
+            ( cd "$TMP_DIR" && sha256sum --check --ignore-missing "$CHECKSUMS_PATH" ) || error "Checksum verification failed. Download may be corrupted."
+        else
+            ( cd "$TMP_DIR" && shasum -a 256 --ignore-missing -c "$CHECKSUMS_PATH" 2>/dev/null ) || error "Checksum verification failed. Download may be corrupted."
+        fi
+    else
+        warn "No sha256sum or shasum found; skipping checksum verification"
+    fi
+
     # Extract
     info "Extracting..."
     cd "$TMP_DIR"

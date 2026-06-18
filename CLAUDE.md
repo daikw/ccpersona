@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build and development
-export GOPATH=$HOME/go && make build    # Build ccpersona binary (GOPATH export required to avoid tilde expansion error)
-export GOPATH=$HOME/go && make test     # Run all tests with coverage
+make build                               # Build ccpersona binary
+make test                                # Run all tests with coverage
 make fmt                                 # Format code
 make vet                                 # Run go vet
 make check                              # Run fmt, vet, and tests
@@ -36,7 +36,7 @@ ccpersona is a persona management system that automatically applies different "p
 1. **Persona System** (`internal/persona/`)
    - Personas are markdown files stored in `~/.claude/personas/`
    - Project configuration in `.claude/persona.json`
-   - Session tracking prevents duplicate persona applications
+   - The SessionStart hook fires once per session; persona application is idempotent (re-running produces the same output without side effects)
    - Manager handles persona CRUD operations and AI assistant integration
 
 2. **Hook System** (`internal/hook/`)
@@ -190,7 +190,7 @@ Each platform uses its own standard configuration directory.
 - **No shell scripts**: All functionality implemented in Go for cross-platform compatibility
 - **Multi-platform support**: Single codebase works with both Claude Code and OpenAI Codex
 - **Silent failures in hooks**: Errors are logged but don't fail to avoid disrupting AI assistants
-- **Session persistence**: Session markers stored in `/tmp/ccpersona-sessions/` with 24-hour cleanup
+- **Idempotent persona application**: SessionStart hook fires once per session; outputting the same persona instructions multiple times is harmless
 - **Persona format**: Markdown with specific sections (口調, 考え方, 価値観, etc.)
 - **Unified hook interface**: Auto-detection of platform from JSON structure eliminates need for separate configurations
 
@@ -200,4 +200,3 @@ Each platform uses its own standard configuration directory.
 - Voice synthesis requires external engines running locally
 - The `ccpersona` binary must be in PATH for Claude Code hooks to work
 - Personas can include voice configuration for automatic synthesis
-- GOPATH tilde expansion issue requires explicit export in make commands

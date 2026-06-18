@@ -135,13 +135,6 @@ This checks:
    echo '{"session_id":"test"}' | ccpersona hook
    ```
 
-5. **Check session tracking (persona only applies once per session):**
-   ```bash
-   ls /tmp/ccpersona-sessions/
-   # Remove to force reapplication
-   rm -rf /tmp/ccpersona-sessions/
-   ```
-
 ### Persona changes don't take effect
 
 **Symptoms:**
@@ -149,14 +142,9 @@ This checks:
 
 **Solutions:**
 
-1. **Start a new Claude Code session** - personas are applied once per session
+1. **Start a new Claude Code session** - the SessionStart hook fires once per session; persona application is idempotent so re-running it in a new session is always safe
 
-2. **Clear session tracking:**
-   ```bash
-   rm -rf /tmp/ccpersona-sessions/
-   ```
-
-3. **Verify the persona was saved:**
+2. **Verify the persona was saved:**
    ```bash
    ccpersona show <persona-name>
    ```
@@ -199,7 +187,7 @@ To use different speakers on different machines:
    ```bash
    # On each device
    mkdir -p .claude
-   cat > .claude/voice.json << 'EOF'
+   cat > .claude/config.json << 'EOF'
    {
      "default_provider": "aivisspeech",
      "providers": {
@@ -214,7 +202,7 @@ To use different speakers on different machines:
 2. **Or use global config per device:**
    ```bash
    mkdir -p ~/.claude
-   # Edit ~/.claude/voice.json with device-specific speaker ID
+   # Edit ~/.claude/config.json with device-specific speaker ID
    ```
 
 ## Hook Issues

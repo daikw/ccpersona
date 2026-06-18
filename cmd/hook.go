@@ -38,11 +38,6 @@ func handleHook(ctx context.Context, c *cli.Command) error {
 	// Platform is available from the unified event
 	platform := unifiedEvent.Source
 
-	// Set session ID from hook event
-	if unifiedEvent.SessionID != "" {
-		_ = os.Setenv("CLAUDE_SESSION_ID", unifiedEvent.SessionID)
-	}
-
 	log.Debug().
 		Str("source", unifiedEvent.Source).
 		Str("event_type", unifiedEvent.EventType).

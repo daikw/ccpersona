@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/daikw/ccpersona/internal/cliui"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
@@ -47,6 +48,25 @@ and behavioral patterns for your AI assistant.`,
 				Usage:     "Show persona details (without args: show current persona)",
 				Action:    handleShow,
 				ArgsUsage: "[persona]",
+			},
+			{
+				Name:    "list",
+				Usage:   "List available personas (active persona marked with *)",
+				Action:  handleList,
+				Aliases: []string{"ls"},
+			},
+			{
+				Name:      "set",
+				Usage:     "Set the active persona for the current project (or --global)",
+				Action:    handleSet,
+				ArgsUsage: "<name>",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "global",
+						Aliases: []string{"g"},
+						Usage:   "Write to the global Claude Code config (~/.claude/persona.json); Codex/Cursor globals are not touched",
+					},
+				},
 			},
 			{
 				Name:      "create",
@@ -102,10 +122,11 @@ and behavioral patterns for your AI assistant.`,
 				Action: handleDoctor,
 			},
 			{
-				Name:    "hook",
-				Aliases: []string{"user_prompt_submit_hook"},
-				Usage:   "Execute as Claude Code UserPromptSubmit hook",
-				Action:  handleHook,
+				Name:        "hook",
+				Aliases:     []string{"user_prompt_submit_hook"},
+				Usage:       "Execute as Claude Code hook (SessionStart recommended)",
+				Description: "The 'user_prompt_submit_hook' alias is legacy and kept for backward compatibility; prefer 'hook' wired to the SessionStart event.",
+				Action:      handleHook,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "platform",
@@ -235,10 +256,11 @@ and behavioral patterns for your AI assistant.`,
 				Action: handleMCP,
 			},
 			{
-				Name:    "notify",
-				Aliases: []string{"notification_hook"},
-				Usage:   "Handle notifications (auto-detects Claude Code, Codex, or Cursor)",
-				Action:  handleNotify,
+				Name:        "notify",
+				Aliases:     []string{"notification_hook"},
+				Usage:       "Handle notifications (auto-detects Claude Code, Codex, or Cursor)",
+				Description: "The 'notification_hook' alias is legacy and kept for backward compatibility; prefer 'notify' wired to the Notification event.",
+				Action:      handleNotify,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:  "voice",
@@ -288,17 +310,20 @@ and behavioral patterns for your AI assistant.`,
 				},
 			},
 		},
-		Before: func(ctx context.Context, c *cli.Command) error {
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 			if c.Bool("verbose") {
 				zerolog.SetGlobalLevel(zerolog.DebugLevel)
 			} else {
 				zerolog.SetGlobalLevel(zerolog.InfoLevel)
 			}
-			return nil
+			return ctx, nil
 		},
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		log.Fatal().Err(err).Msg("Failed to run application")
+		// Command handlers own their user-facing messages; report the error
+		// once in plain CLI form instead of a zerolog FTL record.
+		fmt.Fprintf(os.Stderr, "%s %v\n", cliui.Failure("error:"), err)
+		os.Exit(1)
 	}
 }

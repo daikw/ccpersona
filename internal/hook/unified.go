@@ -39,29 +39,98 @@ func DetectAndParseForSource(r io.Reader, sourceHint string) (*UnifiedHookEvent,
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	// Detect source by checking for distinctive fields
-	if _, hasType := generic["type"]; hasType {
-		if typeVal, ok := generic["type"].(string); ok && typeVal == "agent-turn-complete" {
-			// This is a Codex event
-			return parseCodexEvent(data)
-		}
+	// Source detection is decoupled from event-type interpretation.
+	// Codex is identified by its source-level shape (a "type" field corroborated
+	// by Codex-specific fields, or the known type value alone). The concrete
+	// value of "type" is interpreted downstream in parseCodexEvent, so a future
+	// Codex event type beyond "agent-turn-complete" is still recognized as Codex
+	// as long as it carries Codex-specific fields.
+	if isCodexEvent(generic) {
+		return parseCodexEvent(data)
 	}
 
+	// Both Claude Code and Cursor carry hook_event_name; disambiguate by scoring
+	// multiple signals rather than trusting a single field, so one schema change
+	// cannot silently misroute a Cursor event into the Claude Code parser.
 	if _, hasHookEventName := generic["hook_event_name"]; hasHookEventName {
 		if sourceHint == "codex" {
 			return parseCodexLifecycleEvent(data)
 		}
-		// Distinguish between Claude Code and Cursor by checking for conversation_id
-		// Cursor uses conversation_id, Claude Code uses session_id
-		if _, hasConversationID := generic["conversation_id"]; hasConversationID {
-			// This is a Cursor event
+		if isCursorEvent(generic) {
 			return parseCursorEvent(data, generic)
 		}
-		// This is a Claude Code event
 		return parseClaudeCodeEvent(data, generic)
 	}
 
 	return nil, fmt.Errorf("unknown hook event format")
+}
+
+// isCodexEvent reports whether the generic payload looks like a Codex notify
+// event. A "type" field is necessary but not sufficient: another source could
+// add a "type" field someday, and parseCodexEvent does not validate required
+// fields, so matching on "type" alone would silently misroute such events with
+// an empty ThreadID. Corroboration order: Codex-specific fields admit unknown
+// future type values; without them, only the known type value is accepted.
+func isCodexEvent(generic map[string]interface{}) bool {
+	if _, hasType := generic["type"]; !hasType {
+		return false
+	}
+	if hasAnyKey(generic, "thread-id", "turn-id", "input-messages", "last-assistant-message") {
+		return true
+	}
+	if t, ok := generic["type"].(string); ok && t == "agent-turn-complete" {
+		return true
+	}
+	return false
+}
+
+// isCursorEvent decides Cursor vs Claude Code by majority vote over independent
+// signals, since both sources carry hook_event_name. Signals (each +1 toward
+// Cursor): a conversation_id field, a Cursor-specific field (workspace_roots /
+// cursor_version / generation_id), and a camelCase hook_event_name (Cursor uses
+// camelCase like "sessionStart"; Claude Code uses PascalCase like "SessionStart").
+//
+// Requiring >= 2 agreeing signals avoids misrouting on a single schema change.
+// On a tie or insufficient signal we fall back to the legacy rule
+// (conversation_id present => Cursor) to preserve prior behavior exactly.
+func isCursorEvent(generic map[string]interface{}) bool {
+	_, hasConversationID := generic["conversation_id"]
+
+	score := 0
+	if hasConversationID {
+		score++
+	}
+	if hasAnyKey(generic, "workspace_roots", "cursor_version", "generation_id") {
+		score++
+	}
+	if name, ok := generic["hook_event_name"].(string); ok && isCamelCase(name) {
+		score++
+	}
+
+	if score >= 2 {
+		return true
+	}
+	// Fallback: legacy single-field rule for compatibility.
+	return hasConversationID
+}
+
+func hasAnyKey(m map[string]interface{}, keys ...string) bool {
+	for _, k := range keys {
+		if _, ok := m[k]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// isCamelCase reports whether s begins with a lowercase ASCII letter, which
+// distinguishes Cursor's camelCase event names from Claude Code's PascalCase.
+func isCamelCase(s string) bool {
+	if s == "" {
+		return false
+	}
+	c := s[0]
+	return c >= 'a' && c <= 'z'
 }
 
 func parseCodexEvent(data []byte) (*UnifiedHookEvent, error) {
