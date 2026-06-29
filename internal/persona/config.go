@@ -12,6 +12,9 @@ import (
 const (
 	ConfigFileName = "persona.json"
 	ClaudeDir      = ".claude"
+	AgentsDir      = ".agents"
+	CodexDir       = ".codex"
+	CursorDir      = ".cursor"
 
 	// File permissions
 	DirPermission  = 0755 // Directory permission (rwxr-xr-x)
@@ -27,9 +30,9 @@ const (
 
 // Global config directories for each platform
 const (
-	GlobalDirClaudeCode = ".claude"
-	GlobalDirCodex      = ".codex"
-	GlobalDirCursor     = ".cursor"
+	GlobalDirClaudeCode = ClaudeDir
+	GlobalDirCodex      = CodexDir
+	GlobalDirCursor     = CursorDir
 )
 
 // GetGlobalConfigDir returns the global config directory for a given platform
@@ -45,58 +48,37 @@ func GetGlobalConfigDir(platform string) string {
 	}
 }
 
-// LoadConfig loads persona configuration from the specified directory's .claude directory
+// LoadConfig loads persona configuration from the specified directory.
 func LoadConfig(projectPath string) (*Config, error) {
 	return LoadConfigForPlatform(projectPath, "")
 }
 
 // LoadConfigForPlatform loads persona configuration with platform-specific path support.
-// For non-Claude platforms (Codex, Cursor), it checks .claude/<platform>/persona.json first.
-// Priority: .claude/<platform>/persona.json > .claude/persona.json
-// Note: Claude Code does not use a subdirectory; it uses .claude/persona.json directly.
+// Priority:
+//   - Claude Code: .claude/persona.json > .agents/persona.json
+//   - Codex: .codex/persona.json > .claude/codex/persona.json > .agents/persona.json > .claude/persona.json
+//   - Cursor: .cursor/persona.json > .claude/cursor/persona.json > .agents/persona.json > .claude/persona.json
+//
+// The .claude/<platform>/persona.json and .claude/persona.json paths are kept
+// for backward compatibility. New shared agent config should use .agents/persona.json.
 func LoadConfigForPlatform(projectPath, platform string) (*Config, error) {
-	var configPath string
-
-	// Try platform-specific path first (only for non-Claude platforms)
-	if platform != "" && platform != PlatformClaudeCode {
-		configPath = filepath.Join(projectPath, ClaudeDir, platform, ConfigFileName)
-		log.Debug().Str("path", configPath).Str("platform", platform).Msg("Trying platform-specific persona config")
-
-		data, err := os.ReadFile(configPath)
-		if err == nil {
-			var config Config
-			if err := json.Unmarshal(data, &config); err != nil {
-				return nil, fmt.Errorf("failed to parse config file: %w", err)
-			}
-			log.Debug().Str("persona", config.Name).Str("platform", platform).Msg("Loaded platform-specific persona config")
-			return &config, nil
+	for _, configPath := range projectConfigPaths(projectPath, platform) {
+		config, err := loadConfigFile(configPath)
+		if err != nil {
+			return nil, err
 		}
-		if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
+		if config != nil {
+			log.Debug().
+				Str("persona", config.Name).
+				Str("path", configPath).
+				Str("platform", platform).
+				Msg("Loaded persona config")
+			return config, nil
 		}
-		log.Debug().Str("platform", platform).Msg("No platform-specific config found, trying common config")
 	}
 
-	// Fallback to common config (.claude/persona.json)
-	configPath = filepath.Join(projectPath, ClaudeDir, ConfigFileName)
-	log.Debug().Str("path", configPath).Msg("Loading persona config")
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			log.Debug().Msg("No persona config found")
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	log.Debug().Str("persona", config.Name).Msg("Loaded persona config")
-	return &config, nil
+	log.Debug().Str("platform", platform).Msg("No persona config found")
+	return nil, nil
 }
 
 // LoadConfigWithFallback loads persona configuration from the current directory,
@@ -110,17 +92,25 @@ func LoadConfigWithFallback() (*Config, error) {
 //
 // Search order for Claude Code (or empty platform):
 //  1. .claude/persona.json (project)
-//  2. ~/.claude/persona.json (global)
+//  2. .agents/persona.json (project, shared)
+//  3. ~/.claude/persona.json (global)
+//  4. ~/.agents/persona.json (global, shared)
 //
 // Search order for Codex:
-//  1. .claude/codex/persona.json (project, platform-specific)
-//  2. .claude/persona.json (project, common)
-//  3. ~/.codex/persona.json (global)
+//  1. .codex/persona.json (project, platform-specific)
+//  2. .claude/codex/persona.json (project, legacy platform-specific)
+//  3. .agents/persona.json (project, shared)
+//  4. .claude/persona.json (project, legacy shared)
+//  5. ~/.codex/persona.json (global)
+//  6. ~/.agents/persona.json (global, shared)
 //
 // Search order for Cursor:
-//  1. .claude/cursor/persona.json (project, platform-specific)
-//  2. .claude/persona.json (project, common)
-//  3. ~/.cursor/persona.json (global)
+//  1. .cursor/persona.json (project, platform-specific)
+//  2. .claude/cursor/persona.json (project, legacy platform-specific)
+//  3. .agents/persona.json (project, shared)
+//  4. .claude/persona.json (project, legacy shared)
+//  5. ~/.cursor/persona.json (global)
+//  6. ~/.agents/persona.json (global, shared)
 func LoadConfigWithFallbackForPlatform(platform string) (*Config, error) {
 	// Try current directory first (with platform support)
 	config, err := LoadConfigForPlatform(".", platform)
@@ -132,34 +122,77 @@ func LoadConfigWithFallbackForPlatform(platform string) (*Config, error) {
 		return config, nil
 	}
 
-	// Fallback to platform-specific global directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	// Get the correct global config directory for this platform
-	globalDir := GetGlobalConfigDir(platform)
-	globalConfigPath := filepath.Join(homeDir, globalDir, ConfigFileName)
+	for _, configPath := range globalConfigPaths(homeDir, platform) {
+		config, err := loadConfigFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+		if config != nil {
+			log.Debug().
+				Str("persona", config.Name).
+				Str("path", configPath).
+				Str("platform", platform).
+				Msg("Using global persona config")
+			return config, nil
+		}
+	}
 
-	log.Debug().Str("path", globalConfigPath).Str("platform", platform).Msg("Trying global persona config")
+	log.Debug().Str("platform", platform).Msg("No global persona config found")
+	return nil, nil
+}
 
-	data, err := os.ReadFile(globalConfigPath)
+func projectConfigPaths(projectPath, platform string) []string {
+	switch platform {
+	case PlatformCodex:
+		return []string{
+			filepath.Join(projectPath, CodexDir, ConfigFileName),
+			filepath.Join(projectPath, ClaudeDir, PlatformCodex, ConfigFileName),
+			filepath.Join(projectPath, AgentsDir, ConfigFileName),
+			filepath.Join(projectPath, ClaudeDir, ConfigFileName),
+		}
+	case PlatformCursor:
+		return []string{
+			filepath.Join(projectPath, CursorDir, ConfigFileName),
+			filepath.Join(projectPath, ClaudeDir, PlatformCursor, ConfigFileName),
+			filepath.Join(projectPath, AgentsDir, ConfigFileName),
+			filepath.Join(projectPath, ClaudeDir, ConfigFileName),
+		}
+	default:
+		return []string{
+			filepath.Join(projectPath, ClaudeDir, ConfigFileName),
+			filepath.Join(projectPath, AgentsDir, ConfigFileName),
+		}
+	}
+}
+
+func globalConfigPaths(homeDir, platform string) []string {
+	paths := []string{filepath.Join(homeDir, GetGlobalConfigDir(platform), ConfigFileName)}
+	paths = append(paths, filepath.Join(homeDir, AgentsDir, ConfigFileName))
+	return paths
+}
+
+func loadConfigFile(configPath string) (*Config, error) {
+	log.Debug().Str("path", configPath).Msg("Trying persona config")
+
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Debug().Str("platform", platform).Msg("No global persona config found")
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to read global config file: %w", err)
+		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
 	}
 
-	config = &Config{}
-	if err := json.Unmarshal(data, config); err != nil {
-		return nil, fmt.Errorf("failed to parse global config file: %w", err)
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
 	}
 
-	log.Debug().Str("persona", config.Name).Str("platform", platform).Msg("Using global persona config")
-	return config, nil
+	return &config, nil
 }
 
 // SaveConfig saves persona configuration to the project's .claude directory

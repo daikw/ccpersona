@@ -35,7 +35,8 @@ ccpersona is a persona management system that automatically applies different "p
 
 1. **Persona System** (`internal/persona/`)
    - Personas are markdown files stored in `~/.claude/personas/`
-   - Project configuration in `.claude/persona.json`
+   - Shared project configuration in `.agents/persona.json`
+   - Agent-specific project configuration in `.claude/persona.json`, `.codex/persona.json`, or `.cursor/persona.json`
    - Session tracking prevents duplicate persona applications
    - Manager handles persona CRUD operations and AI assistant integration
 
@@ -94,7 +95,7 @@ The system integrates with Claude Code via hooks. **SessionStart is the recommen
 
 The hook process:
 1. User configures Claude Code with the hook command
-2. On session start (or prompt submit for legacy), ccpersona checks for `.claude/persona.json`
+2. On session start (or prompt submit for legacy), ccpersona checks project/global persona config using the platform-aware hierarchy
 3. If found, applies the specified persona by outputting formatted instructions
 4. Session tracking prevents re-application during the same session
 
@@ -148,6 +149,7 @@ Each platform uses its own standard configuration directory.
 
 | Platform    | Global Config Path         |
 |-------------|---------------------------|
+| Shared      | `~/.agents/persona.json`  |
 | Claude Code | `~/.claude/persona.json`  |
 | Codex       | `~/.codex/persona.json`   |
 | Cursor      | `~/.cursor/persona.json`  |
@@ -156,22 +158,31 @@ Each platform uses its own standard configuration directory.
 
 **Claude Code:**
 1. `.claude/persona.json` (project)
-2. `~/.claude/persona.json` (global)
+2. `.agents/persona.json` (project, shared)
+3. `~/.claude/persona.json` (global)
+4. `~/.agents/persona.json` (global, shared)
 
 **Codex:**
-1. `.claude/codex/persona.json` (project, platform-specific)
-2. `.claude/persona.json` (project, common)
-3. `~/.codex/persona.json` (global)
+1. `.codex/persona.json` (project, platform-specific)
+2. `.claude/codex/persona.json` (project, legacy platform-specific)
+3. `.agents/persona.json` (project, shared)
+4. `.claude/persona.json` (project, legacy shared)
+5. `~/.codex/persona.json` (global)
+6. `~/.agents/persona.json` (global, shared)
 
 **Cursor:**
-1. `.claude/cursor/persona.json` (project, platform-specific)
-2. `.claude/persona.json` (project, common)
-3. `~/.cursor/persona.json` (global)
+1. `.cursor/persona.json` (project, platform-specific)
+2. `.claude/cursor/persona.json` (project, legacy platform-specific)
+3. `.agents/persona.json` (project, shared)
+4. `.claude/persona.json` (project, legacy shared)
+5. `~/.cursor/persona.json` (global)
+6. `~/.agents/persona.json` (global, shared)
 
 #### Example Directory Structure
 
 ```
 # Global configs (each platform uses its own directory)
+~/.agents/persona.json        # Shared default
 ~/.claude/persona.json        # Claude Code
 ~/.codex/persona.json         # Codex
 ~/.cursor/persona.json        # Cursor

@@ -391,6 +391,47 @@ func TestLoadConfigForPlatform(t *testing.T) {
 		}
 	})
 
+	t.Run("NativePlatformConfigTakesPriority", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-native-platform-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		agentsDir := filepath.Join(tmpDir, AgentsDir)
+		if err := os.MkdirAll(agentsDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		sharedConfig := &Config{Name: "agents-persona"}
+		data, _ := json.MarshalIndent(sharedConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(agentsDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		codexDir := filepath.Join(tmpDir, CodexDir)
+		if err := os.MkdirAll(codexDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		codexConfig := &Config{Name: "codex-persona"}
+		data, _ = json.MarshalIndent(codexConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(codexDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		config, err := LoadConfigForPlatform(tmpDir, PlatformCodex)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+		}
+		if config.Name != "codex-persona" {
+			t.Errorf("Expected codex-persona, got %s", config.Name)
+		}
+	})
+
 	t.Run("FallsBackToCommonIfNoPlatformConfig", func(t *testing.T) {
 		// Create temp directory with only common config
 		tmpDir, err := os.MkdirTemp("", "ccpersona-test-fallback-*")
@@ -422,6 +463,88 @@ func TestLoadConfigForPlatform(t *testing.T) {
 		}
 		if config.Name != "common-persona" {
 			t.Errorf("Expected common-persona, got %s", config.Name)
+		}
+	})
+
+	t.Run("AgentsConfigTakesPriorityOverLegacyClaudeForCodex", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-agents-priority-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		claudeDir := filepath.Join(tmpDir, ClaudeDir)
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		legacyConfig := &Config{Name: "legacy-claude-persona"}
+		data, _ := json.MarshalIndent(legacyConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		agentsDir := filepath.Join(tmpDir, AgentsDir)
+		if err := os.MkdirAll(agentsDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		agentsConfig := &Config{Name: "agents-persona"}
+		data, _ = json.MarshalIndent(agentsConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(agentsDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		config, err := LoadConfigForPlatform(tmpDir, PlatformCodex)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+		}
+		if config.Name != "agents-persona" {
+			t.Errorf("Expected agents-persona, got %s", config.Name)
+		}
+	})
+
+	t.Run("ClaudeCodePrefersClaudeConfigOverAgentsSharedConfig", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-claude-priority-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		agentsDir := filepath.Join(tmpDir, AgentsDir)
+		if err := os.MkdirAll(agentsDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		agentsConfig := &Config{Name: "agents-persona"}
+		data, _ := json.MarshalIndent(agentsConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(agentsDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		claudeDir := filepath.Join(tmpDir, ClaudeDir)
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		claudeConfig := &Config{Name: "claude-persona"}
+		data, _ = json.MarshalIndent(claudeConfig, "", "  ")
+		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		config, err := LoadConfigForPlatform(tmpDir, PlatformClaudeCode)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+		}
+		if config.Name != "claude-persona" {
+			t.Errorf("Expected claude-persona, got %s", config.Name)
 		}
 	})
 

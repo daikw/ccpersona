@@ -219,7 +219,7 @@ Define patterns for expressing emotions
 
 ## Project Configuration
 
-Manage settings in `.claude/persona.json` for each project:
+Use `.agents/persona.json` for persona settings shared by multiple coding agents:
 
 ```json
 {
@@ -234,6 +234,16 @@ Manage settings in `.claude/persona.json` for each project:
   "custom_instructions": "Additional project-specific instructions"
 }
 ```
+
+Agent-specific project settings can override the shared file:
+
+| Agent | Preferred project config |
+|---|---|
+| Claude Code | `.claude/persona.json` |
+| Codex | `.codex/persona.json` |
+| Cursor | `.cursor/persona.json` |
+
+Codex and Cursor still read legacy `.claude/persona.json` files for compatibility, but `.agents/persona.json` takes priority over that legacy shared path.
 
 ### Voice Configuration
 
@@ -313,7 +323,8 @@ Now each device produces a distinct voice, making it easy to identify which sess
 ## File Locations
 
 - Global personas: `~/.claude/personas/`
-- Project configuration: `<project>/.claude/persona.json`
+- Shared project configuration: `<project>/.agents/persona.json`
+- Agent-specific project configuration: `<project>/.claude/persona.json`, `<project>/.codex/persona.json`, or `<project>/.cursor/persona.json`
 - Session tracking: `/tmp/ccpersona-sessions/`
 
 ## Development
@@ -362,7 +373,7 @@ git push origin --tags
 ccpersona integrates with Claude Code through the UserPromptSubmit hook:
 
 1. Configure Claude Code to run `ccpersona hook` on each prompt submission
-2. When you submit a prompt, ccpersona checks for `.claude/persona.json` in the current directory
+2. When you submit a prompt, ccpersona checks the platform-aware persona config hierarchy
 3. If found and it's a new session, the persona instructions are output
 4. Claude Code receives these instructions and adjusts its behavior accordingly
 
