@@ -103,7 +103,7 @@ Values guide decision-making when there are trade-offs:
 
 ## Combining with Voice Settings
 
-Personas work best when combined with matching voice settings in `.claude/persona.json`:
+Personas work best when combined with matching voice settings in `.agents/ccpersona.json`:
 
 ```json
 {
@@ -127,16 +127,16 @@ For a professional persona using OpenAI cloud TTS:
 }
 ```
 
-And the matching `.claude/config.json` provider block:
+The same config file can hold provider settings:
 
 ```json
 {
-  "providers": {
-    "openai": {
-      "api_key": "${OPENAI_API_KEY}",
-      "model": "tts-1",
-      "voice": "nova"
-    }
+  "name": "professional",
+  "voice": {
+    "provider": "openai",
+    "api_key": "${OPENAI_API_KEY}",
+    "model": "tts-1",
+    "voice": "nova"
   }
 }
 ```
@@ -145,13 +145,13 @@ To use a local OpenAI-compatible TTS server instead (e.g. Irodori-TTS-Server on 
 
 ```json
 {
-  "providers": {
-    "openai": {
-      "base_url": "http://127.0.0.1:8088",
-      "model": "irodori-tts",
-      "voice": "none",
-      "timeout_seconds": 120
-    }
+  "name": "professional",
+  "voice": {
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088",
+    "model": "irodori-tts",
+    "voice": "none",
+    "timeout_seconds": 120
   }
 }
 ```

@@ -7,7 +7,7 @@ This guide helps you diagnose and fix common issues with ccpersona.
 Run the built-in diagnostic tool:
 
 ```bash
-ccpersona status --diagnose
+ccpersona config status --diagnose
 ```
 
 This checks:
@@ -46,12 +46,12 @@ This checks:
 
 3. **Test voice synthesis directly:**
    ```bash
-   echo "テスト" | ccpersona voice --plain
+   echo "テスト" | ccpersona runtime voice --plain
    ```
 
 4. **Check speaker ID is valid:**
    ```bash
-   ccpersona voice --list-voices --provider aivisspeech
+   ccpersona runtime voice --list-voices --provider aivisspeech
    ```
 
 ### Voice engine connection refused
@@ -96,12 +96,12 @@ This checks:
 
 2. **Verify current configuration:**
    ```bash
-   ccpersona voice config show
+   ccpersona config show
    ```
 
 3. **Check speaker IDs:**
    ```bash
-   ccpersona voice --list-voices --provider aivisspeech
+   ccpersona runtime voice --list-voices --provider aivisspeech
    ```
 
 ## Persona Issues
@@ -116,13 +116,13 @@ This checks:
 
 1. **Check project configuration exists:**
    ```bash
-   cat .claude/persona.json
+   cat .agents/ccpersona.json
    ```
 
-2. **Check persona file exists:**
+2. **Check the active persona and persona file:**
    ```bash
-   ccpersona show              # Show current persona
-   ccpersona show <persona-name>  # Show specific persona
+   ccpersona config show                  # Show active persona in config
+   ccpersona persona show <persona-name>  # Show specific persona markdown
    ```
 
 3. **Check Claude Code hooks configuration:**
@@ -132,7 +132,7 @@ This checks:
 
 4. **Verify hook output manually:**
    ```bash
-   echo '{"session_id":"test"}' | ccpersona hook
+   echo '{"session_id":"test"}' | ccpersona runtime hook
    ```
 
 ### Persona changes don't take effect
@@ -146,7 +146,7 @@ This checks:
 
 2. **Verify the persona was saved:**
    ```bash
-   ccpersona show <persona-name>
+   ccpersona persona show <persona-name>
    ```
 
 ## SSH/Remote Connection Issues
@@ -218,13 +218,13 @@ To use different speakers on different machines:
    ```json
    {
      "hooks": {
-       "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}],
+       "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona runtime hook"}]}],
        "Stop": [
          {
            "hooks": [
              {
                "type": "command",
-               "command": "ccpersona voice"
+               "command": "ccpersona runtime voice"
              }
            ]
          }
@@ -240,7 +240,7 @@ To use different speakers on different machines:
 
 3. **Test hook manually:**
    ```bash
-   echo '{"hook_event_name":"Stop","session_id":"test","transcript_path":"/path"}' | ccpersona voice
+   echo '{"hook_event_name":"Stop","session_id":"test","transcript_path":"/path"}' | ccpersona runtime voice
    ```
 
 ### Hook causes Claude Code to hang
@@ -256,7 +256,7 @@ To use different speakers on different machines:
 
 3. **Test hook in isolation:**
    ```bash
-   time echo '{"session_id":"test"}' | ccpersona hook
+   time echo '{"session_id":"test"}' | ccpersona runtime hook
    ```
 
 ## Getting Help

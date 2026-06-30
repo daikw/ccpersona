@@ -43,7 +43,7 @@ func handleList(ctx context.Context, c *cli.Command) error {
 func handleSet(ctx context.Context, c *cli.Command) error {
 	name := c.Args().Get(0)
 	if name == "" {
-		return fmt.Errorf("persona name is required (usage: ccpersona set <name>)")
+		return fmt.Errorf("persona name is required (usage: ccpersona config set-persona <name>)")
 	}
 
 	manager, err := persona.NewManager()

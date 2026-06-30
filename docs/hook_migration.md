@@ -12,7 +12,7 @@ persona_router.sh のロジックを ccpersona バイナリに移行すること
 - エラーハンドリングが限定的
 - Windows での動作に制限
 
-### 移行後 (persona_router_simple.sh + ccpersona hook)
+### 移行後 (persona_router_simple.sh + ccpersona runtime hook)
 - 16行の簡潔なシェルスクリプト
 - ロジックは Go で実装（session.go）
 - 堅牢なエラーハンドリング
@@ -34,7 +34,7 @@ persona_router.sh のロジックを ccpersona バイナリに移行すること
            │
            v
 ┌─────────────────────┐
-│  ccpersona hook     │  <- ロジックはここに集約
+│  ccpersona runtime hook     │  <- ロジックはここに集約
 │  (Go バイナリ)      │
 └─────────────────────┘
            │
@@ -88,7 +88,7 @@ ccpersona install-hook
 ### 3. 動作確認
 ```bash
 # セッション開始をシミュレート
-CLAUDE_SESSION_ID=test-123 ccpersona hook
+CLAUDE_SESSION_ID=test-123 ccpersona runtime hook
 ```
 
 ## テスト
