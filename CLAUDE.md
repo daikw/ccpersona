@@ -34,7 +34,7 @@ ccpersona is a persona management system that automatically applies different "p
 ### Core Components
 
 1. **Persona System** (`internal/persona/`)
-   - Personas are markdown files stored in `~/.agents/personas/`
+   - Personas are markdown files stored in `~/.agents/ccpersona/personas/`
    - Unified persona and voice configuration in `.agents/ccpersona.json`
    - The SessionStart hook fires once per session; persona application is idempotent (re-running produces the same output without side effects)
    - Manager handles persona CRUD operations and AI assistant integration
