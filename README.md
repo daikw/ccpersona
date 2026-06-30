@@ -59,17 +59,17 @@ make install
 
 ```bash
 cd your-project
-ccpersona init
+ccpersona config init
 ```
 
 2. **Set a persona**
 
 ```bash
 # List available personas
-ccpersona list
+ccpersona persona list
 
 # Set active persona
-ccpersona set zundamon
+ccpersona config set-persona zundamon
 ```
 
 3. **Configure hooks for your AI coding assistant**
@@ -137,7 +137,7 @@ notify = ["ccpersona", "notify"]
 
 #### For Cursor
 
-Run `ccpersona init` and select "Cursor" when prompted. This will create `.cursor/hooks.json` automatically:
+Run `ccpersona init` and select "Cursor" when prompted. This compatibility command creates `.cursor/hooks.json` automatically:
 
 ```json
 {
@@ -161,23 +161,33 @@ Run `ccpersona init` and select "Cursor" when prompted. This will create `.curso
 ### Basic Commands
 
 ```bash
-# Initialize persona configuration (interactive - select from available personas)
-ccpersona init
+# Initialize ccpersona configuration
+ccpersona config init
 
-# Show current persona (or specify a name to show details)
-ccpersona show              # Show current active persona and its content
-ccpersona show <name>       # Show specific persona details
+# Show/edit ccpersona config
+ccpersona config show
+ccpersona config edit
+ccpersona config edit -g
+ccpersona config set-persona <name>
+ccpersona config migrate
 
-# Edit a persona (creates if not exists)
-ccpersona edit <persona-name>
+# Manage persona markdown files
+ccpersona persona list
+ccpersona persona show <name>
+ccpersona persona edit <name>
 
-# Edit configuration
-ccpersona config        # Edit project config
-ccpersona config -g     # Edit global config
+# Compatibility shims
+ccpersona init             # Interactive project initialization
+ccpersona show             # Show current active persona and its content
+ccpersona show <name>      # Show specific persona markdown
+ccpersona list             # Alias-style compatibility for persona list
+ccpersona set <name>       # Compatibility for config set-persona
+ccpersona edit <name>      # Compatibility for persona edit
 
 # Check status (auto-diagnoses on errors)
-ccpersona status            # Quick status check
-ccpersona status --diagnose # Force detailed diagnostics
+ccpersona config status            # Quick status check
+ccpersona config status --diagnose # Force detailed diagnostics
+ccpersona status                   # Compatibility shim
 
 # Execute as Claude Code hooks
 ccpersona hook                    # session-start hook

@@ -20,9 +20,17 @@ func main() {
 	// Setup logger
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	// Simple CLI setup - no special hook detection needed
+	app := newApp()
+	if err := app.Run(context.Background(), os.Args); err != nil {
+		// Command handlers own their user-facing messages; report the error
+		// once in plain CLI form instead of a zerolog FTL record.
+		fmt.Fprintf(os.Stderr, "%s %v\n", cliui.Failure("error:"), err)
+		os.Exit(1)
+	}
+}
 
-	app := &cli.Command{
+func newApp() *cli.Command {
+	return &cli.Command{
 		Name:  "ccpersona",
 		Usage: "Claude Code Persona System - manage personas for Claude Code sessions",
 		Description: `ccpersona helps you manage different personas for Claude Code.
@@ -76,7 +84,7 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:   "config",
-				Usage:  "Manage ccpersona configuration",
+				Usage:  "Edit ccpersona configuration (or use config subcommands)",
 				Action: handleConfig,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
@@ -86,6 +94,68 @@ and behavioral patterns for your AI assistant.`,
 					},
 				},
 				Commands: []*cli.Command{
+					{
+						Name:   "init",
+						Usage:  "Create a ccpersona config file",
+						Action: handleVoiceConfigInit,
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:    "global",
+								Aliases: []string{"g"},
+								Usage:   "Create global config (~/.agents/ccpersona.json)",
+								Value:   false,
+							},
+						},
+					},
+					{
+						Name:   "edit",
+						Usage:  "Edit project or global ccpersona config",
+						Action: handleConfig,
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:    "global",
+								Aliases: []string{"g"},
+								Usage:   "Edit global config (~/.agents/ccpersona.json)",
+							},
+						},
+					},
+					{
+						Name:   "show",
+						Usage:  "Show current ccpersona config with secrets masked",
+						Action: handleVoiceConfigShow,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "config",
+								Usage: "Path to ccpersona config file",
+								Value: "",
+							},
+						},
+					},
+					{
+						Name:   "status",
+						Usage:  "Show current ccpersona status",
+						Action: handleStatus,
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:  "diagnose",
+								Usage: "Force detailed diagnostics",
+								Value: false,
+							},
+						},
+					},
+					{
+						Name:      "set-persona",
+						Usage:     "Set the active persona in ccpersona config",
+						Action:    handleSet,
+						ArgsUsage: "<name>",
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:    "global",
+								Aliases: []string{"g"},
+								Usage:   "Write to global config (~/.agents/ccpersona.json)",
+							},
+						},
+					},
 					{
 						Name:   "migrate",
 						Usage:  "Migrate legacy persona/voice config files to .agents/ccpersona.json",
@@ -102,6 +172,30 @@ and behavioral patterns for your AI assistant.`,
 								Value: false,
 							},
 						},
+					},
+				},
+			},
+			{
+				Name:  "persona",
+				Usage: "Manage persona markdown files",
+				Commands: []*cli.Command{
+					{
+						Name:    "list",
+						Usage:   "List persona markdown files",
+						Action:  handleList,
+						Aliases: []string{"ls"},
+					},
+					{
+						Name:      "show",
+						Usage:     "Show a persona markdown file",
+						Action:    handlePersonaShow,
+						ArgsUsage: "<name>",
+					},
+					{
+						Name:      "edit",
+						Usage:     "Edit a persona markdown file (creates if missing)",
+						Action:    handleEdit,
+						ArgsUsage: "<name>",
 					},
 				},
 			},
@@ -315,12 +409,5 @@ and behavioral patterns for your AI assistant.`,
 			}
 			return ctx, nil
 		},
-	}
-
-	if err := app.Run(context.Background(), os.Args); err != nil {
-		// Command handlers own their user-facing messages; report the error
-		// once in plain CLI form instead of a zerolog FTL record.
-		fmt.Fprintf(os.Stderr, "%s %v\n", cliui.Failure("error:"), err)
-		os.Exit(1)
 	}
 }

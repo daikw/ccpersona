@@ -128,8 +128,8 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 	fmt.Printf("   Persona: %s\n", selectedPersona)
 	fmt.Println("")
 	fmt.Println("Next steps:")
-	fmt.Println("  - 'ccpersona show' to view configuration")
-	fmt.Println("  - 'ccpersona edit <name>' to edit persona")
+	fmt.Println("  - 'ccpersona config show' to view configuration")
+	fmt.Println("  - 'ccpersona persona edit <name>' to edit persona markdown")
 	return nil
 }
 
@@ -207,6 +207,26 @@ func handleShow(ctx context.Context, c *cli.Command) error {
 	}
 
 	// With argument: show specified persona
+	content, err := manager.ReadPersona(personaName)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(content)
+	return nil
+}
+
+func handlePersonaShow(ctx context.Context, c *cli.Command) error {
+	personaName := c.Args().Get(0)
+	if personaName == "" {
+		return fmt.Errorf("persona name is required (usage: ccpersona persona show <name>)")
+	}
+
+	manager, err := persona.NewManager()
+	if err != nil {
+		return err
+	}
+
 	content, err := manager.ReadPersona(personaName)
 	if err != nil {
 		return err
