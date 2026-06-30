@@ -11,9 +11,10 @@ import (
 
 // Manager handles persona operations
 type Manager struct {
-	homeDir           string
-	personasDir       string
-	legacyPersonasDir string
+	homeDir                 string
+	personasDir             string
+	agentsLegacyPersonasDir string
+	legacyPersonasDir       string
 }
 
 // NewManager creates a new persona manager
@@ -24,9 +25,10 @@ func NewManager() (*Manager, error) {
 	}
 
 	return &Manager{
-		homeDir:           homeDir,
-		personasDir:       filepath.Join(homeDir, AgentsDir, "personas"),
-		legacyPersonasDir: filepath.Join(homeDir, ClaudeDir, "personas"),
+		homeDir:                 homeDir,
+		personasDir:             filepath.Join(homeDir, AgentsDir, "ccpersona", "personas"),
+		agentsLegacyPersonasDir: filepath.Join(homeDir, AgentsDir, "personas"),
+		legacyPersonasDir:       filepath.Join(homeDir, ClaudeDir, "personas"),
 	}, nil
 }
 
@@ -65,6 +67,9 @@ func (m *Manager) personaDirs() []string {
 	dirs := []string{}
 	if m.personasDir != "" {
 		dirs = append(dirs, m.personasDir)
+	}
+	if m.agentsLegacyPersonasDir != "" && m.agentsLegacyPersonasDir != m.personasDir {
+		dirs = append(dirs, m.agentsLegacyPersonasDir)
 	}
 	if m.legacyPersonasDir != "" && m.legacyPersonasDir != m.personasDir {
 		dirs = append(dirs, m.legacyPersonasDir)
