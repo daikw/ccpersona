@@ -15,10 +15,18 @@ type MuteStatus struct {
 	Reason  string    `json:"reason,omitempty"`
 }
 
-// MutePath returns the absolute path to the mute marker file
-// (~/.claude/ccpersona/mute). The marker's existence means voice
+// MutePath returns the canonical absolute path to the mute marker file
+// (~/.agents/ccpersona/mute). The marker's existence means voice
 // synthesis is globally muted.
 func MutePath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home dir: %w", err)
+	}
+	return filepath.Join(home, ".agents", "ccpersona", "mute"), nil
+}
+
+func legacyMutePath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve home dir: %w", err)
@@ -35,6 +43,14 @@ func IsMuted() bool {
 		return false
 	}
 	_, err = os.Stat(path)
+	if err == nil {
+		return true
+	}
+	legacyPath, err := legacyMutePath()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(legacyPath)
 	return err == nil
 }
 
@@ -67,6 +83,13 @@ func Unmute() error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove mute file: %w", err)
 	}
+	legacyPath, err := legacyMutePath()
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(legacyPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove legacy mute file: %w", err)
+	}
 	return nil
 }
 
@@ -80,10 +103,20 @@ func LoadMuteStatus() (*MuteStatus, error) {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("read mute file: %w", err)
 		}
-		return nil, fmt.Errorf("read mute file: %w", err)
+		legacyPath, legacyErr := legacyMutePath()
+		if legacyErr != nil {
+			return nil, legacyErr
+		}
+		data, err = os.ReadFile(legacyPath)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("read legacy mute file: %w", err)
+		}
 	}
 	var status MuteStatus
 	if err := json.Unmarshal(data, &status); err != nil {

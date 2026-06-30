@@ -38,9 +38,34 @@ func TestMute_SetsMarkerFile(t *testing.T) {
 		t.Error("IsMuted() should return true after Mute()")
 	}
 
-	want := filepath.Join(home, ".claude", "ccpersona", "mute")
+	want := filepath.Join(home, ".agents", "ccpersona", "mute")
 	if _, err := os.Stat(want); err != nil {
 		t.Errorf("expected mute file at %s: %v", want, err)
+	}
+}
+
+func TestMute_ReadsLegacyMarker(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	legacyPath := filepath.Join(home, ".claude", "ccpersona", "mute")
+	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacyPath, []byte(`{"reason":"legacy"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if !IsMuted() {
+		t.Error("IsMuted() should return true for a legacy mute marker")
+	}
+
+	status, err := LoadMuteStatus()
+	if err != nil {
+		t.Fatalf("LoadMuteStatus: %v", err)
+	}
+	if status == nil || status.Reason != "legacy" {
+		t.Fatalf("expected legacy status, got %+v", status)
 	}
 }
 
@@ -68,10 +93,18 @@ func TestMute_Idempotent(t *testing.T) {
 }
 
 func TestUnmute_RemovesMarker(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 
 	if _, err := Mute(""); err != nil {
 		t.Fatalf("Mute: %v", err)
+	}
+	legacyPath := filepath.Join(home, ".claude", "ccpersona", "mute")
+	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacyPath, []byte(`{"reason":"legacy"}`), 0o644); err != nil {
+		t.Fatal(err)
 	}
 	if !IsMuted() {
 		t.Fatal("precondition: should be muted")
@@ -82,6 +115,9 @@ func TestUnmute_RemovesMarker(t *testing.T) {
 	}
 	if IsMuted() {
 		t.Error("IsMuted() should return false after Unmute()")
+	}
+	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
+		t.Errorf("legacy marker should be removed, got %v", err)
 	}
 }
 
@@ -132,7 +168,7 @@ func TestLoadMuteStatus_HandlesCorruptFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	path := filepath.Join(home, ".claude", "ccpersona", "mute")
+	path := filepath.Join(home, ".agents", "ccpersona", "mute")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}

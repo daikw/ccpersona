@@ -453,10 +453,14 @@ Now each device produces a distinct voice, making it easy to identify which sess
 
 ## File Locations
 
-- Global personas: `~/.claude/personas/`
+- Global personas: `~/.agents/personas/`
 - Unified project configuration: `<project>/.agents/ccpersona.json`
 - Unified global configuration: `~/.agents/ccpersona.json`
 - Session tracking: `/tmp/ccpersona-sessions/`
+
+For migration compatibility, existing persona files under `~/.claude/personas/`
+are still read as a fallback. New persona files are created under
+`~/.agents/personas/`.
 
 ## Development
 

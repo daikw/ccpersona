@@ -11,8 +11,9 @@ import (
 
 // Manager handles persona operations
 type Manager struct {
-	homeDir     string
-	personasDir string
+	homeDir           string
+	personasDir       string
+	legacyPersonasDir string
 }
 
 // NewManager creates a new persona manager
@@ -23,31 +24,52 @@ func NewManager() (*Manager, error) {
 	}
 
 	return &Manager{
-		homeDir:     homeDir,
-		personasDir: filepath.Join(homeDir, ".claude", "personas"),
+		homeDir:           homeDir,
+		personasDir:       filepath.Join(homeDir, AgentsDir, "personas"),
+		legacyPersonasDir: filepath.Join(homeDir, ClaudeDir, "personas"),
 	}, nil
 }
 
 // ListPersonas returns all available personas
 func (m *Manager) ListPersonas() ([]string, error) {
-	entries, err := os.ReadDir(m.personasDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			log.Debug().Msg("Personas directory does not exist")
-			return []string{}, nil
-		}
-		return nil, fmt.Errorf("failed to read personas directory: %w", err)
-	}
-
+	seen := make(map[string]struct{})
 	var personas []string
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+
+	for _, dir := range m.personaDirs() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				log.Debug().Str("path", dir).Msg("Personas directory does not exist")
+				continue
+			}
+			return nil, fmt.Errorf("failed to read personas directory %s: %w", dir, err)
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+				continue
+			}
 			name := strings.TrimSuffix(entry.Name(), ".md")
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
 			personas = append(personas, name)
 		}
 	}
 
 	return personas, nil
+}
+
+func (m *Manager) personaDirs() []string {
+	dirs := []string{}
+	if m.personasDir != "" {
+		dirs = append(dirs, m.personasDir)
+	}
+	if m.legacyPersonasDir != "" && m.legacyPersonasDir != m.personasDir {
+		dirs = append(dirs, m.legacyPersonasDir)
+	}
+	return dirs
 }
 
 // validatePersonaName returns an error if name is not a safe single filename component.
@@ -72,14 +94,23 @@ func (m *Manager) GetPersonaPath(name string) string {
 	return filepath.Join(m.personasDir, name+".md")
 }
 
+func (m *Manager) resolvePersonaPath(name string) (string, bool) {
+	for _, dir := range m.personaDirs() {
+		path := filepath.Join(dir, name+".md")
+		if _, err := os.Stat(path); err == nil {
+			return path, true
+		}
+	}
+	return "", false
+}
+
 // PersonaExists checks if a persona exists
 func (m *Manager) PersonaExists(name string) bool {
 	if err := validatePersonaName(name); err != nil {
 		return false
 	}
-	path := m.GetPersonaPath(name)
-	_, err := os.Stat(path)
-	return err == nil
+	_, ok := m.resolvePersonaPath(name)
+	return ok
 }
 
 // CreatePersona creates a new persona from a template
@@ -135,7 +166,10 @@ func (m *Manager) ReadPersona(name string) (string, error) {
 		return "", fmt.Errorf("persona '%s' does not exist", name)
 	}
 
-	path := m.GetPersonaPath(name)
+	path, ok := m.resolvePersonaPath(name)
+	if !ok {
+		return "", fmt.Errorf("persona '%s' does not exist", name)
+	}
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to read persona file: %w", err)
