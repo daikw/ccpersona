@@ -35,7 +35,7 @@ ccpersona is a persona management system that automatically applies different "p
 
 1. **Persona System** (`internal/persona/`)
    - Personas are markdown files stored in `~/.claude/personas/`
-   - Project configuration in `.claude/persona.json`
+   - Unified persona and voice configuration in `.agents/ccpersona.json`
    - The SessionStart hook fires once per session; persona application is idempotent (re-running produces the same output without side effects)
    - Manager handles persona CRUD operations and AI assistant integration
 
@@ -102,7 +102,7 @@ The system integrates with Claude Code via hooks. **SessionStart is the recommen
 
 The hook process:
 1. User configures Claude Code with the hook command
-2. On session start (or prompt submit for legacy), ccpersona checks for `.claude/persona.json`
+2. On session start (or prompt submit for legacy), ccpersona checks project/global persona config using the platform-aware hierarchy
 3. If found, applies the specified persona by outputting formatted instructions
 4. Session tracking prevents re-application during the same session
 
@@ -147,51 +147,36 @@ The `notify` command provides a single interface for all platforms:
 - **Routing**: Routes events to platform-specific handlers
 - **Shared functionality**: All platforms use the same persona and voice configuration
 
-### Platform-Specific Configuration
+### Unified Configuration
 
-ccpersona supports platform-specific configuration files, allowing different personas for different AI assistants.
-Each platform uses its own standard configuration directory.
+ccpersona uses one config file for all supported coding agents:
 
-#### Global Configuration Directories
+1. `<project>/.agents/ccpersona.json`
+2. `~/.agents/ccpersona.json`
 
-| Platform    | Global Config Path         |
-|-------------|---------------------------|
-| Claude Code | `~/.claude/persona.json`  |
-| Codex       | `~/.codex/persona.json`   |
-| Cursor      | `~/.cursor/persona.json`  |
+The file contains persona selection, active voice/provider settings, and user-defined local TTS engines:
 
-#### Configuration Fallback Hierarchy
-
-**Claude Code:**
-1. `.claude/persona.json` (project)
-2. `~/.claude/persona.json` (global)
-
-**Codex:**
-1. `.claude/codex/persona.json` (project, platform-specific)
-2. `.claude/persona.json` (project, common)
-3. `~/.codex/persona.json` (global)
-
-**Cursor:**
-1. `.claude/cursor/persona.json` (project, platform-specific)
-2. `.claude/persona.json` (project, common)
-3. `~/.cursor/persona.json` (global)
-
-#### Example Directory Structure
-
+```json
+{
+  "name": "fable",
+  "voice": {
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088/v1",
+    "model": "irodori-tts",
+    "voice": "none",
+    "format": "wav",
+    "timeout_seconds": 300
+  },
+  "engines": {
+    "irodori": {
+      "base_url": "http://127.0.0.1:8088",
+      "health": "openai"
+    }
+  }
+}
 ```
-# Global configs (each platform uses its own directory)
-~/.claude/persona.json        # Claude Code
-~/.codex/persona.json         # Codex
-~/.cursor/persona.json        # Cursor
 
-# Project configs (all in .claude/)
-./your-project/.claude/
-├── persona.json              # Common (all platforms)
-├── codex/
-│   └── persona.json          # Codex specific
-└── cursor/
-    └── persona.json          # Cursor specific
-```
+Legacy files such as `.claude/persona.json`, `.agents/persona.json`, `.codex/persona.json`, `.cursor/persona.json`, and `.claude/config.json` are no longer loaded. If present, runtime commands print a stderr warning and continue with defaults. Use `ccpersona config migrate` to create the unified file.
 
 ### Key Design Decisions
 

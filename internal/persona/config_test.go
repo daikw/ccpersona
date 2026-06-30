@@ -7,457 +7,160 @@ import (
 	"testing"
 )
 
-func TestLoadConfig(t *testing.T) {
-	// Create temporary directory
-	tmpDir, err := os.MkdirTemp("", "ccpersona-test-*")
+func TestLoadConfig_UsesUnifiedAgentsConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &Config{
+		Name: "fable",
+		Voice: &VoiceConfig{
+			Provider:       "openai",
+			Model:          "irodori-tts",
+			Voice:          "none",
+			BaseURL:        "http://127.0.0.1:8088/v1",
+			TimeoutSeconds: 300,
+		},
+	}
+	data, err := json.Marshal(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
-		_ = os.RemoveAll(tmpDir)
-	}()
-
-	// Test case 1: No config file exists
-	t.Run("NoConfigFile", func(t *testing.T) {
-		config, err := LoadConfig(tmpDir)
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		if config != nil {
-			t.Errorf("Expected nil config, got %v", config)
-		}
-	})
-
-	// Test case 2: Valid config file
-	t.Run("ValidConfigFile", func(t *testing.T) {
-		// Create .claude directory
-		claudeDir := filepath.Join(tmpDir, ClaudeDir)
-		if err := os.MkdirAll(claudeDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-
-		// Create test config
-		testConfig := &Config{
-			Name: "test-persona",
-			Voice: &VoiceConfig{
-				Provider: "voicevox",
-				Speaker:  3,
-			},
-			CustomInstructions: "Test instructions",
-		}
-
-		// Write config file
-		configPath := filepath.Join(claudeDir, ConfigFileName)
-		data, err := json.MarshalIndent(testConfig, "", "  ")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(configPath, data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// Load config
-		config, err := LoadConfig(tmpDir)
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		if config == nil {
-			t.Fatal("Expected config, got nil")
-			return
-		}
-		if config.Name != testConfig.Name { //nolint:staticcheck // checked for nil above
-			t.Errorf("Expected name %s, got %s", testConfig.Name, config.Name)
-		}
-		if config.Voice == nil || config.Voice.Provider != testConfig.Voice.Provider {
-			t.Errorf("Voice config mismatch")
-		}
-	})
-
-	// Test case 3: Invalid JSON
-	t.Run("InvalidJSON", func(t *testing.T) {
-		claudeDir := filepath.Join(tmpDir, ClaudeDir)
-		configPath := filepath.Join(claudeDir, ConfigFileName)
-
-		// Write invalid JSON
-		if err := os.WriteFile(configPath, []byte("invalid json"), 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// Try to load config
-		config, err := LoadConfig(tmpDir)
-		if err == nil {
-			t.Error("Expected error for invalid JSON")
-		}
-		if config != nil {
-			t.Error("Expected nil config for invalid JSON")
-		}
-	})
-}
-
-func TestSaveConfig(t *testing.T) {
-	// Create temporary directory
-	tmpDir, err := os.MkdirTemp("", "ccpersona-test-*")
-	if err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, AgentsDir), 0755); err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
-		_ = os.RemoveAll(tmpDir)
-	}()
-
-	t.Run("SaveNewConfig", func(t *testing.T) {
-		config := &Config{
-			Name: "save-test",
-		}
-
-		// Save config
-		if err := SaveConfig(tmpDir, config); err != nil {
-			t.Errorf("Failed to save config: %v", err)
-		}
-
-		// Verify file exists
-		configPath := filepath.Join(tmpDir, ClaudeDir, ConfigFileName)
-		if _, err := os.Stat(configPath); os.IsNotExist(err) {
-			t.Error("Config file was not created")
-		}
-
-		// Load and verify
-		loaded, err := LoadConfig(tmpDir)
-		if err != nil {
-			t.Errorf("Failed to load saved config: %v", err)
-		}
-		if loaded.Name != config.Name {
-			t.Errorf("Loaded config name mismatch: expected %s, got %s", config.Name, loaded.Name)
-		}
-	})
-}
-
-func TestValidateConfig(t *testing.T) {
-	tests := []struct {
-		name    string
-		config  *Config
-		wantErr bool
-	}{
-		{
-			name: "ValidConfig",
-			config: &Config{
-				Name: "valid",
-			},
-			wantErr: false,
-		},
-		{
-			name: "EmptyName",
-			config: &Config{
-				Name: "",
-			},
-			wantErr: true,
-		},
-		{
-			name: "ValidVoiceConfig",
-			config: &Config{
-				Name: "valid",
-				Voice: &VoiceConfig{
-					Provider: "voicevox",
-					Speaker:  1,
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "InvalidVoiceProvider",
-			config: &Config{
-				Name: "valid",
-				Voice: &VoiceConfig{
-					Provider: "invalid-provider",
-					Speaker:  1,
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "EmptyVoiceProvider",
-			config: &Config{
-				Name: "valid",
-				Voice: &VoiceConfig{
-					Provider: "",
-					Speaker:  1,
-				},
-			},
-			wantErr: true,
-		},
+	if err := os.WriteFile(ConfigPath(tmpDir), data, 0600); err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateConfig(tt.config)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ValidateConfig() error = %v, wantErr %v", err, tt.wantErr)
+	got, err := LoadConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if got == nil || got.Name != "fable" {
+		t.Fatalf("LoadConfig() = %#v, want fable config", got)
+	}
+	if got.Voice == nil || got.Voice.BaseURL != "http://127.0.0.1:8088/v1" {
+		t.Fatalf("voice config = %#v, want OpenAI-compatible base_url", got.Voice)
+	}
+}
+
+func TestLoadConfig_BrokenUnifiedConfigFallsBackToNil(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpDir, AgentsDir), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ConfigPath(tmpDir), []byte("{broken"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := LoadConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil runtime error", err)
+	}
+	if got != nil {
+		t.Fatalf("LoadConfig() = %#v, want nil fallback for broken config", got)
+	}
+}
+
+func TestLoadConfig_IgnoresLegacyConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	legacyDir := filepath.Join(tmpDir, ClaudeDir)
+	if err := os.MkdirAll(legacyDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacyDir, LegacyPersonaFileName), []byte(`{"name":"legacy"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := LoadConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if got != nil {
+		t.Fatalf("LoadConfig() = %#v, want nil because legacy files are ignored", got)
+	}
+}
+
+func TestSaveConfig_WritesUnifiedAgentsConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := SaveConfig(tmpDir, &Config{Name: "save-test"}); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+	if _, err := os.Stat(ConfigPath(tmpDir)); err != nil {
+		t.Fatalf("stat unified config: %v", err)
+	}
+
+	got, err := LoadConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if got == nil || got.Name != "save-test" {
+		t.Fatalf("LoadConfig() = %#v, want saved config", got)
+	}
+}
+
+func TestValidateConfig_AllowsOpenAICompatibleVoice(t *testing.T) {
+	err := ValidateConfig(&Config{
+		Name: "valid",
+		Voice: &VoiceConfig{
+			Provider: "openai",
+			BaseURL:  "http://127.0.0.1:8088/v1",
+			Model:    "irodori-tts",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ValidateConfig() error = %v", err)
+	}
+}
+
+func TestMigrateConfig_MergesLegacyPersonaAndVoice(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ClaudeDir)
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(claudeDir, LegacyPersonaFileName), []byte(`{
+		"name": "fable",
+		"voice": { "provider": "openai" },
+		"custom_instructions": "speak naturally"
+	}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(claudeDir, LegacyVoiceConfigName), []byte(`{
+		"default_provider": "openai",
+		"providers": {
+			"openai": {
+				"base_url": "http://127.0.0.1:8088/v1",
+				"model": "irodori-tts",
+				"voice": "none",
+				"format": "wav",
+				"timeout_seconds": 300
 			}
-		})
-	}
-}
-
-func TestGetDefaultConfig(t *testing.T) {
-	config := GetDefaultConfig()
-
-	if config == nil {
-		t.Fatal("Expected default config, got nil")
-		return
-	}
-
-	if config.Name != "default" { //nolint:staticcheck // checked for nil above
-		t.Errorf("Expected default name 'default', got %s", config.Name)
-	}
-
-}
-
-func TestLoadConfigWithFallback(t *testing.T) {
-	// Save current directory
-	originalDir, err := os.Getwd()
-	if err != nil {
+		},
+		"engines": {
+			"irodori": { "base_url": "http://127.0.0.1:8088", "health": "openai" }
+		}
+	}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
-		_ = os.Chdir(originalDir)
-	}()
 
-	t.Run("ProjectConfigExists", func(t *testing.T) {
-		// Create temp project directory with config
-		tmpDir, err := os.MkdirTemp("", "ccpersona-test-project-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			_ = os.RemoveAll(tmpDir)
-		}()
-
-		// Create .claude directory and config
-		claudeDir := filepath.Join(tmpDir, ClaudeDir)
-		if err := os.MkdirAll(claudeDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-
-		testConfig := &Config{Name: "project-persona"}
-		data, _ := json.MarshalIndent(testConfig, "", "  ")
-		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// Change to temp directory
-		if err := os.Chdir(tmpDir); err != nil {
-			t.Fatal(err)
-		}
-
-		// Load config with fallback
-		config, err := LoadConfigWithFallback()
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		if config == nil {
-			t.Fatal("Expected config, got nil")
-			return
-		}
-		if config.Name != "project-persona" {
-			t.Errorf("Expected project-persona, got %s", config.Name)
-		}
-	})
-
-	t.Run("NoProjectConfigFallsBackToGlobal", func(t *testing.T) {
-		// Create temp directory without config
-		tmpDir, err := os.MkdirTemp("", "ccpersona-test-empty-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			_ = os.RemoveAll(tmpDir)
-		}()
-
-		// Change to temp directory (no config here)
-		if err := os.Chdir(tmpDir); err != nil {
-			t.Fatal(err)
-		}
-
-		// This will try to load from home directory
-		// We can't easily mock home directory, so just verify no error
-		config, err := LoadConfigWithFallback()
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		// config may be nil if no global config exists, which is OK
-		_ = config
-	})
-}
-
-func TestGetGlobalConfigDir(t *testing.T) {
-	tests := []struct {
-		platform string
-		expected string
-	}{
-		{PlatformClaudeCode, GlobalDirClaudeCode},
-		{PlatformCodex, GlobalDirCodex},
-		{PlatformCursor, GlobalDirCursor},
-		{"", GlobalDirClaudeCode},
-		{"unknown", GlobalDirClaudeCode},
+	path, err := MigrateConfig(tmpDir, false)
+	if err != nil {
+		t.Fatalf("MigrateConfig() error = %v", err)
+	}
+	if path != ConfigPath(tmpDir) {
+		t.Fatalf("path = %s, want %s", path, ConfigPath(tmpDir))
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.platform, func(t *testing.T) {
-			result := GetGlobalConfigDir(tt.platform)
-			if result != tt.expected {
-				t.Errorf("GetGlobalConfigDir(%q) = %q, want %q", tt.platform, result, tt.expected)
-			}
-		})
+	got, err := LoadConfig(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
 	}
-}
-
-func TestLoadConfigForPlatform(t *testing.T) {
-	t.Run("ClaudeCodeDoesNotUseSubdirectory", func(t *testing.T) {
-		// Create temp directory with common config only
-		tmpDir, err := os.MkdirTemp("", "ccpersona-test-claude-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			_ = os.RemoveAll(tmpDir)
-		}()
-
-		// Create common config
-		claudeDir := filepath.Join(tmpDir, ClaudeDir)
-		if err := os.MkdirAll(claudeDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		commonConfig := &Config{Name: "common-persona"}
-		data, _ := json.MarshalIndent(commonConfig, "", "  ")
-		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// Claude Code should use common config directly (not look for .claude/claude-code/)
-		config, err := LoadConfigForPlatform(tmpDir, PlatformClaudeCode)
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		if config == nil {
-			t.Fatal("Expected config, got nil")
-			return
-		}
-		if config.Name != "common-persona" {
-			t.Errorf("Expected common-persona, got %s", config.Name)
-		}
-	})
-
-	t.Run("PlatformSpecificConfigTakesPriority", func(t *testing.T) {
-		// Create temp directory with both common and platform-specific config
-		tmpDir, err := os.MkdirTemp("", "ccpersona-test-platform-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			_ = os.RemoveAll(tmpDir)
-		}()
-
-		// Create common config
-		claudeDir := filepath.Join(tmpDir, ClaudeDir)
-		if err := os.MkdirAll(claudeDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		commonConfig := &Config{Name: "common-persona"}
-		data, _ := json.MarshalIndent(commonConfig, "", "  ")
-		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// Create platform-specific config
-		platformDir := filepath.Join(claudeDir, PlatformCodex)
-		if err := os.MkdirAll(platformDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		platformConfig := &Config{Name: "codex-persona"}
-		data, _ = json.MarshalIndent(platformConfig, "", "  ")
-		if err := os.WriteFile(filepath.Join(platformDir, ConfigFileName), data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// Load with platform - should get platform-specific config
-		config, err := LoadConfigForPlatform(tmpDir, PlatformCodex)
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		if config == nil {
-			t.Fatal("Expected config, got nil")
-			return
-		}
-		if config.Name != "codex-persona" {
-			t.Errorf("Expected codex-persona, got %s", config.Name)
-		}
-	})
-
-	t.Run("FallsBackToCommonIfNoPlatformConfig", func(t *testing.T) {
-		// Create temp directory with only common config
-		tmpDir, err := os.MkdirTemp("", "ccpersona-test-fallback-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			_ = os.RemoveAll(tmpDir)
-		}()
-
-		// Create common config only
-		claudeDir := filepath.Join(tmpDir, ClaudeDir)
-		if err := os.MkdirAll(claudeDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		commonConfig := &Config{Name: "common-persona"}
-		data, _ := json.MarshalIndent(commonConfig, "", "  ")
-		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// Load with platform - should fall back to common config
-		config, err := LoadConfigForPlatform(tmpDir, PlatformCodex)
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		if config == nil {
-			t.Fatal("Expected config, got nil")
-			return
-		}
-		if config.Name != "common-persona" {
-			t.Errorf("Expected common-persona, got %s", config.Name)
-		}
-	})
-
-	t.Run("EmptyPlatformUsesCommonConfig", func(t *testing.T) {
-		// Create temp directory with both common and platform-specific config
-		tmpDir, err := os.MkdirTemp("", "ccpersona-test-empty-platform-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			_ = os.RemoveAll(tmpDir)
-		}()
-
-		// Create common config
-		claudeDir := filepath.Join(tmpDir, ClaudeDir)
-		if err := os.MkdirAll(claudeDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		commonConfig := &Config{Name: "common-persona"}
-		data, _ := json.MarshalIndent(commonConfig, "", "  ")
-		if err := os.WriteFile(filepath.Join(claudeDir, ConfigFileName), data, 0644); err != nil {
-			t.Fatal(err)
-		}
-
-		// Load without platform - should get common config
-		config, err := LoadConfigForPlatform(tmpDir, "")
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
-		}
-		if config == nil {
-			t.Fatal("Expected config, got nil")
-			return
-		}
-		if config.Name != "common-persona" {
-			t.Errorf("Expected common-persona, got %s", config.Name)
-		}
-	})
+	if got == nil || got.Name != "fable" || got.Voice == nil {
+		t.Fatalf("migrated config = %#v, want fable voice config", got)
+	}
+	if got.Voice.BaseURL != "http://127.0.0.1:8088/v1" || got.Voice.TimeoutSeconds != 300 {
+		t.Fatalf("voice = %#v, want migrated provider settings", got.Voice)
+	}
+	if _, ok := got.Engines["irodori"]; !ok {
+		t.Fatalf("engines = %#v, want irodori", got.Engines)
+	}
 }

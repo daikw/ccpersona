@@ -239,20 +239,37 @@ Define patterns for expressing emotions
 
 ## Project Configuration
 
-Manage settings in `.claude/persona.json` for each project:
+Use `.agents/ccpersona.json` for persona, voice/provider settings, and user-defined engines:
 
 ```json
 {
-  "name": "zundamon",
+  "name": "fable",
   "voice": {
-    "provider": "voicevox",
-    "speaker": 3,
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088/v1",
+    "model": "irodori-tts",
+    "voice": "none",
+    "format": "wav",
+    "timeout_seconds": 300,
     "volume": 1.0,
     "speed": 1.0
+  },
+  "engines": {
+    "irodori": {
+      "base_url": "http://127.0.0.1:8088",
+      "health": "openai"
+    }
   },
   "custom_instructions": "Additional project-specific instructions"
 }
 ```
+
+The lookup order is project first, then global:
+
+1. `<project>/.agents/ccpersona.json`
+2. `~/.agents/ccpersona.json`
+
+Legacy files such as `.claude/persona.json`, `.agents/persona.json`, `.codex/persona.json`, `.cursor/persona.json`, and `.claude/config.json` are ignored at runtime. If any are detected and no unified config exists, ccpersona prints a stderr warning and continues with defaults. Run `ccpersona config migrate` to create the unified file.
 
 ### Voice Configuration
 
@@ -277,48 +294,39 @@ Legacy mode names (`first_line`, `full_text`, etc.) are still supported for back
 
 ### Voice Provider Configuration
 
-Voice settings live in `.claude/config.json` (project) or `~/.claude/config.json` (global). The top-level keys are:
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `default_provider` | string | Provider used when none is specified on the CLI |
-| `providers` | object | Per-provider configuration blocks |
-| `defaults` | object | Global defaults (`volume`, `speed`) |
-| `engines` | object | User-defined TTS engines (see [Engine Registry](#engine-registry)) |
+Voice provider settings live under the `voice` key in `.agents/ccpersona.json`.
 
 Example with OpenAI cloud provider:
 
 ```json
 {
-  "default_provider": "openai",
-  "providers": {
-    "openai": {
-      "api_key": "${OPENAI_API_KEY}",
-      "model": "tts-1",
-      "voice": "nova",
-      "speed": 1.0,
-      "format": "mp3"
-    }
+  "name": "default",
+  "voice": {
+    "provider": "openai",
+    "api_key": "${OPENAI_API_KEY}",
+    "model": "tts-1",
+    "voice": "nova",
+    "speed": 1.0,
+    "format": "mp3"
   }
 }
 ```
 
 ### OpenAI-Compatible Local TTS Servers
 
-Setting `base_url` in the `openai` provider block redirects requests to a local OpenAI-compatible TTS server (e.g. [Irodori-TTS-Server](https://github.com/daikw/irodori-tts-server) on port 8088, kani-tts on port 8000). When `base_url` is present, `api_key` is optional because local servers typically require no authentication.
+Setting `base_url` in the `voice` block redirects OpenAI-provider requests to a local OpenAI-compatible TTS server (e.g. [Irodori-TTS-Server](https://github.com/daikw/irodori-tts-server) on port 8088, kani-tts on port 8000). When `base_url` is present, `api_key` is optional because local servers typically require no authentication.
 
 Use `timeout_seconds` to extend the HTTP timeout for GPU inference, which can be slow on the first request (default: 30 seconds).
 
 ```json
 {
-  "default_provider": "openai",
-  "providers": {
-    "openai": {
-      "base_url": "http://127.0.0.1:8088",
-      "model": "irodori-tts",
-      "voice": "none",
-      "timeout_seconds": 120
-    }
+  "name": "default",
+  "voice": {
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088",
+    "model": "irodori-tts",
+    "voice": "none",
+    "timeout_seconds": 120
   }
 }
 ```
@@ -331,7 +339,7 @@ echo "こんにちは！" | ccpersona voice --plain --provider openai
 
 ### Engine Registry
 
-The `engines` key in `config.json` lets you declare user-defined TTS engines that the `engine` subcommand can manage alongside the built-in VOICEVOX and AivisSpeech engines.
+The `engines` key in `.agents/ccpersona.json` lets you declare user-defined TTS engines that the `engine` subcommand can manage alongside the built-in VOICEVOX and AivisSpeech engines.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -350,6 +358,14 @@ Example: declaring an Irodori-TTS engine and using it end-to-end:
 
 ```json
 {
+  "name": "default",
+  "voice": {
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088",
+    "model": "irodori-tts",
+    "voice": "none",
+    "timeout_seconds": 120
+  },
   "engines": {
     "irodori": {
       "base_url": "http://127.0.0.1:8088",
@@ -357,15 +373,6 @@ Example: declaring an Irodori-TTS engine and using it end-to-end:
       "command": "/usr/local/bin/irodori-tts-server",
       "args": ["--port", "8088"],
       "dir": "~/irodori-tts"
-    }
-  },
-  "default_provider": "openai",
-  "providers": {
-    "openai": {
-      "base_url": "http://127.0.0.1:8088",
-      "model": "irodori-tts",
-      "voice": "none",
-      "timeout_seconds": 120
     }
   }
 }
@@ -410,19 +417,21 @@ If you work on multiple devices (e.g., Mac + Jetson terminals), you can run a si
 
 3. **Configure different speaker IDs per device:**
    ```json
-   // Jetson #1: .claude/config.json
+   // Jetson #1: .agents/ccpersona.json
    {
-     "default_provider": "aivisspeech",
-     "providers": {
-       "aivisspeech": { "speaker": 888753760 }
+     "name": "default",
+     "voice": {
+       "provider": "aivisspeech",
+       "speaker": 888753760
      }
    }
 
-   // Jetson #2: .claude/config.json
+   // Jetson #2: .agents/ccpersona.json
    {
-     "default_provider": "aivisspeech",
-     "providers": {
-       "aivisspeech": { "speaker": 1234567890 }
+     "name": "default",
+     "voice": {
+       "provider": "aivisspeech",
+       "speaker": 1234567890
      }
    }
    ```
@@ -437,8 +446,9 @@ Now each device produces a distinct voice, making it easy to identify which sess
 ## File Locations
 
 - Global personas: `~/.claude/personas/`
-- Project configuration: `<project>/.claude/persona.json`
-- Voice/provider config: `<project>/.claude/config.json` or `~/.claude/config.json`
+- Unified project configuration: `<project>/.agents/ccpersona.json`
+- Unified global configuration: `~/.agents/ccpersona.json`
+- Session tracking: `/tmp/ccpersona-sessions/`
 
 ## Development
 
@@ -486,9 +496,9 @@ git push origin --tags
 ccpersona integrates with Claude Code through the SessionStart hook (recommended):
 
 1. Configure Claude Code to run `ccpersona hook` on SessionStart (see Quick Start above)
-2. At the start of each session, ccpersona checks for `.claude/persona.json` in the current directory
+2. At the start of each session, ccpersona checks `.agents/ccpersona.json` in the current project, then `~/.agents/ccpersona.json`
 3. If found, the persona instructions are output to stdout and Claude Code applies them
-4. The legacy UserPromptSubmit hook is still supported for backward compatibility
+4. Legacy config files are ignored; run `ccpersona config migrate` before relying on old settings
 
 #### OpenAI Codex Integration
 

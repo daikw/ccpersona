@@ -64,7 +64,7 @@ and behavioral patterns for your AI assistant.`,
 					&cli.BoolFlag{
 						Name:    "global",
 						Aliases: []string{"g"},
-						Usage:   "Write to the global Claude Code config (~/.claude/persona.json); Codex/Cursor globals are not touched",
+						Usage:   "Write to the global ccpersona config (~/.agents/ccpersona.json)",
 					},
 				},
 			},
@@ -76,13 +76,32 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:   "config",
-				Usage:  "Manage global configuration",
+				Usage:  "Manage ccpersona configuration",
 				Action: handleConfig,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:    "global",
 						Aliases: []string{"g"},
 						Usage:   "Edit global settings",
+					},
+				},
+				Commands: []*cli.Command{
+					{
+						Name:   "migrate",
+						Usage:  "Migrate legacy persona/voice config files to .agents/ccpersona.json",
+						Action: handleConfigMigrate,
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:    "global",
+								Aliases: []string{"g"},
+								Usage:   "Migrate global config to ~/.agents/ccpersona.json",
+							},
+							&cli.BoolFlag{
+								Name:  "force",
+								Usage: "Overwrite existing .agents/ccpersona.json",
+								Value: false,
+							},
+						},
 					},
 				},
 			},
@@ -170,7 +189,7 @@ and behavioral patterns for your AI assistant.`,
 					// Config
 					&cli.StringFlag{
 						Name:  "config",
-						Usage: "Path to voice config file (default: .claude/config.json)",
+						Usage: "Path to ccpersona config file (default: .agents/ccpersona.json)",
 						Value: "",
 					},
 				},
@@ -218,7 +237,7 @@ and behavioral patterns for your AI assistant.`,
 								Flags: []cli.Flag{
 									&cli.BoolFlag{
 										Name:  "global",
-										Usage: "Create global config (~/.claude/config.json)",
+										Usage: "Create global config (~/.agents/ccpersona.json)",
 										Value: false,
 									},
 								},

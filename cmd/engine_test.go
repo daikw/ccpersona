@@ -3,8 +3,9 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/daikw/ccpersona/internal/persona"
 )
 
 // chdir switches to dir for the duration of the test, restoring the original
@@ -21,14 +22,14 @@ func chdir(t *testing.T, dir string) {
 	t.Cleanup(func() { _ = os.Chdir(orig) })
 }
 
-// writeProjectConfig writes a project-local .claude/config.json under dir.
+// writeProjectConfig writes a project-local .agents/ccpersona.json under dir.
 func writeProjectConfig(t *testing.T, dir, contents string) {
 	t.Helper()
-	cdir := filepath.Join(dir, ".claude")
+	cdir := filepath.Join(dir, persona.AgentsDir)
 	if err := os.MkdirAll(cdir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(cdir, "config.json"), []byte(contents), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(cdir, persona.ConfigFileName), []byte(contents), 0600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -48,19 +49,19 @@ func TestLoadEngineConfig_MissingFileIsNotAnError(t *testing.T) {
 	}
 }
 
-func TestLoadEngineConfig_ParseErrorSurfaces(t *testing.T) {
+func TestLoadEngineConfig_ParseErrorFallsBackToBuiltins(t *testing.T) {
 	td := t.TempDir()
 	t.Setenv("HOME", td)
 	chdir(t, td)
 
 	writeProjectConfig(t, td, `{ this is not valid json `)
 
-	_, err := loadEngineConfig()
-	if err == nil {
-		t.Fatal("loadEngineConfig() expected error for malformed JSON, got nil")
+	cfg, err := loadEngineConfig()
+	if err != nil {
+		t.Fatalf("loadEngineConfig() error = %v, want nil fallback", err)
 	}
-	if !strings.Contains(err.Error(), "failed to load config") {
-		t.Errorf("error = %v, want load-config wrapper", err)
+	if cfg != nil {
+		t.Fatalf("loadEngineConfig() = %#v, want nil for malformed config", cfg)
 	}
 }
 

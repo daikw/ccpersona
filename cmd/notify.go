@@ -132,20 +132,6 @@ func handleLegacyNotification(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// toPersonaVoiceInput converts a persona.Config's Voice field to voice.PersonaVoiceInput.
-// Returns a zero-value input if config or its Voice field is nil.
-func toPersonaVoiceInput(config *persona.Config) voice.PersonaVoiceInput {
-	if config == nil || config.Voice == nil {
-		return voice.PersonaVoiceInput{}
-	}
-	return voice.PersonaVoiceInput{
-		Provider: config.Voice.Provider,
-		Speaker:  config.Voice.Speaker,
-		Volume:   config.Voice.Volume,
-		Speed:    config.Voice.Speed,
-	}
-}
-
 func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
 	debug := os.Getenv("CCPERSONA_DEBUG") != ""
 
@@ -179,9 +165,8 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 			log.Debug().Msg("voice synthesis is globally muted, skipping Codex turn voice")
 			return nil
 		}
-		fileConfig := loadVoiceConfig(c)
-		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-		opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+		config := loadUnifiedConfig(c, event.Source)
+		opts := voice.Resolve(config.ToVoiceInput(), config.ToVoiceConfigFile(), "")
 		voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 		// Process text according to reading mode
@@ -266,9 +251,8 @@ func handleStopEventVoice(ctx context.Context, c *cli.Command, event *hook.Unifi
 		fmt.Fprintf(os.Stderr, "[DEBUG] Transcript path: %s\n", transcriptPath)
 	}
 
-	fileConfig := loadVoiceConfig(c)
-	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-	opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+	config := loadUnifiedConfig(c, event.Source)
+	opts := voice.Resolve(config.ToVoiceInput(), config.ToVoiceConfigFile(), "")
 	voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 	// Read latest assistant message from transcript
@@ -361,9 +345,8 @@ func handleDirectResponseVoice(ctx context.Context, c *cli.Command, event *hook.
 		fmt.Fprintf(os.Stderr, "[DEBUG] AI response length: %d\n", len(text))
 	}
 
-	fileConfig := loadVoiceConfig(c)
-	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-	opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+	config := loadUnifiedConfig(c, event.Source)
+	opts := voice.Resolve(config.ToVoiceInput(), config.ToVoiceConfigFile(), "")
 	voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 	// Process text according to reading mode
@@ -432,9 +415,8 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 			log.Debug().Msg("voice synthesis is globally muted, skipping notification voice")
 			return nil
 		}
-		fileConfig := loadVoiceConfig(c)
-		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-		opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+		config := loadUnifiedConfig(c, event.Source)
+		opts := voice.Resolve(config.ToVoiceInput(), config.ToVoiceConfigFile(), "")
 		voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 		manager := voice.NewVoiceManager(voiceConfig)

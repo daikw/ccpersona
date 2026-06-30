@@ -50,6 +50,8 @@ func TestExpandEnvVars(t *testing.T) {
 }
 
 func TestConfigLoader_LoadConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	// Create temp directory
 	tmpDir, err := os.MkdirTemp("", "config-test-*")
 	require.NoError(t, err)

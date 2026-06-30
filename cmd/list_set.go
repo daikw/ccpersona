@@ -73,7 +73,7 @@ func handleSet(ctx context.Context, c *cli.Command) error {
 		targetDir = "."
 	}
 
-	config, err := persona.LoadConfig(targetDir)
+	config, err := persona.LoadConfigFromPath(persona.ConfigPath(targetDir))
 	if err != nil {
 		return fmt.Errorf("failed to load existing config: %w", err)
 	}

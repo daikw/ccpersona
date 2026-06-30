@@ -4,26 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/daikw/ccpersona/internal/cliui"
 	"github.com/daikw/ccpersona/internal/engine"
+	"github.com/daikw/ccpersona/internal/persona"
 	"github.com/daikw/ccpersona/internal/voice"
 	"github.com/urfave/cli/v3"
 )
 
 // loadEngineRegistry builds the engine registry by merging the built-in engines
-// with any user-defined engines declared in the voice config file.
+// with any user-defined engines declared in the unified config file.
 //
 // A missing config file is expected and falls back to built-ins only. A config
-// that exists but cannot be parsed (or is unreadable) is treated as a hard
-// error: silently ignoring it (as ConfigLoader.LoadConfig does) would mask a
-// misconfigured or tampered .claude/config.json and hide the user-defined
-// engines the operator expects. We therefore resolve the same project/global
-// candidates ConfigLoader uses, but via LoadFromPath which surfaces parse and
-// permission errors instead of swallowing them.
+// that exists but cannot be parsed is reported by the unified runtime loader
+// and ignored, so built-in engines remain available.
 func loadEngineRegistry() (*engine.Registry, error) {
 	cfg, err := loadEngineConfig()
 	if err != nil {
@@ -47,31 +42,13 @@ func loadEngineRegistry() (*engine.Registry, error) {
 	return engine.BuildRegistry(userEngines)
 }
 
-// loadEngineConfig loads the voice config from the project-local config first,
-// then the global config, mirroring ConfigLoader's priority. A missing file is
-// skipped; a present-but-unparseable/unreadable file returns an error.
+// loadEngineConfig loads engine declarations from the unified config.
 func loadEngineConfig() (*voice.ConfigFile, error) {
-	loader := voice.NewConfigLoader()
-
-	candidates := []string{filepath.Join(".claude", "config.json")}
-	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates, filepath.Join(home, ".claude", "config.json"))
+	cfg, err := persona.LoadConfigWithFallback()
+	if err != nil {
+		return nil, err
 	}
-
-	for _, path := range candidates {
-		if _, statErr := os.Stat(path); statErr != nil {
-			if os.IsNotExist(statErr) {
-				continue // expected: try the next candidate
-			}
-			return nil, fmt.Errorf("cannot access config %s: %w", path, statErr)
-		}
-		cfg, err := loader.LoadFromPath(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load config %s: %w", path, err)
-		}
-		return cfg, nil
-	}
-	return nil, nil
+	return cfg.ToVoiceConfigFile(), nil
 }
 
 // resolveTargets builds the registry and resolves the CLI target argument into

@@ -41,7 +41,7 @@ func RunServer(ctx context.Context, version string) error {
 		"Synthesize text to speech. Always pass the current working directory as project_dir (e.g., /Users/you/my-project). This applies per-project persona and voice settings.",
 		[]adapter.ToolParam{
 			{Name: "text", Description: "Text to synthesize", Type: "string", Required: true},
-			{Name: "project_dir", Description: "Absolute path to the current working directory. Used to load voice settings (provider, speaker, speed, volume) from the project's .claude/persona.json.", Type: "string", Required: true},
+			{Name: "project_dir", Description: "Absolute path to the current working directory. Used to load voice settings (provider, speaker, speed, volume) from the project persona config.", Type: "string", Required: true},
 			{Name: "provider", Description: "TTS provider (voicevox / aivisspeech / openai / elevenlabs, etc.)", Type: "string"},
 			{Name: "speaker", Description: "Speaker ID (for local engines)", Type: "number"},
 		},

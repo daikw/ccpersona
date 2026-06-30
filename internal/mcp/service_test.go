@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	internalmcp "github.com/daikw/ccpersona/internal/mcp"
+	"github.com/daikw/ccpersona/internal/persona"
 	"github.com/daikw/ccpersona/internal/voice"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -147,10 +148,10 @@ func TestSpeakService_Speak_WithPersonaVoiceConfig(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	// Write a persona config with voice settings to the temp project dir.
 	projectDir := t.TempDir()
-	claudeDir := filepath.Join(projectDir, ".claude")
-	require.NoError(t, os.MkdirAll(claudeDir, 0755))
+	agentsDir := filepath.Join(projectDir, ".agents")
+	require.NoError(t, os.MkdirAll(agentsDir, 0755))
 	personaJSON := `{"name":"test","voice":{"provider":"aivisspeech","speaker":42}}`
-	require.NoError(t, os.WriteFile(filepath.Join(claudeDir, "persona.json"), []byte(personaJSON), 0644))
+	require.NoError(t, os.WriteFile(persona.ConfigPath(projectDir), []byte(personaJSON), 0600))
 
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}

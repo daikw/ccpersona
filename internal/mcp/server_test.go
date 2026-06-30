@@ -11,6 +11,7 @@ import (
 
 	internalmcp "github.com/daikw/ccpersona/internal/mcp"
 	"github.com/daikw/ccpersona/internal/mcp/adapter"
+	"github.com/daikw/ccpersona/internal/persona"
 )
 
 func TestNewSpeakService_NotNil(t *testing.T) {
@@ -42,11 +43,11 @@ func TestToPersonaVoiceInput_NilVoice(t *testing.T) {
 	player := &mockPlayer{}
 	svc := internalmcp.NewSpeakService(synth, player)
 
-	// Write persona.json without voice field.
+	// Write ccpersona.json without voice field.
 	projectDir := t.TempDir()
-	claudeDir := projectDir + "/.claude"
-	require.NoError(t, os.MkdirAll(claudeDir, 0755))
-	require.NoError(t, os.WriteFile(claudeDir+"/persona.json", []byte(`{"name":"no-voice"}`), 0644))
+	agentsDir := projectDir + "/.agents"
+	require.NoError(t, os.MkdirAll(agentsDir, 0755))
+	require.NoError(t, os.WriteFile(persona.ConfigPath(projectDir), []byte(`{"name":"no-voice"}`), 0600))
 
 	err := svc.Speak(context.Background(), internalmcp.SpeakRequest{
 		Text:       "テスト",
