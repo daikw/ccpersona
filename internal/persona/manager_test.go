@@ -22,8 +22,11 @@ func TestNewManager(t *testing.T) {
 		t.Error("Home directory not set")
 	}
 
-	if !strings.HasSuffix(manager.personasDir, filepath.Join(".claude", "personas")) { //nolint:staticcheck // checked for nil above
+	if !strings.HasSuffix(manager.personasDir, filepath.Join(".agents", "personas")) { //nolint:staticcheck // checked for nil above
 		t.Errorf("Invalid personas directory: %s", manager.personasDir)
+	}
+	if !strings.HasSuffix(manager.legacyPersonasDir, filepath.Join(".claude", "personas")) { //nolint:staticcheck // checked for nil above
+		t.Errorf("Invalid legacy personas directory: %s", manager.legacyPersonasDir)
 	}
 }
 
@@ -38,8 +41,9 @@ func TestListPersonas(t *testing.T) {
 	}()
 
 	manager := &Manager{
-		homeDir:     tmpDir,
-		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
+		homeDir:           tmpDir,
+		personasDir:       filepath.Join(tmpDir, ".agents", "personas"),
+		legacyPersonasDir: filepath.Join(tmpDir, ".claude", "personas"),
 	}
 
 	// Test 1: Empty directory
@@ -100,6 +104,51 @@ func TestListPersonas(t *testing.T) {
 	})
 }
 
+func TestListPersonasIncludesLegacyDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := &Manager{
+		homeDir:           tmpDir,
+		personasDir:       filepath.Join(tmpDir, ".agents", "personas"),
+		legacyPersonasDir: filepath.Join(tmpDir, ".claude", "personas"),
+	}
+
+	if err := os.MkdirAll(manager.personasDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(manager.legacyPersonasDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(manager.personasDir, "fable.md"), []byte("# agents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(manager.legacyPersonasDir, "zundamon.md"), []byte("# legacy"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(manager.legacyPersonasDir, "fable.md"), []byte("# legacy duplicate"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	personas, err := manager.ListPersonas()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(personas) != 2 {
+		t.Fatalf("expected 2 personas, got %v", personas)
+	}
+	for _, want := range []string{"fable", "zundamon"} {
+		found := false
+		for _, got := range personas {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected %s in %v", want, personas)
+		}
+	}
+}
+
 func TestPersonaExists(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "ccpersona-test-*")
 	if err != nil {
@@ -111,7 +160,7 @@ func TestPersonaExists(t *testing.T) {
 
 	manager := &Manager{
 		homeDir:     tmpDir,
-		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
+		personasDir: filepath.Join(tmpDir, ".agents", "personas"),
 	}
 
 	// Create personas directory
@@ -147,7 +196,7 @@ func TestCreatePersona(t *testing.T) {
 
 	manager := &Manager{
 		homeDir:     tmpDir,
-		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
+		personasDir: filepath.Join(tmpDir, ".agents", "personas"),
 	}
 
 	// Test creating new persona
@@ -193,7 +242,7 @@ func TestReadPersona(t *testing.T) {
 
 	manager := &Manager{
 		homeDir:     tmpDir,
-		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
+		personasDir: filepath.Join(tmpDir, ".agents", "personas"),
 	}
 
 	// Create personas directory
@@ -305,7 +354,7 @@ func TestReadPersonaForContext(t *testing.T) {
 
 	manager := &Manager{
 		homeDir:     tmpDir,
-		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
+		personasDir: filepath.Join(tmpDir, ".agents", "personas"),
 	}
 	if err := os.MkdirAll(manager.personasDir, 0755); err != nil {
 		t.Fatal(err)
@@ -365,7 +414,7 @@ func TestGetCurrentPersona(t *testing.T) {
 
 	manager := &Manager{
 		homeDir:     tmpDir,
-		personasDir: filepath.Join(tmpDir, ".claude", "personas"),
+		personasDir: filepath.Join(tmpDir, ".agents", "personas"),
 	}
 
 	// Create .claude directory

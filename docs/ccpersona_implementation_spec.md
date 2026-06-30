@@ -110,7 +110,7 @@ OpenAI 互換ローカル TTS サーバを使う場合の設定例:
 
 組み込みエンジン名（`voicevox`, `aivisspeech`）との衝突はエラー。`engine status` で全エンジンのヘルスとサービス状態を確認できる。
 
-### 人格定義ファイル（~/.claude/personas/*.md）
+### 人格定義ファイル（~/.agents/personas/*.md）
 
 ```markdown
 # 人格: ずんだもん

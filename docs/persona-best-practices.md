@@ -4,7 +4,7 @@ This guide explains how to create effective personas for ccpersona.
 
 ## Persona File Structure
 
-Personas are defined as Markdown files in `~/.claude/personas/`. Each file follows this structure:
+Personas are defined as Markdown files in `~/.agents/personas/`. Existing files under `~/.claude/personas/` are read as a migration fallback, but new files should live in `~/.agents/personas/`. Each file follows this structure:
 
 ```markdown
 # Persona: [Name]
