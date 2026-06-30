@@ -7,6 +7,23 @@ import (
 	"testing"
 )
 
+func writeTestConfig(t *testing.T, dir string, config *Config) {
+	t.Helper()
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, ConfigFileName), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLoadConfig(t *testing.T) {
 	// Create temporary directory
 	tmpDir, err := os.MkdirTemp("", "ccpersona-test-*")
@@ -388,6 +405,83 @@ func TestLoadConfigForPlatform(t *testing.T) {
 		}
 		if config.Name != "codex-persona" {
 			t.Errorf("Expected codex-persona, got %s", config.Name)
+		}
+	})
+
+	t.Run("AgentsConfigTakesPriorityForCodex", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-agents-priority-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		writeTestConfig(t, filepath.Join(tmpDir, ClaudeDir), &Config{Name: "legacy-claude-persona"})
+		writeTestConfig(t, filepath.Join(tmpDir, ClaudeDir, PlatformCodex), &Config{Name: "legacy-codex-persona"})
+		writeTestConfig(t, filepath.Join(tmpDir, AgentsDir), &Config{Name: "agents-persona"})
+
+		config, err := LoadConfigForPlatform(tmpDir, PlatformCodex)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+			return
+		}
+		if config.Name != "agents-persona" {
+			t.Errorf("Expected agents-persona, got %s", config.Name)
+		}
+	})
+
+	t.Run("AgentsConfigTakesPriorityForCursor", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-agents-cursor-priority-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		writeTestConfig(t, filepath.Join(tmpDir, ClaudeDir), &Config{Name: "legacy-claude-persona"})
+		writeTestConfig(t, filepath.Join(tmpDir, ClaudeDir, PlatformCursor), &Config{Name: "legacy-cursor-persona"})
+		writeTestConfig(t, filepath.Join(tmpDir, AgentsDir), &Config{Name: "agents-persona"})
+
+		config, err := LoadConfigForPlatform(tmpDir, PlatformCursor)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+			return
+		}
+		if config.Name != "agents-persona" {
+			t.Errorf("Expected agents-persona, got %s", config.Name)
+		}
+	})
+
+	t.Run("ClaudeCodePrefersClaudeConfigOverAgentsConfig", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "ccpersona-test-claude-agents-priority-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		writeTestConfig(t, filepath.Join(tmpDir, ClaudeDir), &Config{Name: "claude-persona"})
+		writeTestConfig(t, filepath.Join(tmpDir, AgentsDir), &Config{Name: "agents-persona"})
+
+		config, err := LoadConfigForPlatform(tmpDir, PlatformClaudeCode)
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if config == nil {
+			t.Fatal("Expected config, got nil")
+			return
+		}
+		if config.Name != "claude-persona" {
+			t.Errorf("Expected claude-persona, got %s", config.Name)
 		}
 	})
 

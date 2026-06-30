@@ -239,7 +239,7 @@ Define patterns for expressing emotions
 
 ## Project Configuration
 
-Manage settings in `.claude/persona.json` for each project:
+Manage shared agent settings in `.agents/persona.json` for each project:
 
 ```json
 {
@@ -437,7 +437,8 @@ Now each device produces a distinct voice, making it easy to identify which sess
 ## File Locations
 
 - Global personas: `~/.claude/personas/`
-- Project configuration: `<project>/.claude/persona.json`
+- Project configuration: `<project>/.agents/persona.json`
+- Legacy Claude Code project configuration: `<project>/.claude/persona.json`
 - Voice/provider config: `<project>/.claude/config.json` or `~/.claude/config.json`
 
 ## Development
@@ -486,7 +487,7 @@ git push origin --tags
 ccpersona integrates with Claude Code through the SessionStart hook (recommended):
 
 1. Configure Claude Code to run `ccpersona hook` on SessionStart (see Quick Start above)
-2. At the start of each session, ccpersona checks for `.claude/persona.json` in the current directory
+2. At the start of each session, ccpersona checks for persona config in the current directory
 3. If found, the persona instructions are output to stdout and Claude Code applies them
 4. The legacy UserPromptSubmit hook is still supported for backward compatibility
 
