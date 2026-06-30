@@ -81,13 +81,13 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
 ```json
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}],
+    "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona runtime hook"}]}],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "ccpersona voice"
+            "command": "ccpersona runtime voice"
           }
         ]
       }
@@ -97,7 +97,7 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
         "hooks": [
           {
             "type": "command",
-            "command": "ccpersona notify"
+            "command": "ccpersona runtime notify"
           }
         ]
       }
@@ -119,7 +119,7 @@ Claude Code and Codex share the same `SessionStart` payload shape:
         "hooks": [
           {
             "type": "command",
-            "command": "ccpersona hook --platform codex"
+            "command": "ccpersona runtime hook --platform codex"
           }
         ]
       }
@@ -132,22 +132,22 @@ Add the following to your Codex config file (`~/.codex/config.toml`):
 
 ```toml
 # Notification hook that auto-detects platform
-notify = ["ccpersona", "notify"]
+notify = ["ccpersona", "runtime", "notify"]
 ```
 
 #### For Cursor
 
-Run `ccpersona init` and select "Cursor" when prompted. This compatibility command creates `.cursor/hooks.json` automatically:
+Create `.cursor/hooks.json` with runtime commands:
 
 ```json
 {
   "version": 1,
   "hooks": {
     "sessionStart": [
-      { "command": "ccpersona hook" }
+      { "command": "ccpersona runtime hook" }
     ],
     "afterAgentResponse": [
-      { "command": "ccpersona notify --voice" }
+      { "command": "ccpersona runtime notify --voice" }
     ]
   }
 }
@@ -176,41 +176,39 @@ ccpersona persona list
 ccpersona persona show <name>
 ccpersona persona edit <name>
 
-# Compatibility shims
-ccpersona init             # Interactive project initialization
-ccpersona show             # Show current active persona and its content
-ccpersona show <name>      # Show specific persona markdown
-ccpersona list             # Alias-style compatibility for persona list
-ccpersona set <name>       # Compatibility for config set-persona
-ccpersona edit <name>      # Compatibility for persona edit
-
 # Check status (auto-diagnoses on errors)
 ccpersona config status            # Quick status check
 ccpersona config status --diagnose # Force detailed diagnostics
-ccpersona status                   # Compatibility shim
 
-# Execute as Claude Code hooks
-ccpersona hook                    # session-start hook
-ccpersona voice                   # Stop hook (voice synthesis)
-ccpersona notify                  # Notification hook (works with both Claude Code and Codex)
+# Execute as AI coding-agent runtime hooks
+ccpersona runtime hook                    # session-start hook
+ccpersona runtime voice                   # Stop hook (voice synthesis)
+ccpersona runtime notify                  # Notification hook (works with Claude Code, Codex, and Cursor)
+ccpersona runtime mcp                     # MCP server
+ccpersona runtime engine status           # TTS engine status
 
 # Voice synthesis (expects JSON hook event from stdin by default)
-ccpersona voice                   # Read Stop hook JSON event from stdin
-echo "こんにちは、世界！" | ccpersona voice --plain  # Read plain text
+ccpersona runtime voice                   # Read Stop hook JSON event from stdin
+echo "こんにちは、世界！" | ccpersona runtime voice --plain  # Read plain text
 
 # Voice synthesis from transcript
-ccpersona voice --transcript  # Read latest assistant message from transcript
+ccpersona runtime voice --transcript  # Read latest assistant message from transcript
 
 # Notification handling
-ccpersona notify --voice --desktop  # Show desktop notification and speak
+ccpersona runtime notify --voice --desktop  # Show desktop notification and speak
 ```
+
+Top-level runtime commands such as `ccpersona hook`, `ccpersona voice`,
+`ccpersona notify`, `ccpersona mcp`, and `ccpersona engine` remain executable for
+existing hook integrations, but they are hidden from help. Use
+`ccpersona runtime ...` for new configurations.
 
 ### Creating Personas
 
 To create a new persona:
 
 ```bash
-ccpersona edit my-persona   # Creates if not exists, then opens editor
+ccpersona persona edit my-persona   # Creates if not exists, then opens editor
 ```
 
 Your editor will open for you to define the persona.
@@ -344,12 +342,12 @@ Use `timeout_seconds` to extend the HTTP timeout for GPU inference, which can be
 Then synthesize with:
 
 ```bash
-echo "こんにちは！" | ccpersona voice --plain --provider openai
+echo "こんにちは！" | ccpersona runtime voice --plain --provider openai
 ```
 
 ### Engine Registry
 
-The `engines` key in `.agents/ccpersona.json` lets you declare user-defined TTS engines that the `engine` subcommand can manage alongside the built-in VOICEVOX and AivisSpeech engines.
+The `engines` key in `.agents/ccpersona.json` lets you declare user-defined TTS engines that the `runtime engine` subcommand can manage alongside the built-in VOICEVOX and AivisSpeech engines.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -362,7 +360,7 @@ The `engines` key in `.agents/ccpersona.json` lets you declare user-defined TTS 
 
 Engine names must not collide with the built-in names (`voicevox`, `aivisspeech`); the registry returns an error if they do.
 
-`engine status` lists all engines (built-in + user-defined) with their health and service state. Engines without `command` are shown as `external (not managed by ccpersona)` and cannot be installed/started/stopped.
+`runtime engine status` lists all engines (built-in + user-defined) with their health and service state. Engines without `command` are shown as `external (not managed by ccpersona)` and cannot be installed/started/stopped.
 
 Example: declaring an Irodori-TTS engine and using it end-to-end:
 
@@ -391,8 +389,8 @@ Example: declaring an Irodori-TTS engine and using it end-to-end:
 Check the engine is running, then synthesize:
 
 ```bash
-ccpersona engine status irodori    # shows health + service state
-ccpersona voice --plain --provider openai  # routes through base_url
+ccpersona runtime engine status irodori    # shows health + service state
+ccpersona runtime voice --plain --provider openai  # routes through base_url
 ```
 
 ## Advanced Usage
@@ -505,7 +503,7 @@ git push origin --tags
 
 ccpersona integrates with Claude Code through the SessionStart hook (recommended):
 
-1. Configure Claude Code to run `ccpersona hook` on SessionStart (see Quick Start above)
+1. Configure Claude Code to run `ccpersona runtime hook` on SessionStart (see Quick Start above)
 2. At the start of each session, ccpersona checks `.agents/ccpersona.json` in the current project, then `~/.agents/ccpersona.json`
 3. If found, the persona instructions are output to stdout and Claude Code applies them
 4. Legacy config files are ignored; run `ccpersona config migrate` before relying on old settings
@@ -514,20 +512,20 @@ ccpersona integrates with Claude Code through the SessionStart hook (recommended
 
 ccpersona integrates with OpenAI Codex through the notify hook:
 
-1. Configure Codex to run `ccpersona notify` on agent-turn-complete events
+1. Configure Codex to run `ccpersona runtime notify` on agent-turn-complete events
 2. When an agent turn completes, ccpersona receives the event in JSON format
 3. The unified hook interface automatically detects the platform
 4. Appropriate actions (voice synthesis, notifications) are performed based on the event type
 
 #### Unified Hook Interface
 
-The `notify` command provides a unified interface that automatically detects and handles events from Claude Code, OpenAI Codex, and Cursor:
+The `runtime notify` command provides a unified interface that automatically detects and handles events from Claude Code, OpenAI Codex, and Cursor:
 
 - **Auto-detection**: Analyzes the JSON structure to determine the source platform
   - Codex: `"type": "agent-turn-complete"` field
   - Cursor: `"conversation_id"` field
   - Claude Code: `"session_id"` + `"hook_event_name"` fields
-- **Platform hints**: Use `ccpersona hook --platform codex` or `CCPERSONA_PLATFORM=codex`
+- **Platform hints**: Use `ccpersona runtime hook --platform codex` or `CCPERSONA_PLATFORM=codex`
   for Codex lifecycle hooks whose payload shape overlaps Claude Code
 - **Codex events**: Handles `agent-turn-complete` events with turn completion notifications
 - **Cursor events**: Handles `afterAgentResponse` for voice synthesis (provides AI response directly)

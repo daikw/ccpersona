@@ -1,220 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/daikw/ccpersona/internal/persona"
 	"github.com/urfave/cli/v3"
 )
-
-func handleInit(ctx context.Context, c *cli.Command) error {
-	fmt.Println("🎭 ccpersona project initialization")
-	fmt.Println("")
-
-	reader := bufio.NewReader(os.Stdin)
-
-	// Check existing config
-	existingConfig, err := persona.LoadConfigFromPath(persona.ConfigPath("."))
-	if err != nil {
-		return fmt.Errorf("failed to load existing config: %w", err)
-	}
-	if existingConfig != nil {
-		fmt.Printf("⚠️  Configuration already exists: %s\n", existingConfig.Name)
-		fmt.Print("Overwrite? [y/N]: ")
-		answer, _ := reader.ReadString('\n')
-		answer = strings.TrimSpace(strings.ToLower(answer))
-		if answer != "y" && answer != "yes" {
-			fmt.Println("Cancelled.")
-			return nil
-		}
-		fmt.Println("")
-	}
-
-	// Get persona manager
-	manager, err := persona.NewManager()
-	if err != nil {
-		return err
-	}
-
-	// List available personas
-	personas, err := manager.ListPersonas()
-	if err != nil {
-		return err
-	}
-
-	var selectedPersona string
-
-	if len(personas) == 0 {
-		fmt.Println("📝 No personas available")
-		fmt.Println("   Creating default persona")
-		fmt.Println("")
-		selectedPersona = "default"
-	} else {
-		fmt.Println("📝 Available personas:")
-		for i, p := range personas {
-			fmt.Printf("   %d. %s\n", i+1, p)
-		}
-		fmt.Println("")
-		fmt.Printf("Select a persona [1-%d]: ", len(personas))
-
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-
-		choice, err := strconv.Atoi(input)
-		if err != nil || choice < 1 || choice > len(personas) {
-			fmt.Println("Invalid selection. Using default.")
-			selectedPersona = "default"
-		} else {
-			selectedPersona = personas[choice-1]
-		}
-		fmt.Println("")
-	}
-
-	// Select AI assistant
-	fmt.Println("🤖 Select an AI assistant:")
-	fmt.Println("   1. Claude Code")
-	fmt.Println("   2. Cursor")
-	fmt.Println("   3. Both")
-	fmt.Println("")
-	fmt.Print("Choice [1-3] (default: 1): ")
-
-	assistantInput, _ := reader.ReadString('\n')
-	assistantInput = strings.TrimSpace(assistantInput)
-
-	assistantChoice := 1
-	if assistantInput != "" {
-		if choice, err := strconv.Atoi(assistantInput); err == nil && choice >= 1 && choice <= 3 {
-			assistantChoice = choice
-		}
-	}
-	fmt.Println("")
-
-	// Create persona config (common for all assistants)
-	config := persona.GetDefaultConfig()
-	config.Name = selectedPersona
-
-	if err := persona.SaveConfig(".", config); err != nil {
-		return err
-	}
-
-	fmt.Println("✅ Configuration created:")
-	fmt.Println("   - .agents/ccpersona.json")
-
-	// Generate assistant-specific config
-	switch assistantChoice {
-	case 1: // Claude Code
-		showClaudeCodeHookInstructions()
-	case 2: // Cursor
-		if err := generateCursorHooksConfig(); err != nil {
-			return err
-		}
-		fmt.Println("   - .cursor/hooks.json")
-	case 3: // Both
-		showClaudeCodeHookInstructions()
-		if err := generateCursorHooksConfig(); err != nil {
-			return err
-		}
-		fmt.Println("   - .cursor/hooks.json")
-	}
-
-	fmt.Println("")
-	fmt.Printf("   Persona: %s\n", selectedPersona)
-	fmt.Println("")
-	fmt.Println("Next steps:")
-	fmt.Println("  - 'ccpersona config show' to view configuration")
-	fmt.Println("  - 'ccpersona persona edit <name>' to edit persona markdown")
-	return nil
-}
-
-func showClaudeCodeHookInstructions() {
-	fmt.Println("")
-	fmt.Println("📌 Add the following hook configuration to ~/.claude/settings.json:")
-	fmt.Println("")
-	fmt.Println(`   {
-     "hooks": {
-       "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}],
-       "Stop": [{"hooks": [{"type": "command", "command": "ccpersona voice"}]}],
-       "Notification": [{"hooks": [{"type": "command", "command": "ccpersona notify"}]}]
-     }
-   }`)
-	fmt.Println("")
-}
-
-func generateCursorHooksConfig() error {
-	// Create .cursor directory if not exists
-	cursorDir := ".cursor"
-	if err := os.MkdirAll(cursorDir, 0755); err != nil {
-		return fmt.Errorf("failed to create .cursor directory: %w", err)
-	}
-
-	hooksConfig := `{
-  "version": 1,
-  "hooks": {
-    "sessionStart": [
-      {
-        "command": "ccpersona hook"
-      }
-    ],
-    "afterAgentResponse": [
-      {
-        "command": "ccpersona notify --voice"
-      }
-    ]
-  }
-}
-`
-
-	hooksPath := filepath.Join(cursorDir, "hooks.json")
-	if err := os.WriteFile(hooksPath, []byte(hooksConfig), 0644); err != nil {
-		return fmt.Errorf("failed to write hooks.json: %w", err)
-	}
-
-	return nil
-}
-
-func handleShow(ctx context.Context, c *cli.Command) error {
-	manager, err := persona.NewManager()
-	if err != nil {
-		return err
-	}
-
-	personaName := c.Args().Get(0)
-	if personaName == "" {
-		// No argument: show current persona
-		current, err := manager.GetCurrentPersona()
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Current persona: %s\n", current)
-
-		// Also show the content if persona exists
-		if manager.PersonaExists(current) {
-			fmt.Println()
-			content, err := manager.ReadPersona(current)
-			if err != nil {
-				return err
-			}
-			fmt.Println(content)
-		}
-		return nil
-	}
-
-	// With argument: show specified persona
-	content, err := manager.ReadPersona(personaName)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(content)
-	return nil
-}
 
 func handlePersonaShow(ctx context.Context, c *cli.Command) error {
 	personaName := c.Args().Get(0)
@@ -313,7 +108,7 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 			return err
 		}
 		if config == nil {
-			return fmt.Errorf("no project configuration found. Run 'ccpersona init' first")
+			return fmt.Errorf("no project configuration found. Run 'ccpersona config init' first")
 		}
 	}
 

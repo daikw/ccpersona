@@ -153,22 +153,22 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 					}
 				}
 				if anyBinaryFound {
-					fmt.Println("  - run 'ccpersona engine install all' to install engine services")
+					fmt.Println("  - run 'ccpersona runtime engine install all' to install engine services")
 					fmt.Println("  - or start AivisSpeech / VOICEVOX manually")
 				} else {
 					fmt.Println("  - install VOICEVOX or AivisSpeech app first:")
 					fmt.Printf("      VOICEVOX:     %s\n", cliui.Muted("https://voicevox.hiroshiba.jp/"))
 					fmt.Printf("      AivisSpeech:  %s\n", cliui.Muted("https://aivis-project.com/"))
-					fmt.Println("  - then run 'ccpersona engine install all'")
+					fmt.Println("  - then run 'ccpersona runtime engine install all'")
 				}
 			}
 			if projectConfig == nil {
-				fmt.Println("  - run 'ccpersona init' to initialize project")
+				fmt.Println("  - run 'ccpersona config init' to initialize project")
 			}
 			if manager != nil {
 				personas, _ := manager.ListPersonas()
 				if len(personas) == 0 {
-					fmt.Println("  - run 'ccpersona edit <name>' to create a persona")
+					fmt.Println("  - run 'ccpersona persona edit <name>' to create a persona")
 				}
 			}
 		} else {

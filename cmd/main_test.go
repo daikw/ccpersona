@@ -49,7 +49,19 @@ func TestCommandHierarchy_PersonaSubcommands(t *testing.T) {
 	}
 }
 
-func TestCommandHierarchy_TopLevelCompatibility(t *testing.T) {
+func TestCommandHierarchy_RuntimeSubcommands(t *testing.T) {
+	app := newApp()
+	runtime := requireCommand(t, app.Commands, "runtime")
+
+	for _, name := range []string{"hook", "voice", "notify", "mcp", "engine"} {
+		cmd := requireCommand(t, runtime.Commands, name)
+		if cmd.Hidden {
+			t.Fatalf("runtime %s should be visible", name)
+		}
+	}
+}
+
+func TestCommandHierarchy_RemovesTopLevelBasicCommands(t *testing.T) {
 	app := newApp()
 
 	for _, name := range []string{
@@ -60,6 +72,19 @@ func TestCommandHierarchy_TopLevelCompatibility(t *testing.T) {
 		"edit",
 		"status",
 	} {
-		requireCommand(t, app.Commands, name)
+		if cmd := findCommand(app.Commands, name); cmd != nil {
+			t.Fatalf("top-level %q should not exist", name)
+		}
+	}
+}
+
+func TestCommandHierarchy_HiddenRuntimeCompatibility(t *testing.T) {
+	app := newApp()
+
+	for _, name := range []string{"hook", "voice", "notify", "mcp", "engine"} {
+		cmd := requireCommand(t, app.Commands, name)
+		if !cmd.Hidden {
+			t.Fatalf("top-level %s should be hidden", name)
+		}
 	}
 }

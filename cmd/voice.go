@@ -351,7 +351,7 @@ func handleVoiceMute(ctx context.Context, c *cli.Command) error {
 	if status.Reason != "" {
 		fmt.Printf("   Reason : %s\n", status.Reason)
 	}
-	fmt.Println("\nRun 'ccpersona voice unmute' to re-enable, or pass --force to bypass for one call.")
+	fmt.Println("\nRun 'ccpersona runtime voice unmute' to re-enable, or pass --force to bypass for one call.")
 	return nil
 }
 

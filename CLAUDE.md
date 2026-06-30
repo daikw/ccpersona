@@ -18,7 +18,7 @@ go test -v ./internal/persona/...       # Test persona package
 go test -v -run TestHandleSessionStart  # Run specific test
 
 # Test voice synthesis
-echo "テストなのだ！" | ./ccpersona voice --plain
+echo "テストなのだ！" | ./ccpersona runtime voice --plain
 ```
 
 ## Development
@@ -86,7 +86,7 @@ The system integrates with Claude Code via hooks. **SessionStart is the recommen
 ```json
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona runtime hook"}]}]
   }
 }
 ```
@@ -95,7 +95,7 @@ The system integrates with Claude Code via hooks. **SessionStart is the recommen
 ```json
 {
   "hooks": {
-    "user-prompt-submit": ["ccpersona hook"]
+    "user-prompt-submit": ["ccpersona runtime hook"]
   }
 }
 ```
@@ -109,7 +109,7 @@ The hook process:
 #### OpenAI Codex Integration
 
 The system integrates with OpenAI Codex via the notify hook:
-1. User configures Codex with `notify = ["ccpersona", "notify"]` in `~/.codex/config.toml`
+1. User configures Codex with `notify = ["ccpersona", "runtime", "notify"]` in `~/.codex/config.toml`
 2. On agent-turn-complete events, ccpersona receives JSON with turn details
 3. The unified hook interface (DetectAndParse) automatically detects Codex events
 4. Appropriate actions are performed (notifications, voice synthesis)
@@ -123,10 +123,10 @@ The system integrates with Cursor via hooks configured in `~/.cursor/hooks.json`
   "version": 1,
   "hooks": {
     "sessionStart": [
-      { "command": "ccpersona hook" }
+      { "command": "ccpersona runtime hook" }
     ],
     "afterAgentResponse": [
-      { "command": "ccpersona notify --voice" }
+      { "command": "ccpersona runtime notify --voice" }
     ]
   }
 }
