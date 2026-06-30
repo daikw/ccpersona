@@ -108,6 +108,26 @@ Add the following to your Claude Code settings file (e.g., `~/.claude/settings.j
 
 #### For OpenAI Codex
 
+For Codex `hooks.json` lifecycle hooks, pass the platform explicitly because
+Claude Code and Codex share the same `SessionStart` payload shape:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ccpersona hook --platform codex"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 Add the following to your Codex config file (`~/.codex/config.toml`):
 
 ```toml
@@ -219,31 +239,37 @@ Define patterns for expressing emotions
 
 ## Project Configuration
 
-Use `.agents/persona.json` for persona settings shared by multiple coding agents:
+Use `.agents/ccpersona.json` for persona, voice/provider settings, and user-defined engines:
 
 ```json
 {
-  "name": "zundamon",
+  "name": "fable",
   "voice": {
-    "provider": "voicevox",
-    "speaker": 3,
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088/v1",
+    "model": "irodori-tts",
+    "voice": "none",
+    "format": "wav",
+    "timeout_seconds": 300,
     "volume": 1.0,
     "speed": 1.0
   },
-  "override_global": true,
+  "engines": {
+    "irodori": {
+      "base_url": "http://127.0.0.1:8088",
+      "health": "openai"
+    }
+  },
   "custom_instructions": "Additional project-specific instructions"
 }
 ```
 
-Agent-specific project settings can override the shared file:
+The lookup order is project first, then global:
 
-| Agent | Preferred project config |
-|---|---|
-| Claude Code | `.claude/persona.json` |
-| Codex | `.codex/persona.json` |
-| Cursor | `.cursor/persona.json` |
+1. `<project>/.agents/ccpersona.json`
+2. `~/.agents/ccpersona.json`
 
-Codex and Cursor still read legacy `.claude/persona.json` files for compatibility, but `.agents/persona.json` takes priority over that legacy shared path.
+Legacy files such as `.claude/persona.json`, `.agents/persona.json`, `.codex/persona.json`, `.cursor/persona.json`, and `.claude/config.json` are ignored at runtime. If any are detected and no unified config exists, ccpersona prints a stderr warning and continues with defaults. Run `ccpersona config migrate` to create the unified file.
 
 ### Voice Configuration
 
@@ -257,12 +283,107 @@ Input modes:
 The voice synthesis feature supports:
 - **VOICEVOX** - Local voice engine (default port: 50021)
 - **AivisSpeech** - Alternative voice engine (default port: 10101)
+- **OpenAI / OpenAI-compatible** - Cloud TTS or local servers (Irodori-TTS-Server, kani-tts, etc.)
+- **ElevenLabs**, **Amazon Polly**, **GCP** - Cloud TTS providers
 
 Reading modes:
 - `short` - Read only the first line (default)
 - `full` - Read entire message (use `--chars` to limit characters)
 
 Legacy mode names (`first_line`, `full_text`, etc.) are still supported for backward compatibility.
+
+### Voice Provider Configuration
+
+Voice provider settings live under the `voice` key in `.agents/ccpersona.json`.
+
+Example with OpenAI cloud provider:
+
+```json
+{
+  "name": "default",
+  "voice": {
+    "provider": "openai",
+    "api_key": "${OPENAI_API_KEY}",
+    "model": "tts-1",
+    "voice": "nova",
+    "speed": 1.0,
+    "format": "mp3"
+  }
+}
+```
+
+### OpenAI-Compatible Local TTS Servers
+
+Setting `base_url` in the `voice` block redirects OpenAI-provider requests to a local OpenAI-compatible TTS server (e.g. [Irodori-TTS-Server](https://github.com/daikw/irodori-tts-server) on port 8088, kani-tts on port 8000). When `base_url` is present, `api_key` is optional because local servers typically require no authentication.
+
+Use `timeout_seconds` to extend the HTTP timeout for GPU inference, which can be slow on the first request (default: 30 seconds).
+
+```json
+{
+  "name": "default",
+  "voice": {
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088",
+    "model": "irodori-tts",
+    "voice": "none",
+    "timeout_seconds": 120
+  }
+}
+```
+
+Then synthesize with:
+
+```bash
+echo "こんにちは！" | ccpersona voice --plain --provider openai
+```
+
+### Engine Registry
+
+The `engines` key in `.agents/ccpersona.json` lets you declare user-defined TTS engines that the `engine` subcommand can manage alongside the built-in VOICEVOX and AivisSpeech engines.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `base_url` | string | Base URL for health checks (e.g. `http://127.0.0.1:8088`) |
+| `health` | string | Health check type: `"openai"` (GET `/v1/models`) or `"voicevox"` (GET `/version`). Defaults to `"openai"` |
+| `command` | string | Executable to launch. Omit to treat the engine as externally managed (status-only) |
+| `args` | array | Arguments passed to `command` |
+| `dir` | string | Working directory (`~` is expanded) |
+| `env` | object | Extra environment variables for the process |
+
+Engine names must not collide with the built-in names (`voicevox`, `aivisspeech`); the registry returns an error if they do.
+
+`engine status` lists all engines (built-in + user-defined) with their health and service state. Engines without `command` are shown as `external (not managed by ccpersona)` and cannot be installed/started/stopped.
+
+Example: declaring an Irodori-TTS engine and using it end-to-end:
+
+```json
+{
+  "name": "default",
+  "voice": {
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088",
+    "model": "irodori-tts",
+    "voice": "none",
+    "timeout_seconds": 120
+  },
+  "engines": {
+    "irodori": {
+      "base_url": "http://127.0.0.1:8088",
+      "health": "openai",
+      "command": "/usr/local/bin/irodori-tts-server",
+      "args": ["--port", "8088"],
+      "dir": "~/irodori-tts"
+    }
+  }
+}
+```
+
+Check the engine is running, then synthesize:
+
+```bash
+ccpersona engine status irodori    # shows health + service state
+ccpersona voice --plain --provider openai  # routes through base_url
+```
 
 ## Advanced Usage
 
@@ -296,19 +417,21 @@ If you work on multiple devices (e.g., Mac + Jetson terminals), you can run a si
 
 3. **Configure different speaker IDs per device:**
    ```json
-   // Jetson #1: .claude/config.json
+   // Jetson #1: .agents/ccpersona.json
    {
-     "default_provider": "aivisspeech",
-     "providers": {
-       "aivisspeech": { "speaker": 888753760 }
+     "name": "default",
+     "voice": {
+       "provider": "aivisspeech",
+       "speaker": 888753760
      }
    }
 
-   // Jetson #2: .claude/config.json
+   // Jetson #2: .agents/ccpersona.json
    {
-     "default_provider": "aivisspeech",
-     "providers": {
-       "aivisspeech": { "speaker": 1234567890 }
+     "name": "default",
+     "voice": {
+       "provider": "aivisspeech",
+       "speaker": 1234567890
      }
    }
    ```
@@ -323,15 +446,15 @@ Now each device produces a distinct voice, making it easy to identify which sess
 ## File Locations
 
 - Global personas: `~/.claude/personas/`
-- Shared project configuration: `<project>/.agents/persona.json`
-- Agent-specific project configuration: `<project>/.claude/persona.json`, `<project>/.codex/persona.json`, or `<project>/.cursor/persona.json`
+- Unified project configuration: `<project>/.agents/ccpersona.json`
+- Unified global configuration: `~/.agents/ccpersona.json`
 - Session tracking: `/tmp/ccpersona-sessions/`
 
 ## Development
 
 ### Requirements
 
-- Go 1.21 or later
+- Go 1.25 or later
 - Make
 
 ### Build
@@ -370,12 +493,12 @@ git push origin --tags
 
 #### Claude Code Integration
 
-ccpersona integrates with Claude Code through the UserPromptSubmit hook:
+ccpersona integrates with Claude Code through the SessionStart hook (recommended):
 
-1. Configure Claude Code to run `ccpersona hook` on each prompt submission
-2. When you submit a prompt, ccpersona checks the platform-aware persona config hierarchy
-3. If found and it's a new session, the persona instructions are output
-4. Claude Code receives these instructions and adjusts its behavior accordingly
+1. Configure Claude Code to run `ccpersona hook` on SessionStart (see Quick Start above)
+2. At the start of each session, ccpersona checks `.agents/ccpersona.json` in the current project, then `~/.agents/ccpersona.json`
+3. If found, the persona instructions are output to stdout and Claude Code applies them
+4. Legacy config files are ignored; run `ccpersona config migrate` before relying on old settings
 
 #### OpenAI Codex Integration
 
@@ -394,6 +517,8 @@ The `notify` command provides a unified interface that automatically detects and
   - Codex: `"type": "agent-turn-complete"` field
   - Cursor: `"conversation_id"` field
   - Claude Code: `"session_id"` + `"hook_event_name"` fields
+- **Platform hints**: Use `ccpersona hook --platform codex` or `CCPERSONA_PLATFORM=codex`
+  for Codex lifecycle hooks whose payload shape overlaps Claude Code
 - **Codex events**: Handles `agent-turn-complete` events with turn completion notifications
 - **Cursor events**: Handles `afterAgentResponse` for voice synthesis (provides AI response directly)
 - **Claude Code events**: Routes `UserPromptSubmit`, `Stop`, and `Notification` events to appropriate handlers
@@ -405,7 +530,7 @@ This design provides:
 - Cross-platform compatibility (Windows/Mac/Linux)
 - Multi-platform AI assistant support (Claude Code, OpenAI Codex, and Cursor)
 - Robust error handling (silent failures to avoid disrupting the AI assistant)
-- Session tracking (prevents duplicate persona applications)
+- Idempotent persona application (SessionStart fires once per session; re-running is always safe)
 - Advanced customization options
 
 ### Security Notes

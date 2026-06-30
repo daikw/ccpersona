@@ -3,6 +3,7 @@ package voice
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -59,6 +60,80 @@ func TestDedupTracker_OverwritesPrevious(t *testing.T) {
 	}
 	if !dt.IsDuplicate("second message") {
 		t.Error("Second message should be tracked")
+	}
+}
+
+func TestDedupTracker_PathTraversal(t *testing.T) {
+	// dir is the only place markers may be written. The parent holds a sentinel
+	// file that a traversal-style sessionID must never overwrite.
+	root := t.TempDir()
+	dir := filepath.Join(root, "markers")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	maliciousIDs := []string{
+		"../../../etc/x",
+		"../escape",
+		"a/b/c",
+		"with space",
+		"..",
+		"foo\x00bar",
+	}
+
+	for _, id := range maliciousIDs {
+		t.Run(id, func(t *testing.T) {
+			dt := NewDedupTracker(id)
+			dt.dir = dir
+
+			dt.Record("payload")
+
+			// The marker must land directly inside dir, not anywhere else.
+			abs, err := filepath.Abs(dt.markerPath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if filepath.Dir(abs) != dir {
+				t.Errorf("marker path %q escaped dedup dir %q", abs, dir)
+			}
+
+			// Round-trip must still work for the normalized name.
+			if !dt.IsDuplicate("payload") {
+				t.Error("recorded payload should be reported as duplicate")
+			}
+		})
+	}
+
+	// Nothing should have been written outside dir.
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() != "markers" {
+			t.Errorf("unexpected entry written outside dedup dir: %s", e.Name())
+		}
+	}
+}
+
+func TestDedupTracker_LongSessionID(t *testing.T) {
+	// Safe charset but over maxSessionIDLen: must fall back to the hashed name
+	// to avoid ENAMETOOLONG, and still round-trip.
+	longID := strings.Repeat("a", maxSessionIDLen+72)
+	dt := NewDedupTracker(longID)
+	dt.dir = t.TempDir()
+
+	dt.Record("payload")
+	if !dt.IsDuplicate("payload") {
+		t.Error("recorded payload should be reported as duplicate")
+	}
+
+	name := filepath.Base(dt.markerPath())
+	if strings.Contains(name, longID[:maxSessionIDLen+1]) {
+		t.Errorf("marker name embeds over-long sessionID verbatim: %s", name)
+	}
+	if len(name) > maxSessionIDLen+len(".lastread") {
+		t.Errorf("marker name too long (%d chars): %s", len(name), name)
 	}
 }
 

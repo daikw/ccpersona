@@ -132,20 +132,6 @@ func handleLegacyNotification(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// toPersonaVoiceInput converts a persona.Config's Voice field to voice.PersonaVoiceInput.
-// Returns a zero-value input if config or its Voice field is nil.
-func toPersonaVoiceInput(config *persona.Config) voice.PersonaVoiceInput {
-	if config == nil || config.Voice == nil {
-		return voice.PersonaVoiceInput{}
-	}
-	return voice.PersonaVoiceInput{
-		Provider: config.Voice.Provider,
-		Speaker:  config.Voice.Speaker,
-		Volume:   config.Voice.Volume,
-		Speed:    config.Voice.Speed,
-	}
-}
-
 func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *hook.UnifiedHookEvent) error {
 	debug := os.Getenv("CCPERSONA_DEBUG") != ""
 
@@ -179,9 +165,8 @@ func handleCodexAgentTurnComplete(ctx context.Context, c *cli.Command, event *ho
 			log.Debug().Msg("voice synthesis is globally muted, skipping Codex turn voice")
 			return nil
 		}
-		fileConfig := loadVoiceConfig(c)
-		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-		opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+		config := loadUnifiedConfig(c, event.Source)
+		opts := voice.Resolve(config.ToVoiceInput(), config.ToVoiceConfigFile(), "")
 		voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 		// Process text according to reading mode
@@ -266,9 +251,8 @@ func handleStopEventVoice(ctx context.Context, c *cli.Command, event *hook.Unifi
 		fmt.Fprintf(os.Stderr, "[DEBUG] Transcript path: %s\n", transcriptPath)
 	}
 
-	fileConfig := loadVoiceConfig(c)
-	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-	opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+	config := loadUnifiedConfig(c, event.Source)
+	opts := voice.Resolve(config.ToVoiceInput(), config.ToVoiceConfigFile(), "")
 	voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 	// Read latest assistant message from transcript
@@ -361,9 +345,8 @@ func handleDirectResponseVoice(ctx context.Context, c *cli.Command, event *hook.
 		fmt.Fprintf(os.Stderr, "[DEBUG] AI response length: %d\n", len(text))
 	}
 
-	fileConfig := loadVoiceConfig(c)
-	config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-	opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+	config := loadUnifiedConfig(c, event.Source)
+	opts := voice.Resolve(config.ToVoiceInput(), config.ToVoiceConfigFile(), "")
 	voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 	// Process text according to reading mode
@@ -432,9 +415,8 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 			log.Debug().Msg("voice synthesis is globally muted, skipping notification voice")
 			return nil
 		}
-		fileConfig := loadVoiceConfig(c)
-		config, _ := persona.LoadConfigWithFallbackForPlatform(event.Source)
-		opts := voice.Resolve(toPersonaVoiceInput(config), fileConfig, "")
+		config := loadUnifiedConfig(c, event.Source)
+		opts := voice.Resolve(config.ToVoiceInput(), config.ToVoiceConfigFile(), "")
 		voiceConfig := opts.ToConfig(voice.DefaultConfig())
 
 		manager := voice.NewVoiceManager(voiceConfig)
@@ -452,48 +434,88 @@ func handleNotificationEvent(ctx context.Context, c *cli.Command, event *hook.Un
 	return nil
 }
 
-func showDesktopNotification(message, urgency string) error {
-	title := "Claude Code"
+const notificationTitle = "Claude Code"
 
-	switch runtime.GOOS {
+func showDesktopNotification(message, urgency string) error {
+	cmd, err := buildNotificationCommand(runtime.GOOS, message, urgency)
+	if err != nil {
+		return err
+	}
+	return cmd.Run()
+}
+
+// buildNotificationCommand assembles the platform-specific desktop-notification
+// command. Message and title are always passed out-of-band (argv / env var) so
+// that they are never interpreted as script source by the shell or scripting host.
+func buildNotificationCommand(goos, message, urgency string) (*exec.Cmd, error) {
+	switch goos {
 	case "darwin":
-		// macOS notification using osascript
-		script := fmt.Sprintf(`display notification "%s" with title "%s"`, message, title)
-		cmd := exec.Command("osascript", "-e", script)
-		return cmd.Run()
+		args := osascriptNotifyArgs(message, notificationTitle)
+		return exec.Command("osascript", args...), nil
 
 	case "linux":
-		// Linux notification using notify-send
-		cmd := exec.Command("notify-send", "-u", urgency, title, message)
-		return cmd.Run()
+		args := notifySendArgs(message, urgency, notificationTitle)
+		return exec.Command("notify-send", args...), nil
 
 	case "windows":
-		// Windows notification using PowerShell
-		script := fmt.Sprintf(`
-			[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-			[Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-			[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-
-			$template = @"
-			<toast>
-				<visual>
-					<binding template="ToastText02">
-						<text id="1">%s</text>
-						<text id="2">%s</text>
-					</binding>
-				</visual>
-			</toast>
-"@
-
-			$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-			$xml.LoadXml($template)
-			$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-			[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Claude Code").Show($toast)
-		`, title, message)
-		cmd := exec.Command("powershell", "-Command", script)
-		return cmd.Run()
+		cmd := exec.Command("powershell", "-NoProfile", "-Command", windowsToastScript())
+		cmd.Env = append(os.Environ(),
+			"CCPERSONA_NOTIFY_TITLE="+notificationTitle,
+			"CCPERSONA_NOTIFY_MESSAGE="+message,
+		)
+		return cmd, nil
 
 	default:
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+		return nil, fmt.Errorf("unsupported platform: %s", goos)
 	}
+}
+
+// osascriptNotifyArgs builds osascript args that take the message and title via
+// `on run argv`, so the values are referenced as data rather than spliced into
+// the AppleScript source. The `--` terminator keeps a message starting with
+// `-e` from being parsed as an additional statement.
+func osascriptNotifyArgs(message, title string) []string {
+	script := `on run argv
+	display notification (item 1 of argv) with title (item 2 of argv)
+end run`
+	return []string{"-e", script, "--", message, title}
+}
+
+// normalizeUrgency maps internal urgency labels to the values notify-send(1)
+// accepts (low|normal|critical); an invalid value makes notify-send fail silently.
+func normalizeUrgency(urgency string) string {
+	switch urgency {
+	case "low", "normal", "critical":
+		return urgency
+	case "high":
+		return "critical"
+	default:
+		return "normal"
+	}
+}
+
+// notifySendArgs builds notify-send args with a `--` separator so a message that
+// starts with '-' is not mistaken for an option.
+func notifySendArgs(message, urgency, title string) []string {
+	return []string{"-u", normalizeUrgency(urgency), "--", title, message}
+}
+
+// windowsToastScript returns a PowerShell toast script that reads the title and
+// message from environment variables, avoiding string interpolation into source.
+func windowsToastScript() string {
+	return `
+		[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+		[Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+		[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+
+		$title = $env:CCPERSONA_NOTIFY_TITLE
+		$message = $env:CCPERSONA_NOTIFY_MESSAGE
+		$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+		$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+		$texts = $template.GetElementsByTagName("text")
+		$texts.Item(0).AppendChild($template.CreateTextNode($title)) | Out-Null
+		$texts.Item(1).AppendChild($template.CreateTextNode($message)) | Out-Null
+		$toast = [Windows.UI.Notifications.ToastNotification]::new($template)
+		[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Claude Code").Show($toast)
+	`
 }

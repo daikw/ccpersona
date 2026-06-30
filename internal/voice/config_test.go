@@ -50,6 +50,8 @@ func TestExpandEnvVars(t *testing.T) {
 }
 
 func TestConfigLoader_LoadConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	// Create temp directory
 	tmpDir, err := os.MkdirTemp("", "config-test-*")
 	require.NoError(t, err)
@@ -175,6 +177,45 @@ func TestConfigFile_Validate(t *testing.T) {
 		errors := config.Validate()
 		assert.Len(t, errors, 1)
 		assert.Contains(t, errors[0], "api_key is required")
+	})
+
+	t.Run("openai local base URL does not require API key", func(t *testing.T) {
+		config := &ConfigFile{
+			Providers: map[string]ProviderConfig{
+				"openai": {
+					BaseURL: "http://127.0.0.1:8088",
+					Voice:   "none",
+				},
+			},
+		}
+		errors := config.Validate()
+		assert.Empty(t, errors)
+	})
+
+	t.Run("openai official base URL still requires API key", func(t *testing.T) {
+		config := &ConfigFile{
+			Providers: map[string]ProviderConfig{
+				"openai": {
+					BaseURL: "https://api.openai.com/v1/",
+				},
+			},
+		}
+		errors := config.Validate()
+		assert.Len(t, errors, 1)
+		assert.Contains(t, errors[0], "api_key is required")
+	})
+
+	t.Run("openai invalid base URL is rejected", func(t *testing.T) {
+		config := &ConfigFile{
+			Providers: map[string]ProviderConfig{
+				"openai": {
+					BaseURL: "ftp://127.0.0.1:8088",
+				},
+			},
+		}
+		errors := config.Validate()
+		assert.Len(t, errors, 1)
+		assert.Contains(t, errors[0], "scheme must be http or https")
 	})
 
 	t.Run("invalid speed", func(t *testing.T) {

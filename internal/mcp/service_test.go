@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	internalmcp "github.com/daikw/ccpersona/internal/mcp"
+	"github.com/daikw/ccpersona/internal/persona"
 	"github.com/daikw/ccpersona/internal/voice"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,7 @@ func (m *mockPlayer) PlayAudioBlocking(audioPath string) error {
 }
 
 func TestSpeakService_Speak_HappyPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}
 
@@ -71,6 +73,7 @@ func TestSpeakService_Speak_EmptyText(t *testing.T) {
 }
 
 func TestSpeakService_Speak_SynthesizeError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synthErr := errors.New("engine unavailable")
 	synth := &mockSynthesizer{returnErr: synthErr}
 	player := &mockPlayer{}
@@ -87,6 +90,7 @@ func TestSpeakService_Speak_SynthesizeError(t *testing.T) {
 }
 
 func TestSpeakService_Speak_PlaybackError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	playErr := errors.New("audio device not found")
 	player := &mockPlayer{returnErr: playErr}
@@ -103,6 +107,7 @@ func TestSpeakService_Speak_PlaybackError(t *testing.T) {
 }
 
 func TestSpeakService_Speak_WithProjectDir(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}
 
@@ -118,6 +123,7 @@ func TestSpeakService_Speak_WithProjectDir(t *testing.T) {
 }
 
 func TestSpeakService_Speak_WithProviderAndSpeaker(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}
 
@@ -139,12 +145,13 @@ func TestSpeakService_Speak_WithProviderAndSpeaker(t *testing.T) {
 }
 
 func TestSpeakService_Speak_WithPersonaVoiceConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	// Write a persona config with voice settings to the temp project dir.
 	projectDir := t.TempDir()
-	claudeDir := filepath.Join(projectDir, ".claude")
-	require.NoError(t, os.MkdirAll(claudeDir, 0755))
+	agentsDir := filepath.Join(projectDir, ".agents")
+	require.NoError(t, os.MkdirAll(agentsDir, 0755))
 	personaJSON := `{"name":"test","voice":{"provider":"aivisspeech","speaker":42}}`
-	require.NoError(t, os.WriteFile(filepath.Join(claudeDir, "persona.json"), []byte(personaJSON), 0644))
+	require.NoError(t, os.WriteFile(persona.ConfigPath(projectDir), []byte(personaJSON), 0600))
 
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}
@@ -183,6 +190,7 @@ func TestSpeakService_Speak_SkipsWhenMuted(t *testing.T) {
 }
 
 func TestSpeakService_Speak_EmptyAudioPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	// Synthesize returns an empty path (e.g., ToStdout case) — playback should still be attempted.
 	synth := &mockSynthesizer{returnPath: ""}
 	player := &mockPlayer{}

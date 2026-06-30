@@ -21,7 +21,10 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 	reader := bufio.NewReader(os.Stdin)
 
 	// Check existing config
-	existingConfig, _ := persona.LoadConfig(".")
+	existingConfig, err := persona.LoadConfigFromPath(persona.ConfigPath("."))
+	if err != nil {
+		return fmt.Errorf("failed to load existing config: %w", err)
+	}
 	if existingConfig != nil {
 		fmt.Printf("⚠️  Configuration already exists: %s\n", existingConfig.Name)
 		fmt.Print("Overwrite? [y/N]: ")
@@ -102,7 +105,7 @@ func handleInit(ctx context.Context, c *cli.Command) error {
 	}
 
 	fmt.Println("✅ Configuration created:")
-	fmt.Println("   - .claude/persona.json")
+	fmt.Println("   - .agents/ccpersona.json")
 
 	// Generate assistant-specific config
 	switch assistantChoice {
@@ -137,7 +140,8 @@ func showClaudeCodeHookInstructions() {
 	fmt.Println(`   {
      "hooks": {
        "SessionStart": [{"hooks": [{"type": "command", "command": "ccpersona hook"}]}],
-       "Stop": [{"hooks": [{"type": "command", "command": "ccpersona voice"}]}]
+       "Stop": [{"hooks": [{"type": "command", "command": "ccpersona voice"}]}],
+       "Notification": [{"hooks": [{"type": "command", "command": "ccpersona notify"}]}]
      }
    }`)
 	fmt.Println("")
@@ -212,12 +216,6 @@ func handleShow(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-func handleCreate(ctx context.Context, c *cli.Command) error {
-	// Deprecated: use 'edit' instead (creates if not exists)
-	fmt.Fprintln(os.Stderr, "⚠️  'create' is deprecated. Use 'edit' instead (creates if not exists).")
-	return handleEdit(ctx, c)
-}
-
 func handleEdit(ctx context.Context, c *cli.Command) error {
 	personaName := c.Args().Get(0)
 	if personaName == "" {
@@ -264,28 +262,33 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 	var err error
 
 	if c.Bool("global") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
+		homeDir, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return fmt.Errorf("failed to get home directory: %w", homeErr)
 		}
-		configDir := filepath.Join(homeDir, ".claude")
-		configPath = filepath.Join(configDir, "persona.json")
+		configDir := filepath.Join(homeDir, persona.AgentsDir)
+		configPath = filepath.Join(configDir, persona.ConfigFileName)
 
 		if err := os.MkdirAll(configDir, 0755); err != nil {
 			return fmt.Errorf("failed to create config directory: %w", err)
 		}
 
-		config, err = persona.LoadConfig(homeDir)
-		if err != nil || config == nil {
+		config, err = persona.LoadConfigFromPath(configPath)
+		if err != nil {
+			// A parse failure must not be swallowed into a default that would
+			// overwrite the existing (broken) config on save.
+			return fmt.Errorf("failed to load global config: %w", err)
+		}
+		if config == nil {
 			config = persona.GetDefaultConfig()
 			if err := persona.SaveConfig(homeDir, config); err != nil {
 				return fmt.Errorf("failed to create global config: %w", err)
 			}
 		}
 	} else {
-		configPath = filepath.Join(".claude", "persona.json")
+		configPath = persona.ConfigPath(".")
 
-		config, err = persona.LoadConfig(".")
+		config, err = persona.LoadConfigFromPath(configPath)
 		if err != nil {
 			return err
 		}
@@ -313,5 +316,25 @@ func handleConfig(ctx context.Context, c *cli.Command) error {
 	} else {
 		fmt.Println("Edited project configuration")
 	}
+	return nil
+}
+
+func handleConfigMigrate(ctx context.Context, c *cli.Command) error {
+	baseDir := "."
+	scope := "project"
+	if c.Bool("global") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		baseDir = homeDir
+		scope = "global"
+	}
+
+	path, err := persona.MigrateConfig(baseDir, c.Bool("force"))
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Migrated legacy configuration to %s (%s)\n", path, scope)
 	return nil
 }

@@ -73,26 +73,6 @@ func TestEngineInfoPortString(t *testing.T) {
 	}
 }
 
-func TestTemplateFS(t *testing.T) {
-	// Verify all templates are embedded
-	templates := []string{
-		"templates/com.voicevox.engine.plist",
-		"templates/com.aivisspeech.engine.plist",
-		"templates/voicevox-engine.service",
-		"templates/aivisspeech-engine.service",
-	}
-	for _, name := range templates {
-		data, err := templateFS.ReadFile(name)
-		if err != nil {
-			t.Errorf("templateFS.ReadFile(%q) error = %v", name, err)
-			continue
-		}
-		if len(data) == 0 {
-			t.Errorf("templateFS.ReadFile(%q) returned empty data", name)
-		}
-	}
-}
-
 func TestDiscoverEngine_EnvVar(t *testing.T) {
 	// Create a temp file to act as a fake binary
 	tmpFile := t.TempDir() + "/fake-engine"

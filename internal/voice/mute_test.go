@@ -25,6 +25,7 @@ func TestMute_SetsMarkerFile(t *testing.T) {
 	}
 	if status == nil {
 		t.Fatal("Mute returned nil status")
+		return
 	}
 	if status.Reason != "focusing" {
 		t.Errorf("Reason = %q, want %q", status.Reason, "focusing")
@@ -117,6 +118,7 @@ func TestLoadMuteStatus_ReturnsStatusWhenMuted(t *testing.T) {
 	}
 	if status == nil {
 		t.Fatal("expected non-nil status")
+		return
 	}
 	if status.Reason != "quiet hours" {
 		t.Errorf("Reason = %q, want %q", status.Reason, "quiet hours")

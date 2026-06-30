@@ -1,13 +1,11 @@
 package engine
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/template"
 
 	"github.com/rs/zerolog/log"
 )
@@ -26,44 +24,30 @@ func newSystemdManager() (*systemdManager, error) {
 	}, nil
 }
 
-func (m *systemdManager) unitPath(t EngineType) string {
-	return filepath.Join(m.unitDir, SystemdUnit(t))
+func (m *systemdManager) unitPath(def *EngineDef) (string, error) {
+	return servicePath(m.unitDir, def.SystemdUnitName())
 }
 
-func (m *systemdManager) templateName(t EngineType) string {
-	return "templates/" + SystemdUnit(t)
-}
+func (m *systemdManager) Install(def *EngineDef) error {
+	if !def.Managed() {
+		return errNotManaged(def)
+	}
+	if def.Command == "" {
+		return fmt.Errorf("%s: engine command is required for install", def.Name)
+	}
 
-func (m *systemdManager) Install(info *EngineInfo) error {
-	tmplData, err := templateFS.ReadFile(m.templateName(info.Type))
+	unitPath, err := m.unitPath(def)
 	if err != nil {
-		return fmt.Errorf("failed to read template: %w", err)
+		return err
 	}
 
-	tmpl, err := template.New("unit").Parse(string(tmplData))
-	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
-	}
-
-	data := struct {
-		BinaryPath string
-		Port       string
-	}{
-		BinaryPath: info.BinaryPath,
-		Port:       info.PortString(),
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to render template: %w", err)
-	}
+	contents := RenderSystemdUnit(def)
 
 	if err := os.MkdirAll(m.unitDir, 0755); err != nil {
 		return fmt.Errorf("failed to create systemd user directory: %w", err)
 	}
 
-	unitPath := m.unitPath(info.Type)
-	if err := os.WriteFile(unitPath, buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(unitPath, []byte(contents), 0644); err != nil {
 		return fmt.Errorf("failed to write unit file: %w", err)
 	}
 
@@ -73,7 +57,7 @@ func (m *systemdManager) Install(info *EngineInfo) error {
 	if out, err := exec.Command("systemctl", "--user", "daemon-reload").CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to reload systemd: %w: %s", err, string(out))
 	}
-	unit := SystemdUnit(info.Type)
+	unit := def.SystemdUnitName()
 	if out, err := exec.Command("systemctl", "--user", "enable", unit).CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to enable unit: %w: %s", err, string(out))
 	}
@@ -81,14 +65,20 @@ func (m *systemdManager) Install(info *EngineInfo) error {
 	return nil
 }
 
-func (m *systemdManager) Uninstall(t EngineType) error {
-	unit := SystemdUnit(t)
+func (m *systemdManager) Uninstall(def *EngineDef) error {
+	if !def.Managed() {
+		return errNotManaged(def)
+	}
+	unitPath, err := m.unitPath(def)
+	if err != nil {
+		return err
+	}
+	unit := def.SystemdUnitName()
 
 	// Disable and stop
 	_ = exec.Command("systemctl", "--user", "stop", unit).Run()
 	_ = exec.Command("systemctl", "--user", "disable", unit).Run()
 
-	unitPath := m.unitPath(t)
 	if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove unit file: %w", err)
 	}
@@ -100,8 +90,11 @@ func (m *systemdManager) Uninstall(t EngineType) error {
 	return nil
 }
 
-func (m *systemdManager) Start(t EngineType) error {
-	unit := SystemdUnit(t)
+func (m *systemdManager) Start(def *EngineDef) error {
+	if !def.Managed() {
+		return errNotManaged(def)
+	}
+	unit := def.SystemdUnitName()
 	out, err := exec.Command("systemctl", "--user", "start", unit).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("systemctl start failed: %w: %s", err, string(out))
@@ -109,8 +102,11 @@ func (m *systemdManager) Start(t EngineType) error {
 	return nil
 }
 
-func (m *systemdManager) Stop(t EngineType) error {
-	unit := SystemdUnit(t)
+func (m *systemdManager) Stop(def *EngineDef) error {
+	if !def.Managed() {
+		return errNotManaged(def)
+	}
+	unit := def.SystemdUnitName()
 	out, err := exec.Command("systemctl", "--user", "stop", unit).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("systemctl stop failed: %w: %s", err, string(out))
@@ -118,14 +114,18 @@ func (m *systemdManager) Stop(t EngineType) error {
 	return nil
 }
 
-func (m *systemdManager) Status(t EngineType) (*ServiceStatus, error) {
-	unit := SystemdUnit(t)
+func (m *systemdManager) Status(def *EngineDef) (*ServiceStatus, error) {
+	unit := def.SystemdUnitName()
 	status := &ServiceStatus{
-		Engine: t,
-		Label:  unit,
+		Name:  def.Name,
+		Label: unit,
 	}
 
-	if _, err := os.Stat(m.unitPath(t)); err == nil {
+	unitPath, err := m.unitPath(def)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(unitPath); err == nil {
 		status.Installed = true
 	}
 

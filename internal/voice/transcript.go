@@ -173,30 +173,109 @@ func (tr *TranscriptReader) getMessageWithUUID(file *os.File) (string, error) {
 	return result, nil
 }
 
-// readLinesReverse reads file lines in reverse order
+// tailWindowSize is the chunk of the transcript tail read per pass. Transcript
+// JSONL files can reach hundreds of MB, so we never load the whole file: we
+// read a fixed-size window from the end and grow it only if the target line is
+// not yet within reach.
+const tailWindowSize = 1024 * 1024 // 1MB
+
+// readLinesReverse returns the complete lines from the tail of the file in
+// reverse order (newest first), growing the tail window until the
+// mode-specific stop condition is met or the whole file has been read.
+//
+// The stop condition differs per mode because of what each consumer needs:
+//   - simple mode reads only the newest assistant text, so one usable assistant
+//     text block in the window is enough.
+//   - UUID mode joins every fragment of the newest assistant message, which
+//     spans multiple JSONL lines. A window holding only one assistant UUID may
+//     have cut off earlier fragments of that same message, so we require two
+//     distinct assistant UUIDs: seeing an older message's UUID proves all
+//     fragments of the newer one lie after it, i.e. fully inside the window.
 func (tr *TranscriptReader) readLinesReverse(file *os.File) ([]string, error) {
-	var lines []string
-	scanner := bufio.NewScanner(file)
+	stop := containsAssistantTextLine
+	if tr.config.UUIDMode {
+		stop = containsTwoAssistantUUIDs
+	}
+	return tr.readLinesReverseUntil(file, stop)
+}
 
-	// Increase buffer size to handle very long lines (1MB instead of default 64KB)
-	const maxScanTokenSize = 1024 * 1024 // 1MB
-	buf := make([]byte, maxScanTokenSize)
-	scanner.Buffer(buf, maxScanTokenSize)
-
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+// readLinesReverseUntil reads tail windows of increasing size until stop
+// reports the target is fully within the window or the file start is reached,
+// keeping at most one window resident in memory.
+func (tr *TranscriptReader) readLinesReverseUntil(file *os.File, stop func([]string) bool) ([]string, error) {
+	size, err := fileSize(file)
+	if err != nil {
+		return nil, err
 	}
 
-	if err := scanner.Err(); err != nil {
-		// If we hit a "token too long" error, try to read with line truncation
-		if strings.Contains(err.Error(), "token too long") {
-			log.Warn().Msg("Very long line detected, attempting to read with truncation")
-			return tr.readLinesWithTruncation(file)
+	window := int64(tailWindowSize)
+	for {
+		atFileStart := window >= size
+		readFrom := size - window
+		if readFrom < 0 {
+			readFrom = 0
 		}
-		return nil, fmt.Errorf("failed to read file: %w", err)
+
+		lines, err := tr.readLinesFromOffset(file, readFrom, atFileStart)
+		if err != nil {
+			return nil, err
+		}
+
+		// atFileStart guarantees termination for files where stop never holds.
+		if atFileStart || stop(lines) {
+			return lines, nil
+		}
+
+		// Clamp to size instead of doubling past it: avoids int64 overflow on
+		// pathological sizes (e.g. sparse files) and makes the next pass final.
+		if window > size/2 {
+			window = size
+		} else {
+			window *= 2
+		}
+	}
+}
+
+// readLinesFromOffset reads the byte range [offset, EOF) and returns its
+// complete lines reversed. When dropPartialFirst is true the first line is
+// discarded because the window started mid-line; when the offset is the file
+// start (offset == 0 / atFileStart) every line is complete and kept.
+func (tr *TranscriptReader) readLinesFromOffset(file *os.File, offset int64, atFileStart bool) ([]string, error) {
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("failed to seek transcript: %w", err)
 	}
 
-	// Reverse the lines
+	var lines []string
+	reader := bufio.NewReader(file)
+	first := true
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return nil, fmt.Errorf("failed to read transcript: %w", err)
+		}
+
+		hadNewline := strings.HasSuffix(line, "\n")
+		trimmed := strings.TrimRight(line, "\n\r")
+
+		// A window that does not begin at the file start splits the first line
+		// across the window boundary, so that fragment is dropped.
+		dropPartial := first && offset > 0 && !atFileStart
+		first = false
+
+		// The trailing fragment without a newline at EOF is a complete final
+		// line only when EOF terminates it; ReadString returns it with err==EOF.
+		if trimmed != "" && !dropPartial {
+			if hadNewline || err == io.EOF {
+				lines = append(lines, trimmed)
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+	}
+
 	for i := len(lines)/2 - 1; i >= 0; i-- {
 		opp := len(lines) - 1 - i
 		lines[i], lines[opp] = lines[opp], lines[i]
@@ -205,57 +284,55 @@ func (tr *TranscriptReader) readLinesReverse(file *os.File) ([]string, error) {
 	return lines, nil
 }
 
-// readLinesWithTruncation reads file lines with truncation for extremely long lines
-func (tr *TranscriptReader) readLinesWithTruncation(file *os.File) ([]string, error) {
-	// Reset file position to beginning
-	if _, err := file.Seek(0, 0); err != nil {
-		return nil, fmt.Errorf("failed to reset file position: %w", err)
+// fileSize returns the size of an open file.
+func fileSize(file *os.File) (int64, error) {
+	info, err := file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("failed to stat transcript: %w", err)
 	}
+	return info.Size(), nil
+}
 
-	var lines []string
-	const maxLineLength = 512 * 1024 // 512KB max per line
-
-	reader := bufio.NewReader(file)
-	lineNumber := 0
-
-	for {
-		lineNumber++
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("failed to read line %d: %w", lineNumber, err)
+// containsAssistantTextLine reports whether any line parses as an assistant
+// message containing non-empty text, matching getMessageSimple's usable input.
+func containsAssistantTextLine(lines []string) bool {
+	for _, line := range lines {
+		var msg TranscriptMessage
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
 		}
-
-		// Remove trailing newline
-		line = strings.TrimRight(line, "\n\r")
-
-		// Truncate if too long
-		if len(line) > maxLineLength {
-			originalLength := len(line)
-			line = line[:maxLineLength]
-			log.Warn().
-				Int("line_number", lineNumber).
-				Int("original_length", originalLength).
-				Int("truncated_length", maxLineLength).
-				Msg("Truncated extremely long line")
+		if msg.Type != "assistant" || msg.Message.Role != "assistant" {
+			continue
 		}
-
-		if line != "" {
-			lines = append(lines, line)
-		}
-
-		if err == io.EOF {
-			break
+		for _, content := range msg.Message.Content {
+			if content.Type == "text" && strings.TrimSpace(content.Text) != "" {
+				return true
+			}
 		}
 	}
+	return false
+}
 
-	// Reverse the lines
-	for i := len(lines)/2 - 1; i >= 0; i-- {
-		opp := len(lines) - 1 - i
-		lines[i], lines[opp] = lines[opp], lines[i]
+// containsTwoAssistantUUIDs reports whether the lines hold assistant messages
+// with at least two distinct non-empty UUIDs. See readLinesReverse for why
+// this guarantees the newest message's fragments are complete in the window.
+func containsTwoAssistantUUIDs(lines []string) bool {
+	var first string
+	for _, line := range lines {
+		var msg TranscriptMessage
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			continue
+		}
+		if msg.Type != "assistant" || msg.UUID == "" {
+			continue
+		}
+		if first == "" {
+			first = msg.UUID
+		} else if msg.UUID != first {
+			return true
+		}
 	}
-
-	log.Info().Int("total_lines", len(lines)).Msg("Successfully read file with line truncation")
-	return lines, nil
+	return false
 }
 
 // ProcessText applies reading mode restrictions to the text

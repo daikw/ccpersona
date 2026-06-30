@@ -64,7 +64,7 @@ func (s *SpeakService) Speak(ctx context.Context, req SpeakRequest) error {
 		}
 	}
 
-	// Load persona config: project dir first, then global (~/.claude) only.
+	// Load unified config: project dir first, then global (~/.agents) only.
 	// Deliberately avoid LoadConfigWithFallback() which uses cwd and may resolve
 	// a persona from a different project when project_dir is explicitly given.
 	personaCfg, _ := persona.LoadConfigForPlatform(projectDir, "")
@@ -75,13 +75,7 @@ func (s *SpeakService) Speak(ctx context.Context, req SpeakRequest) error {
 		}
 	}
 
-	personaInput := toPersonaVoiceInput(personaCfg)
-
-	// Load voice config file.
-	loader := voice.NewConfigLoader()
-	fileConfig, _ := loader.LoadConfig(projectDir)
-
-	opts := voice.Resolve(personaInput, fileConfig, req.Provider)
+	opts := voice.Resolve(personaCfg.ToVoiceInput(), personaCfg.ToVoiceConfigFile(), req.Provider)
 
 	// Apply request-level speaker override.
 	if req.Speaker > 0 {
@@ -107,17 +101,4 @@ func (s *SpeakService) Speak(ctx context.Context, req SpeakRequest) error {
 	}
 
 	return nil
-}
-
-// toPersonaVoiceInput converts a persona.Config into the voice input struct.
-func toPersonaVoiceInput(cfg *persona.Config) voice.PersonaVoiceInput {
-	if cfg == nil || cfg.Voice == nil {
-		return voice.PersonaVoiceInput{}
-	}
-	return voice.PersonaVoiceInput{
-		Provider: cfg.Voice.Provider,
-		Speaker:  cfg.Voice.Speaker,
-		Volume:   cfg.Voice.Volume,
-		Speed:    cfg.Voice.Speed,
-	}
 }

@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build and development
-export GOPATH=$HOME/go && make build    # Build ccpersona binary (GOPATH export required to avoid tilde expansion error)
-export GOPATH=$HOME/go && make test     # Run all tests with coverage
+make build                               # Build ccpersona binary
+make test                                # Run all tests with coverage
 make fmt                                 # Format code
 make vet                                 # Run go vet
 make check                              # Run fmt, vet, and tests
@@ -35,9 +35,8 @@ ccpersona is a persona management system that automatically applies different "p
 
 1. **Persona System** (`internal/persona/`)
    - Personas are markdown files stored in `~/.claude/personas/`
-   - Shared project configuration in `.agents/persona.json`
-   - Agent-specific project configuration in `.claude/persona.json`, `.codex/persona.json`, or `.cursor/persona.json`
-   - Session tracking prevents duplicate persona applications
+   - Unified persona and voice configuration in `.agents/ccpersona.json`
+   - The SessionStart hook fires once per session; persona application is idempotent (re-running produces the same output without side effects)
    - Manager handles persona CRUD operations and AI assistant integration
 
 2. **Hook System** (`internal/hook/`)
@@ -59,11 +58,19 @@ ccpersona is a persona management system that automatically applies different "p
    - With --plain flag: reads plain text from stdin for voice synthesis
    - With --transcript flag: reads from `~/.claude/projects/*.jsonl`
    - As Stop hook: automatically uses transcript path from hook event
-   - Supports VOICEVOX (port 50021) and AivisSpeech (port 10101) engines
+   - Supports VOICEVOX (port 50021) and AivisSpeech (port 10101) engines, plus cloud providers (openai, elevenlabs, polly, gcp)
+   - `config.go` `ProviderConfig`: `base_url` redirects the OpenAI provider to a local OpenAI-compatible TTS server; when set, `api_key` is optional. `timeout_seconds` overrides the default 30 s HTTP timeout for slow GPU inference.
+   - `config.go` `ConfigFile.Engines` (`engines` key): user-defined engine definitions forwarded to the engine registry (see below).
    - Reading modes: short (first line) or full (entire text with optional --chars limit)
    - Cross-platform audio playback (afplay/aplay/paplay/ffplay)
 
-4. **CLI Framework**
+4. **Engine Registry** (`internal/engine/`)
+   - `registry.go` `BuildRegistry()`: merges built-in engines (VOICEVOX, AivisSpeech) with user-defined engines from `ConfigFile.Engines`. User engine names must not collide with built-in names; collisions return an error. Built-ins are listed first in stable order; user engines follow sorted by name.
+   - `registry.go` `EngineDef`: unified definition for both built-in and user-defined engines. `Managed()` is true when `Command` is set; engines without `Command` are external (status/health only, no install/start/stop). `HealthType` defaults to `"openai"` (GET `/v1/models`) for user engines; built-ins use `"voicevox"` (GET `/version`).
+   - `health.go` `CheckHealth()`: performs an HTTP GET to the engine's health URL with a 2 s default timeout.
+   - `render.go` `RenderPlist()` / `RenderSystemdUnit()`: generates launchd plist or systemd unit files for managed engines. User-defined engines with `Dir` or `Env` emit `WorkingDirectory` / `EnvironmentVariables` blocks in addition to the standard fields.
+
+5. **CLI Framework**
    - Uses urfave/cli v3 (note: v3 has different API from v2)
    - Single entry point in `cmd/main.go`
    - All commands return nil on success to avoid disrupting hooks
@@ -140,68 +147,43 @@ The `notify` command provides a single interface for all platforms:
 - **Routing**: Routes events to platform-specific handlers
 - **Shared functionality**: All platforms use the same persona and voice configuration
 
-### Platform-Specific Configuration
+### Unified Configuration
 
-ccpersona supports platform-specific configuration files, allowing different personas for different AI assistants.
-Each platform uses its own standard configuration directory.
+ccpersona uses one config file for all supported coding agents:
 
-#### Global Configuration Directories
+1. `<project>/.agents/ccpersona.json`
+2. `~/.agents/ccpersona.json`
 
-| Platform    | Global Config Path         |
-|-------------|---------------------------|
-| Shared      | `~/.agents/persona.json`  |
-| Claude Code | `~/.claude/persona.json`  |
-| Codex       | `~/.codex/persona.json`   |
-| Cursor      | `~/.cursor/persona.json`  |
+The file contains persona selection, active voice/provider settings, and user-defined local TTS engines:
 
-#### Configuration Fallback Hierarchy
-
-**Claude Code:**
-1. `.claude/persona.json` (project)
-2. `.agents/persona.json` (project, shared)
-3. `~/.claude/persona.json` (global)
-4. `~/.agents/persona.json` (global, shared)
-
-**Codex:**
-1. `.codex/persona.json` (project, platform-specific)
-2. `.claude/codex/persona.json` (project, legacy platform-specific)
-3. `.agents/persona.json` (project, shared)
-4. `.claude/persona.json` (project, legacy shared)
-5. `~/.codex/persona.json` (global)
-6. `~/.agents/persona.json` (global, shared)
-
-**Cursor:**
-1. `.cursor/persona.json` (project, platform-specific)
-2. `.claude/cursor/persona.json` (project, legacy platform-specific)
-3. `.agents/persona.json` (project, shared)
-4. `.claude/persona.json` (project, legacy shared)
-5. `~/.cursor/persona.json` (global)
-6. `~/.agents/persona.json` (global, shared)
-
-#### Example Directory Structure
-
+```json
+{
+  "name": "fable",
+  "voice": {
+    "provider": "openai",
+    "base_url": "http://127.0.0.1:8088/v1",
+    "model": "irodori-tts",
+    "voice": "none",
+    "format": "wav",
+    "timeout_seconds": 300
+  },
+  "engines": {
+    "irodori": {
+      "base_url": "http://127.0.0.1:8088",
+      "health": "openai"
+    }
+  }
+}
 ```
-# Global configs (each platform uses its own directory)
-~/.agents/persona.json        # Shared default
-~/.claude/persona.json        # Claude Code
-~/.codex/persona.json         # Codex
-~/.cursor/persona.json        # Cursor
 
-# Project configs (all in .claude/)
-./your-project/.claude/
-├── persona.json              # Common (all platforms)
-├── codex/
-│   └── persona.json          # Codex specific
-└── cursor/
-    └── persona.json          # Cursor specific
-```
+Legacy files such as `.claude/persona.json`, `.agents/persona.json`, `.codex/persona.json`, `.cursor/persona.json`, and `.claude/config.json` are no longer loaded. If present, runtime commands print a stderr warning and continue with defaults. Use `ccpersona config migrate` to create the unified file.
 
 ### Key Design Decisions
 
 - **No shell scripts**: All functionality implemented in Go for cross-platform compatibility
 - **Multi-platform support**: Single codebase works with both Claude Code and OpenAI Codex
 - **Silent failures in hooks**: Errors are logged but don't fail to avoid disrupting AI assistants
-- **Session persistence**: Session markers stored in `/tmp/ccpersona-sessions/` with 24-hour cleanup
+- **Idempotent persona application**: SessionStart hook fires once per session; outputting the same persona instructions multiple times is harmless
 - **Persona format**: Markdown with specific sections (口調, 考え方, 価値観, etc.)
 - **Unified hook interface**: Auto-detection of platform from JSON structure eliminates need for separate configurations
 
@@ -211,4 +193,3 @@ Each platform uses its own standard configuration directory.
 - Voice synthesis requires external engines running locally
 - The `ccpersona` binary must be in PATH for Claude Code hooks to work
 - Personas can include voice configuration for automatic synthesis
-- GOPATH tilde expansion issue requires explicit export in make commands

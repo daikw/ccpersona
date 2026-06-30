@@ -2,10 +2,12 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -156,8 +158,12 @@ func TestOpenAIProvider_IsAvailable(t *testing.T) {
 		assert.False(t, provider.IsAvailable(ctx))
 	})
 
-	t.Run("returns true when API responds OK", func(t *testing.T) {
+	t.Run("uses non-billed GET /models for the check", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Must not hit the billed synthesis endpoint.
+			assert.Equal(t, "GET", r.Method)
+			assert.Equal(t, OpenAIModelsEndpoint, r.URL.Path)
+			assert.Contains(t, r.Header.Get("Authorization"), "Bearer test-api-key")
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()
@@ -180,6 +186,89 @@ func TestOpenAIProvider_IsAvailable(t *testing.T) {
 
 		ctx := context.Background()
 		assert.False(t, provider.IsAvailable(ctx))
+	})
+
+	t.Run("probes {base_url}/v1/models for local server without API key", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "GET", r.Method)
+			assert.Equal(t, "/v1"+OpenAIModelsEndpoint, r.URL.Path)
+			// No auth header expected for keyless local servers.
+			assert.Empty(t, r.Header.Get("Authorization"))
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		provider, err := OpenAIProviderFromConfig(map[string]interface{}{
+			"base_url": server.URL + "/",
+		})
+		assert.NoError(t, err)
+
+		ctx := context.Background()
+		assert.True(t, provider.IsAvailable(ctx))
+	})
+
+	t.Run("returns false when local server /models is unavailable (503)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer server.Close()
+
+		provider, err := OpenAIProviderFromConfig(map[string]interface{}{
+			"base_url": server.URL,
+		})
+		assert.NoError(t, err)
+
+		ctx := context.Background()
+		assert.False(t, provider.IsAvailable(ctx))
+	})
+}
+
+func TestOpenAIProvider_SynthesizeReflectsConfig(t *testing.T) {
+	t.Run("uses config model/voice and omits auth for local server", func(t *testing.T) {
+		var gotBody map[string]interface{}
+		var gotAuth string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/v1"+OpenAITTSEndpoint, r.URL.Path)
+			gotAuth = r.Header.Get("Authorization")
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("audio"))
+		}))
+		defer server.Close()
+
+		provider, err := OpenAIProviderFromConfig(map[string]interface{}{
+			"base_url": server.URL,
+		})
+		assert.NoError(t, err)
+
+		ctx := context.Background()
+		reader, err := provider.Synthesize(ctx, "こんにちは", SynthesizeOptions{
+			Model: "irodori-tts",
+			Voice: "none",
+		})
+		assert.NoError(t, err)
+		_ = reader.Close()
+
+		assert.Equal(t, "irodori-tts", gotBody["model"])
+		assert.Equal(t, "none", gotBody["voice"])
+		assert.Empty(t, gotAuth, "no Authorization header for keyless local server")
+	})
+
+	t.Run("timeout_seconds is applied to the HTTP client", func(t *testing.T) {
+		provider, err := OpenAIProviderFromConfig(map[string]interface{}{
+			"base_url":        "http://localhost:8088/v1",
+			"timeout_seconds": 120,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 120*time.Second, provider.httpClient.Timeout)
+	})
+
+	t.Run("timeout defaults to 30s when unset", func(t *testing.T) {
+		provider, err := OpenAIProviderFromConfig(map[string]interface{}{
+			"api_key": "test-key",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 30*time.Second, provider.httpClient.Timeout)
 	})
 }
 
@@ -214,6 +303,41 @@ func TestOpenAIProviderFromConfig(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, provider)
 		assert.Equal(t, "https://custom.openai.com/v1", provider.baseURL)
+	})
+
+	t.Run("normalizes root-style base URL to /v1", func(t *testing.T) {
+		config := map[string]interface{}{
+			"base_url": "http://localhost:8088",
+		}
+		provider, err := OpenAIProviderFromConfig(config)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, provider)
+		assert.Equal(t, "http://localhost:8088/v1", provider.baseURL)
+	})
+
+	t.Run("succeeds with base_url and no API key", func(t *testing.T) {
+		config := map[string]interface{}{
+			"base_url": "http://localhost:8088/v1",
+		}
+		provider, err := OpenAIProviderFromConfig(config)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, provider)
+		assert.Empty(t, provider.apiKey)
+		assert.Equal(t, "http://localhost:8088/v1", provider.baseURL)
+	})
+
+	t.Run("coerces JSON-decoded float64 timeout_seconds", func(t *testing.T) {
+		// encoding/json decodes numbers as float64; ensure that path works too.
+		config := map[string]interface{}{
+			"base_url":        "http://localhost:8088/v1",
+			"timeout_seconds": float64(90),
+		}
+		provider, err := OpenAIProviderFromConfig(config)
+
+		assert.NoError(t, err)
+		assert.Equal(t, 90*time.Second, provider.httpClient.Timeout)
 	})
 }
 

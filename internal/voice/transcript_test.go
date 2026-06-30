@@ -90,6 +90,267 @@ func TestReadLinesReverseLongLine(t *testing.T) {
 	}
 }
 
+// TestGetLatestAssistantMessageWindowCrossing verifies that an assistant
+// message reachable only by growing the tail window past tailWindowSize is
+// still found. The assistant line is the last in the file but preceded by
+// padding that exceeds a single window, so the first window contains only the
+// (partial) padding line and the reader must expand.
+func TestGetLatestAssistantMessageWindowCrossing(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "window_crossing.jsonl")
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+
+	// A single user line larger than one window pushes the assistant line
+	// outside the initial tail window.
+	padding := strings.Repeat("x", tailWindowSize+512*1024)
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "user",
+		UUID:    "user-1",
+		Message: messageBody("user", "text", padding),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "assistant-1",
+		Message: messageBody("assistant", "text", "Found after window growth"),
+	})
+
+	reader := NewTranscriptReader(DefaultConfig())
+	text, err := reader.GetLatestAssistantMessage(testFile)
+	if err != nil {
+		t.Fatalf("Failed to get assistant message: %v", err)
+	}
+	if text != "Found after window growth" {
+		t.Errorf("Expected 'Found after window growth', got '%s'", text)
+	}
+}
+
+// TestGetLatestAssistantMessageNoAssistantInTail verifies that when no
+// assistant message exists anywhere, the window grows to the whole file and
+// terminates with the expected not-found error rather than looping.
+func TestGetLatestAssistantMessageNoAssistantInTail(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "no_assistant.jsonl")
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+
+	// Several user lines totaling more than one window, no assistant line.
+	for i := 0; i < 3; i++ {
+		writeJSONLine(t, f, TranscriptMessage{
+			Type:    "user",
+			UUID:    "user-1",
+			Message: messageBody("user", "text", strings.Repeat("y", tailWindowSize/2)),
+		})
+	}
+
+	reader := NewTranscriptReader(DefaultConfig())
+	_, err = reader.GetLatestAssistantMessage(testFile)
+	if err == nil {
+		t.Fatal("Expected error when no assistant message exists, got nil")
+	}
+	if !strings.Contains(err.Error(), "no assistant message found") {
+		t.Errorf("Expected 'no assistant message found', got: %v", err)
+	}
+}
+
+// TestGetLatestAssistantMessageSkipsTextlessAssistantInTail verifies simple
+// mode keeps growing the tail window when the newest assistant line has no
+// usable text content. getMessageSimple requires non-empty assistant text, so
+// stopping at a tool-use-only assistant line would miss earlier text.
+func TestGetLatestAssistantMessageSkipsTextlessAssistantInTail(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "textless_assistant_in_tail.jsonl")
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "assistant-1",
+		Message: messageBody("assistant", "text", "Text before tool use"),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "user",
+		UUID:    "user-1",
+		Message: messageBody("user", "text", strings.Repeat("x", tailWindowSize+512*1024)),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "assistant-2",
+		Message: messageBody("assistant", "tool_use", ""),
+	})
+
+	reader := NewTranscriptReader(DefaultConfig())
+	text, err := reader.GetLatestAssistantMessage(testFile)
+	if err != nil {
+		t.Fatalf("Failed to get assistant message: %v", err)
+	}
+	if text != "Text before tool use" {
+		t.Errorf("Expected 'Text before tool use', got '%s'", text)
+	}
+}
+
+// TestGetMessageWithUUIDWindowCrossing verifies the UUID-mode regression fix:
+// when fragments of the newest assistant message straddle the initial tail
+// window, the window must grow until every fragment is included, not stop at
+// the first assistant line it sees.
+func TestGetMessageWithUUIDWindowCrossing(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "uuid_window_crossing.jsonl")
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+
+	// Older assistant message, then the newest message split into two
+	// fragments with more than one window of padding between them, so the
+	// initial window holds only the second fragment (a single assistant UUID).
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "old-1",
+		Message: messageBody("assistant", "text", "Old message"),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "new-1",
+		Message: messageBody("assistant", "text", "Part 1"),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "user",
+		UUID:    "user-1",
+		Message: messageBody("user", "text", strings.Repeat("x", tailWindowSize+512*1024)),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "new-1",
+		Message: messageBody("assistant", "text", "Part 2"),
+	})
+
+	config := DefaultConfig()
+	config.UUIDMode = true
+	reader := NewTranscriptReader(config)
+
+	text, err := reader.GetLatestAssistantMessage(testFile)
+	if err != nil {
+		t.Fatalf("Failed to get assistant message: %v", err)
+	}
+	if text != "Part 1 Part 2" {
+		t.Errorf("Expected 'Part 1 Part 2', got '%s'", text)
+	}
+}
+
+// TestReadLinesReverseUUIDStopsAtOlderUUID verifies that in UUID mode the
+// window stops growing once an older assistant UUID is visible: an older
+// UUID inside the window proves the newest message is complete, so lines
+// before the initial window must not be read.
+func TestReadLinesReverseUUIDStopsAtOlderUUID(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "uuid_early_stop.jsonl")
+
+	f, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.Close() })
+
+	// Padding larger than two windows, then an older UUID and both fragments
+	// of the newest message all inside the first window.
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "user",
+		UUID:    "user-1",
+		Message: messageBody("user", "text", strings.Repeat("y", 2*tailWindowSize+512*1024)),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "old-1",
+		Message: messageBody("assistant", "text", "Old message"),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "new-1",
+		Message: messageBody("assistant", "text", "Part 1"),
+	})
+	writeJSONLine(t, f, TranscriptMessage{
+		Type:    "assistant",
+		UUID:    "new-1",
+		Message: messageBody("assistant", "text", "Part 2"),
+	})
+
+	config := DefaultConfig()
+	config.UUIDMode = true
+	reader := NewTranscriptReader(config)
+
+	file, err := os.Open(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = file.Close() })
+
+	lines, err := reader.readLinesReverse(file)
+	if err != nil {
+		t.Fatalf("Failed to read lines: %v", err)
+	}
+
+	// Two distinct UUIDs sit in the first window, so the window must not have
+	// grown to include the padding line (which would yield 4 lines).
+	if len(lines) != 3 {
+		t.Errorf("Expected 3 lines (early stop without padding), got %d", len(lines))
+	}
+	for _, line := range lines {
+		if strings.Contains(line, "yyyy") {
+			t.Error("Padding line outside the first window should not have been read")
+		}
+	}
+}
+
+func writeJSONLine(t *testing.T, f *os.File, msg TranscriptMessage) {
+	t.Helper()
+	data, err := json.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write(append(data, '\n')); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func messageBody(role, contentType, text string) struct {
+	Role    string `json:"role"`
+	Content []struct {
+		Type string `json:"type"`
+		Text string `json:"text,omitempty"`
+	} `json:"content"`
+} {
+	var body struct {
+		Role    string `json:"role"`
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text,omitempty"`
+		} `json:"content"`
+	}
+	body.Role = role
+	body.Content = []struct {
+		Type string `json:"type"`
+		Text string `json:"text,omitempty"`
+	}{
+		{Type: contentType, Text: text},
+	}
+	return body
+}
+
 // TestGetLatestAssistantMessage tests parsing Claude Code transcript format
 func TestGetLatestAssistantMessage(t *testing.T) {
 	tmpDir := t.TempDir()

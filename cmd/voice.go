@@ -22,11 +22,10 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 		return nil
 	}
 
-	fileConfig := loadVoiceConfig(c)
-
-	personaConfig, err := persona.LoadConfigWithFallback()
-	personaInput := toPersonaVoiceInput(personaConfig)
-	if err == nil && personaConfig != nil && personaConfig.Voice != nil {
+	personaConfig := loadUnifiedConfig(c, "")
+	fileConfig := personaConfig.ToVoiceConfigFile()
+	personaInput := personaConfig.ToVoiceInput()
+	if personaConfig != nil && personaConfig.Voice != nil {
 		log.Debug().
 			Str("persona", personaConfig.Name).
 			Str("voice_provider", personaConfig.Voice.Provider).
@@ -35,7 +34,7 @@ func handleVoice(ctx context.Context, c *cli.Command) error {
 			Float64("voice_speed", personaConfig.Voice.Speed).
 			Msg("Applied persona voice config")
 	} else {
-		log.Debug().Msg("No persona voice config found, using defaults or file config")
+		log.Debug().Msg("No unified voice config found, using defaults")
 	}
 
 	// Only pass cliProvider when explicitly set by the user.
@@ -239,66 +238,43 @@ func buildVoiceOptions(c *cli.Command, base voice.VoiceOptions) voice.VoiceOptio
 // Voice config management handlers
 
 func handleVoiceConfigShow(ctx context.Context, c *cli.Command) error {
-	loader := voice.NewConfigLoader()
-
-	// Try to load config
-	workDir, _ := os.Getwd()
-	config, err := loader.LoadConfig(workDir)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+	config := loadUnifiedConfig(c, "")
 	if config == nil {
 		fmt.Println("No configuration file found.")
 		fmt.Println("\nSearched locations:")
-		fmt.Println("  - .claude/config.json (project)")
-		fmt.Println("  - ~/.claude/config.json (global)")
-		fmt.Println("\nRun 'ccpersona voice config init' to create one.")
+		fmt.Println("  - .agents/ccpersona.json (project)")
+		fmt.Println("  - ~/.agents/ccpersona.json (global)")
+		fmt.Println("\nRun 'ccpersona voice config init' to create one, or 'ccpersona config migrate' to migrate legacy files.")
 		return nil
 	}
 
-	// Mask secrets before displaying
-	masked := config.MaskSecrets()
-
-	// Pretty print
+	masked := maskUnifiedConfig(config)
 	output, err := json.MarshalIndent(masked, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to format config: %w", err)
 	}
 
-	fmt.Println("Current voice configuration (secrets masked):")
+	fmt.Println("Current ccpersona configuration (secrets masked):")
 	fmt.Println(string(output))
 
 	return nil
 }
 
 func handleVoiceConfigValidate(ctx context.Context, c *cli.Command) error {
-	loader := voice.NewConfigLoader()
-
-	// Try to load config
-	workDir, _ := os.Getwd()
-	config, err := loader.LoadConfig(workDir)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+	config := loadUnifiedConfig(c, "")
 	if config == nil {
-		fmt.Println("No voice configuration file found.")
+		fmt.Println("No ccpersona configuration file found.")
 		return nil
 	}
 
-	// Validate
-	errors := config.Validate()
-	if len(errors) == 0 {
+	if err := persona.ValidateConfig(config); err == nil {
 		fmt.Println("✅ Configuration is valid.")
 		return nil
-	}
-
-	fmt.Println("❌ Configuration has errors:")
-	for _, err := range errors {
+	} else {
+		fmt.Println("❌ Configuration has errors:")
 		fmt.Printf("  - %s\n", err)
+		return fmt.Errorf("configuration validation failed")
 	}
-	return fmt.Errorf("configuration validation failed")
 }
 
 func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
@@ -309,9 +285,9 @@ func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
 		if err != nil {
 			return fmt.Errorf("failed to get home directory: %w", err)
 		}
-		configPath = filepath.Join(homeDir, ".claude", "config.json")
+		configPath = persona.ConfigPath(homeDir)
 	} else {
-		configPath = ".claude/config.json"
+		configPath = persona.ConfigPath(".")
 	}
 
 	// Check if file already exists
@@ -325,11 +301,32 @@ func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	// Generate example config
-	example := voice.GenerateExampleConfig()
+	exampleConfig := &persona.Config{
+		Name: "default",
+		Voice: &persona.VoiceConfig{
+			Provider: "openai",
+			APIKey:   "${OPENAI_API_KEY}",
+			Model:    "tts-1",
+			Voice:    "nova",
+			Format:   "mp3",
+			Speed:    1.0,
+			Volume:   1.0,
+		},
+		Engines: map[string]voice.EngineUserConfig{
+			"irodori": {
+				BaseURL: "http://127.0.0.1:8088/v1",
+				Health:  "openai",
+			},
+		},
+	}
+	example, err := json.MarshalIndent(exampleConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to generate config: %w", err)
+	}
+	example = append(example, '\n')
 
 	// Write with secure permissions
-	if err := os.WriteFile(configPath, []byte(example), 0600); err != nil {
+	if err := os.WriteFile(configPath, example, 0600); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -393,22 +390,40 @@ func handleVoiceStatus(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// Helper function for loading voice config in handlers
-func loadVoiceConfig(c *cli.Command) *voice.ConfigFile {
-	loader := voice.NewConfigLoader()
-
-	// Custom config path
+func loadUnifiedConfig(c *cli.Command, platform string) *persona.Config {
 	if configPath := c.String("config"); configPath != "" {
-		config, err := loader.LoadFromPath(configPath)
+		config, err := persona.LoadConfigFromPath(configPath)
 		if err != nil {
-			log.Warn().Err(err).Str("path", configPath).Msg("Failed to load custom config")
+			fmt.Fprintf(os.Stderr, "ccpersona: failed to load %s; using built-in defaults: %v\n", configPath, err)
 			return nil
 		}
 		return config
 	}
 
-	// Default locations
-	workDir, _ := os.Getwd()
-	config, _ := loader.LoadConfig(workDir)
+	config, err := persona.LoadConfigWithFallbackForPlatform(platform)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load ccpersona config")
+		return nil
+	}
 	return config
+}
+
+// Helper function for loading voice config in handlers.
+func loadVoiceConfig(c *cli.Command) *voice.ConfigFile {
+	return loadUnifiedConfig(c, "").ToVoiceConfigFile()
+}
+
+func maskUnifiedConfig(config *persona.Config) *persona.Config {
+	if config == nil {
+		return nil
+	}
+	masked := *config
+	if config.Voice != nil {
+		voiceCfg := *config.Voice
+		if voiceCfg.APIKey != "" {
+			voiceCfg.APIKey = fmt.Sprintf("[set, %d chars]", len(voiceCfg.APIKey))
+		}
+		masked.Voice = &voiceCfg
+	}
+	return &masked
 }

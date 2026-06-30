@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/daikw/ccpersona/internal/cliui"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v3"
@@ -49,10 +50,23 @@ and behavioral patterns for your AI assistant.`,
 				ArgsUsage: "[persona]",
 			},
 			{
-				Name:      "create",
-				Usage:     "Create a new persona (deprecated: use edit)",
-				Action:    handleCreate,
+				Name:    "list",
+				Usage:   "List available personas (active persona marked with *)",
+				Action:  handleList,
+				Aliases: []string{"ls"},
+			},
+			{
+				Name:      "set",
+				Usage:     "Set the active persona for the current project (or --global)",
+				Action:    handleSet,
 				ArgsUsage: "<name>",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "global",
+						Aliases: []string{"g"},
+						Usage:   "Write to the global ccpersona config (~/.agents/ccpersona.json)",
+					},
+				},
 			},
 			{
 				Name:      "edit",
@@ -62,7 +76,7 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:   "config",
-				Usage:  "Manage global configuration",
+				Usage:  "Manage ccpersona configuration",
 				Action: handleConfig,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
@@ -71,16 +85,23 @@ and behavioral patterns for your AI assistant.`,
 						Usage:   "Edit global settings",
 					},
 				},
-			},
-			{
-				Name:   "setup",
-				Usage:  "Interactive setup wizard (deprecated: use status --diagnose)",
-				Action: handleSetup,
-				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:  "skip-hooks",
-						Usage: "Skip Claude Code hooks configuration",
-						Value: false,
+				Commands: []*cli.Command{
+					{
+						Name:   "migrate",
+						Usage:  "Migrate legacy persona/voice config files to .agents/ccpersona.json",
+						Action: handleConfigMigrate,
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:    "global",
+								Aliases: []string{"g"},
+								Usage:   "Migrate global config to ~/.agents/ccpersona.json",
+							},
+							&cli.BoolFlag{
+								Name:  "force",
+								Usage: "Overwrite existing .agents/ccpersona.json",
+								Value: false,
+							},
+						},
 					},
 				},
 			},
@@ -97,15 +118,18 @@ and behavioral patterns for your AI assistant.`,
 				},
 			},
 			{
-				Name:   "doctor",
-				Usage:  "Diagnose ccpersona configuration (deprecated: use status --diagnose)",
-				Action: handleDoctor,
-			},
-			{
-				Name:    "hook",
-				Aliases: []string{"user_prompt_submit_hook"},
-				Usage:   "Execute as Claude Code UserPromptSubmit hook",
-				Action:  handleHook,
+				Name:        "hook",
+				Aliases:     []string{"user_prompt_submit_hook"},
+				Usage:       "Execute as Claude Code hook (SessionStart recommended)",
+				Description: "The 'user_prompt_submit_hook' alias is legacy and kept for backward compatibility; prefer 'hook' wired to the SessionStart event.",
+				Action:      handleHook,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "platform",
+						Usage: "Platform hint for ambiguous hook payloads: claude-code, codex, cursor",
+						Value: "",
+					},
+				},
 			},
 			{
 				Name:    "voice",
@@ -165,7 +189,7 @@ and behavioral patterns for your AI assistant.`,
 					// Config
 					&cli.StringFlag{
 						Name:  "config",
-						Usage: "Path to voice config file (default: .claude/voice.json)",
+						Usage: "Path to ccpersona config file (default: .agents/ccpersona.json)",
 						Value: "",
 					},
 				},
@@ -213,7 +237,7 @@ and behavioral patterns for your AI assistant.`,
 								Flags: []cli.Flag{
 									&cli.BoolFlag{
 										Name:  "global",
-										Usage: "Create global config (~/.claude/voice.json)",
+										Usage: "Create global config (~/.agents/ccpersona.json)",
 										Value: false,
 									},
 								},
@@ -228,10 +252,11 @@ and behavioral patterns for your AI assistant.`,
 				Action: handleMCP,
 			},
 			{
-				Name:    "notify",
-				Aliases: []string{"notification_hook"},
-				Usage:   "Handle notifications (auto-detects Claude Code, Codex, or Cursor)",
-				Action:  handleNotify,
+				Name:        "notify",
+				Aliases:     []string{"notification_hook"},
+				Usage:       "Handle notifications (auto-detects Claude Code, Codex, or Cursor)",
+				Description: "The 'notification_hook' alias is legacy and kept for backward compatibility; prefer 'notify' wired to the Notification event.",
+				Action:      handleNotify,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:  "voice",
@@ -247,51 +272,55 @@ and behavioral patterns for your AI assistant.`,
 			},
 			{
 				Name:  "engine",
-				Usage: "Manage TTS engine background services (VOICEVOX / AivisSpeech)",
+				Usage: "Manage TTS engine background services (built-in: VOICEVOX / AivisSpeech, plus engines defined in config)",
 				Commands: []*cli.Command{
 					{
 						Name:      "install",
 						Usage:     "Install engine as a background service",
-						ArgsUsage: "[voicevox|aivisspeech|all]",
+						ArgsUsage: "[voicevox|aivisspeech|<name>|all]",
 						Action:    handleEngineInstall,
 					},
 					{
 						Name:      "uninstall",
 						Usage:     "Uninstall engine background service",
-						ArgsUsage: "[voicevox|aivisspeech|all]",
+						ArgsUsage: "[voicevox|aivisspeech|<name>|all]",
 						Action:    handleEngineUninstall,
 					},
 					{
 						Name:      "start",
 						Usage:     "Start engine background service",
-						ArgsUsage: "[voicevox|aivisspeech|all]",
+						ArgsUsage: "[voicevox|aivisspeech|<name>|all]",
 						Action:    handleEngineStart,
 					},
 					{
 						Name:      "stop",
 						Usage:     "Stop engine background service",
-						ArgsUsage: "[voicevox|aivisspeech|all]",
+						ArgsUsage: "[voicevox|aivisspeech|<name>|all]",
 						Action:    handleEngineStop,
 					},
 					{
-						Name:   "status",
-						Usage:  "Show engine service status",
-						Action: handleEngineStatus,
+						Name:      "status",
+						Usage:     "Show engine service status",
+						ArgsUsage: "[voicevox|aivisspeech|<name>]",
+						Action:    handleEngineStatus,
 					},
 				},
 			},
 		},
-		Before: func(ctx context.Context, c *cli.Command) error {
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 			if c.Bool("verbose") {
 				zerolog.SetGlobalLevel(zerolog.DebugLevel)
 			} else {
 				zerolog.SetGlobalLevel(zerolog.InfoLevel)
 			}
-			return nil
+			return ctx, nil
 		},
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		log.Fatal().Err(err).Msg("Failed to run application")
+		// Command handlers own their user-facing messages; report the error
+		// once in plain CLI form instead of a zerolog FTL record.
+		fmt.Fprintf(os.Stderr, "%s %v\n", cliui.Failure("error:"), err)
+		os.Exit(1)
 	}
 }

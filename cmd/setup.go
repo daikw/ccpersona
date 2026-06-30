@@ -13,52 +13,6 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func handleSetup(ctx context.Context, c *cli.Command) error {
-	fmt.Println(cliui.Header("ccpersona setup"))
-	fmt.Println("")
-
-	// Run diagnostics first
-	if err := handleStatusWithDiagnose(ctx, c, true); err != nil {
-		return err
-	}
-
-	// Engine service setup
-	fmt.Println("")
-	fmt.Println("----------------------------------------")
-	fmt.Println(cliui.Header("Voice Engine Services"))
-	fmt.Println("")
-
-	mgr, err := engine.NewServiceManager()
-	if err != nil {
-		fmt.Printf("  %s: %v\n", cliui.Failure("failed to init service manager"), err)
-		return nil
-	}
-
-	for _, t := range engine.AllEngineTypes() {
-		info, discoverErr := engine.DiscoverEngine(t)
-		if discoverErr != nil {
-			fmt.Printf("  %s: %s\n", cliui.Label(t), cliui.Failure("binary not found"))
-			fmt.Printf("  %s: install the app first (https://github.com/daikw/ccpersona#voice-engines)\n", cliui.Label(t))
-			continue
-		}
-
-		status, _ := mgr.Status(t)
-		if status != nil && status.Installed {
-			runStatus := cliui.Warn("stopped")
-			if status.Running {
-				runStatus = fmt.Sprintf("%s (PID: %d)", cliui.Success("running"), status.PID)
-			}
-			fmt.Printf("  %s: %s [%s]\n", cliui.Label(t), cliui.Success("installed"), runStatus)
-			continue
-		}
-
-		fmt.Printf("  %s: binary found -> %s\n", cliui.Label(t), cliui.Muted(info.BinaryPath))
-		fmt.Printf("  %s: %s -> run 'ccpersona engine install %s'\n", cliui.Label(t), cliui.Warn("not installed"), t)
-	}
-
-	return nil
-}
-
 func handleStatus(ctx context.Context, c *cli.Command) error {
 	forceDiagnose := c.Bool("diagnose")
 	return handleStatusWithDiagnose(ctx, c, forceDiagnose)
@@ -154,8 +108,13 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 
 		// Engine service status
 		if mgr, mgrErr := engine.NewServiceManager(); mgrErr == nil {
+			reg, _ := engine.BuildRegistry(nil)
 			for _, t := range engine.AllEngineTypes() {
-				svcStatus, _ := mgr.Status(t)
+				def, ok := reg.Get(string(t))
+				if !ok {
+					continue
+				}
+				svcStatus, _ := mgr.Status(def)
 				if svcStatus == nil {
 					continue
 				}
@@ -219,10 +178,4 @@ func handleStatusWithDiagnose(ctx context.Context, c *cli.Command, forceDiagnose
 	}
 
 	return nil
-}
-
-func handleDoctor(ctx context.Context, c *cli.Command) error {
-	// Deprecated: use 'status --diagnose' instead
-	fmt.Fprintln(os.Stderr, "'doctor' is deprecated. Use 'status --diagnose' instead.")
-	return handleStatusWithDiagnose(ctx, c, true)
 }

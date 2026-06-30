@@ -109,21 +109,49 @@ Personas work best when combined with matching voice settings in `.claude/person
 {
   "name": "zundamon",
   "voice": {
-    "engine": "aivisspeech",
-    "speaker_id": 888753760
+    "provider": "aivisspeech",
+    "speaker": 888753760
   }
 }
 ```
 
-For a professional persona, you might use a different voice:
+For a professional persona using OpenAI cloud TTS:
 
 ```json
 {
   "name": "professional",
   "voice": {
-    "engine": "openai",
-    "voice": "alloy",
+    "provider": "openai",
     "speed": 1.0
+  }
+}
+```
+
+And the matching `.claude/config.json` provider block:
+
+```json
+{
+  "providers": {
+    "openai": {
+      "api_key": "${OPENAI_API_KEY}",
+      "model": "tts-1",
+      "voice": "nova"
+    }
+  }
+}
+```
+
+To use a local OpenAI-compatible TTS server instead (e.g. Irodori-TTS-Server on port 8088), omit `api_key` and set `base_url`:
+
+```json
+{
+  "providers": {
+    "openai": {
+      "base_url": "http://127.0.0.1:8088",
+      "model": "irodori-tts",
+      "voice": "none",
+      "timeout_seconds": 120
+    }
   }
 }
 ```

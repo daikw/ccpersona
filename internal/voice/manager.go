@@ -59,6 +59,10 @@ type VoiceOptions struct {
 	APIKey   string
 	Model    string
 
+	// OpenAI-compatible endpoint override (for local TTS servers)
+	BaseURL        string
+	TimeoutSeconds int
+
 	// ElevenLabs-specific options
 	Stability       float64
 	SimilarityBoost float64
@@ -196,6 +200,14 @@ func (vm *VoiceManager) synthesizeCloud(ctx context.Context, text string, option
 
 	if options.APIKey != "" {
 		config["api_key"] = options.APIKey
+	}
+
+	// OpenAI-compatible endpoint override + timeout (local TTS servers)
+	if options.BaseURL != "" {
+		config["base_url"] = options.BaseURL
+	}
+	if options.TimeoutSeconds > 0 {
+		config["timeout_seconds"] = options.TimeoutSeconds
 	}
 
 	// Add Polly-specific config

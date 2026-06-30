@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
+
+// safeSessionID matches session IDs that are safe to embed in a filename verbatim.
+var safeSessionID = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 const dedupDir = "ccpersona-voice"
 
@@ -73,7 +77,25 @@ func (dt *DedupTracker) Cleanup() {
 }
 
 func (dt *DedupTracker) markerPath() string {
-	return filepath.Join(dt.dir, dt.sessionID+".lastread")
+	return filepath.Join(dt.dir, safeMarkerName(dt.sessionID))
+}
+
+// maxSessionIDLen caps how long a sessionID may be embedded verbatim in the
+// marker filename; longer IDs risk ENAMETOOLONG on common filesystems.
+const maxSessionIDLen = 128
+
+// safeMarkerName derives a filename that can never escape the dedup directory.
+// sessionID originates from the untrusted Stop hook JSON, so anything outside
+// the safe character set (e.g. path separators or "..") or over-long input is
+// replaced with a stable sha256 hex digest rather than rejected, to avoid
+// breaking the hook.
+func safeMarkerName(sessionID string) string {
+	name := sessionID
+	if len(sessionID) > maxSessionIDLen || !safeSessionID.MatchString(sessionID) {
+		h := sha256.Sum256([]byte(sessionID))
+		name = fmt.Sprintf("%x", h)
+	}
+	return name + ".lastread"
 }
 
 func hashText(text string) string {
