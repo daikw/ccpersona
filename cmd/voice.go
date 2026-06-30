@@ -244,7 +244,7 @@ func handleVoiceConfigShow(ctx context.Context, c *cli.Command) error {
 		fmt.Println("\nSearched locations:")
 		fmt.Println("  - .agents/ccpersona.json (project)")
 		fmt.Println("  - ~/.agents/ccpersona.json (global)")
-		fmt.Println("\nRun 'ccpersona voice config init' to create one, or 'ccpersona config migrate' to migrate legacy files.")
+		fmt.Println("\nRun 'ccpersona config init' to create one, or 'ccpersona config migrate' to migrate legacy files.")
 		return nil
 	}
 

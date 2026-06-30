@@ -23,7 +23,7 @@ func handleList(ctx context.Context, c *cli.Command) error {
 
 	if len(personas) == 0 {
 		fmt.Println(cliui.Warn("No personas found."))
-		fmt.Println("Create one with 'ccpersona edit <name>'.")
+		fmt.Println("Create one with 'ccpersona persona edit <name>'.")
 		return nil
 	}
 
@@ -54,7 +54,7 @@ func handleSet(ctx context.Context, c *cli.Command) error {
 	if !manager.PersonaExists(name) {
 		// main prints returned errors; embed the guidance instead of
 		// pre-printing here, which produced a duplicate report.
-		return fmt.Errorf("persona '%s' does not exist\nRun 'ccpersona list' to see available personas", name)
+		return fmt.Errorf("persona '%s' does not exist\nRun 'ccpersona persona list' to see available personas", name)
 	}
 
 	global := c.Bool("global")
