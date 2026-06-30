@@ -408,11 +408,6 @@ func loadUnifiedConfig(c *cli.Command, platform string) *persona.Config {
 	return config
 }
 
-// Helper function for loading voice config in handlers.
-func loadVoiceConfig(c *cli.Command) *voice.ConfigFile {
-	return loadUnifiedConfig(c, "").ToVoiceConfigFile()
-}
-
 func maskUnifiedConfig(config *persona.Config) *persona.Config {
 	if config == nil {
 		return nil
