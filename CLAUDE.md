@@ -4,6 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Essential Commands
 
+Detailed maintainer notes that are too verbose for the public README live in
+`README.ai.md`. Keep `README.md` human-oriented and move implementation details
+there instead.
+
 ```bash
 # Build and development
 make build                               # Build ccpersona binary
