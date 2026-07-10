@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func TestMute_NotMutedByDefault(t *testing.T) {
@@ -19,19 +18,12 @@ func TestMute_SetsMarkerFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	status, err := Mute("focusing")
+	changed, err := Mute()
 	if err != nil {
 		t.Fatalf("Mute returned error: %v", err)
 	}
-	if status == nil {
-		t.Fatal("Mute returned nil status")
-		return
-	}
-	if status.Reason != "focusing" {
-		t.Errorf("Reason = %q, want %q", status.Reason, "focusing")
-	}
-	if status.MutedAt.IsZero() {
-		t.Error("MutedAt should be set")
+	if !changed {
+		t.Fatal("Mute should report a state change")
 	}
 
 	if !IsMuted() {
@@ -52,7 +44,7 @@ func TestMute_ReadsLegacyMarker(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(legacyPath, []byte(`{"reason":"legacy"}`), 0o644); err != nil {
+	if err := os.WriteFile(legacyPath, []byte(`{"muted_at":"2026-07-10T00:00:00Z","reason":"legacy"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,31 +56,39 @@ func TestMute_ReadsLegacyMarker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadMuteStatus: %v", err)
 	}
-	if status == nil || status.Reason != "legacy" {
-		t.Fatalf("expected legacy status, got %+v", status)
+	if status == nil || status.MutedAt.IsZero() {
+		t.Fatalf("expected legacy marker status, got %+v", status)
 	}
 }
 
 func TestMute_Idempotent(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	first, err := Mute("a")
+	changed, err := Mute()
 	if err != nil {
 		t.Fatalf("first Mute: %v", err)
 	}
+	if !changed {
+		t.Fatal("first Mute should report a state change")
+	}
+	first, err := LoadMuteStatus()
+	if err != nil {
+		t.Fatalf("LoadMuteStatus after first Mute: %v", err)
+	}
 
-	time.Sleep(10 * time.Millisecond)
-
-	second, err := Mute("b")
+	changed, err = Mute()
 	if err != nil {
 		t.Fatalf("second Mute: %v", err)
 	}
-
-	if !second.MutedAt.After(first.MutedAt) {
-		t.Error("second Mute should refresh MutedAt to a later time")
+	if changed {
+		t.Fatal("second Mute should not report a state change")
 	}
-	if second.Reason != "b" {
-		t.Errorf("second Reason = %q, want %q", second.Reason, "b")
+	second, err := LoadMuteStatus()
+	if err != nil {
+		t.Fatalf("LoadMuteStatus after second Mute: %v", err)
+	}
+	if second == nil || first == nil || !second.MutedAt.Equal(first.MutedAt) {
+		t.Error("second Mute should preserve the original mute timestamp")
 	}
 }
 
@@ -96,7 +96,7 @@ func TestUnmute_RemovesMarker(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	if _, err := Mute(""); err != nil {
+	if _, err := Mute(); err != nil {
 		t.Fatalf("Mute: %v", err)
 	}
 	legacyPath := filepath.Join(home, ".claude", "ccpersona", "mute")
@@ -110,8 +110,12 @@ func TestUnmute_RemovesMarker(t *testing.T) {
 		t.Fatal("precondition: should be muted")
 	}
 
-	if err := Unmute(); err != nil {
+	changed, err := Unmute()
+	if err != nil {
 		t.Fatalf("Unmute: %v", err)
+	}
+	if !changed {
+		t.Fatal("Unmute should report a state change")
 	}
 	if IsMuted() {
 		t.Error("IsMuted() should return false after Unmute()")
@@ -124,8 +128,12 @@ func TestUnmute_RemovesMarker(t *testing.T) {
 func TestUnmute_IdempotentWhenNotMuted(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	if err := Unmute(); err != nil {
+	changed, err := Unmute()
+	if err != nil {
 		t.Errorf("Unmute on non-muted state should succeed, got: %v", err)
+	}
+	if changed {
+		t.Error("Unmute on non-muted state should not report a state change")
 	}
 }
 
@@ -144,7 +152,7 @@ func TestLoadMuteStatus_ReturnsNilWhenNotMuted(t *testing.T) {
 func TestLoadMuteStatus_ReturnsStatusWhenMuted(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	if _, err := Mute("quiet hours"); err != nil {
+	if _, err := Mute(); err != nil {
 		t.Fatalf("Mute: %v", err)
 	}
 
@@ -155,9 +163,6 @@ func TestLoadMuteStatus_ReturnsStatusWhenMuted(t *testing.T) {
 	if status == nil {
 		t.Fatal("expected non-nil status")
 		return
-	}
-	if status.Reason != "quiet hours" {
-		t.Errorf("Reason = %q, want %q", status.Reason, "quiet hours")
 	}
 	if status.MutedAt.IsZero() {
 		t.Error("MutedAt should be populated")

@@ -12,7 +12,6 @@ import (
 // MuteStatus represents the global mute state snapshot.
 type MuteStatus struct {
 	MutedAt time.Time `json:"muted_at"`
-	Reason  string    `json:"reason,omitempty"`
 }
 
 // MutePath returns the canonical absolute path to the mute marker file
@@ -54,43 +53,51 @@ func IsMuted() bool {
 	return err == nil
 }
 
-// Mute enables the global mute. Idempotent: refreshes MutedAt and Reason.
-func Mute(reason string) (*MuteStatus, error) {
+// Mute enables the global mute. It reports whether the state changed.
+func Mute() (bool, error) {
+	if IsMuted() {
+		return false, nil
+	}
 	path, err := MutePath()
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("create mute dir: %w", err)
+		return false, fmt.Errorf("create mute dir: %w", err)
 	}
-	status := &MuteStatus{MutedAt: time.Now().UTC(), Reason: reason}
+	status := &MuteStatus{MutedAt: time.Now().UTC()}
 	data, err := json.MarshalIndent(status, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("marshal mute status: %w", err)
+		return false, fmt.Errorf("marshal mute status: %w", err)
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return nil, fmt.Errorf("write mute file: %w", err)
+		return false, fmt.Errorf("write mute file: %w", err)
 	}
-	return status, nil
+	return true, nil
 }
 
-// Unmute removes the mute marker. Idempotent when already unmuted.
-func Unmute() error {
+// Unmute removes the mute marker and reports whether the state changed.
+func Unmute() (bool, error) {
+	changed := false
 	path, err := MutePath()
 	if err != nil {
-		return err
+		return false, err
 	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove mute file: %w", err)
+	if err := os.Remove(path); err == nil {
+		changed = true
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("remove mute file: %w", err)
 	}
 	legacyPath, err := legacyMutePath()
 	if err != nil {
-		return err
+		return false, err
 	}
-	if err := os.Remove(legacyPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove legacy mute file: %w", err)
+	if err := os.Remove(legacyPath); err == nil {
+		changed = true
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("remove legacy mute file: %w", err)
 	}
-	return nil
+	return changed, nil
 }
 
 // LoadMuteStatus returns the current mute status. Returns (nil, nil)
