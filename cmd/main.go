@@ -294,18 +294,16 @@ func voiceCommand(hidden bool) *cli.Command {
 				Name:   "mute",
 				Usage:  "Globally disable voice synthesis across all paths",
 				Action: handleVoiceMute,
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "reason",
-						Usage: "Optional note stored alongside the mute marker",
-						Value: "",
-					},
-				},
 			},
 			{
 				Name:   "unmute",
 				Usage:  "Lift the global voice synthesis mute",
 				Action: handleVoiceUnmute,
+			},
+			{
+				Name:   "toggle",
+				Usage:  "Toggle the global voice synthesis mute",
+				Action: handleVoiceToggle,
 			},
 			{
 				Name:   "status",

@@ -340,32 +340,36 @@ func handleVoiceConfigInit(ctx context.Context, c *cli.Command) error {
 // Voice mute gate handlers
 
 func handleVoiceMute(ctx context.Context, c *cli.Command) error {
-	status, err := voice.Mute(c.String("reason"))
+	changed, err := voice.Mute()
 	if err != nil {
 		return fmt.Errorf("failed to enable mute: %w", err)
 	}
-	path, _ := voice.MutePath()
-	fmt.Printf("🔇 Voice synthesis muted globally.\n")
-	fmt.Printf("   Marker : %s\n", path)
-	fmt.Printf("   At     : %s\n", status.MutedAt.Format("2006-01-02 15:04:05 MST"))
-	if status.Reason != "" {
-		fmt.Printf("   Reason : %s\n", status.Reason)
+	if changed {
+		fmt.Println("🔇 Voice synthesis muted.")
+	} else {
+		fmt.Println("🔇 Voice synthesis is already muted; nothing to do.")
 	}
-	fmt.Println("\nRun 'ccpersona runtime voice unmute' to re-enable, or pass --force to bypass for one call.")
 	return nil
 }
 
 func handleVoiceUnmute(ctx context.Context, c *cli.Command) error {
-	wasMuted := voice.IsMuted()
-	if err := voice.Unmute(); err != nil {
+	changed, err := voice.Unmute()
+	if err != nil {
 		return fmt.Errorf("failed to disable mute: %w", err)
 	}
-	if wasMuted {
+	if changed {
 		fmt.Println("🔊 Voice synthesis unmuted.")
 	} else {
-		fmt.Println("🔊 Voice synthesis was not muted; nothing to do.")
+		fmt.Println("🔊 Voice synthesis is already unmuted; nothing to do.")
 	}
 	return nil
+}
+
+func handleVoiceToggle(ctx context.Context, c *cli.Command) error {
+	if voice.IsMuted() {
+		return handleVoiceUnmute(ctx, c)
+	}
+	return handleVoiceMute(ctx, c)
 }
 
 func handleVoiceStatus(ctx context.Context, c *cli.Command) error {
@@ -383,9 +387,6 @@ func handleVoiceStatus(ctx context.Context, c *cli.Command) error {
 	fmt.Printf("   Marker : %s\n", path)
 	if !status.MutedAt.IsZero() {
 		fmt.Printf("   Since  : %s\n", status.MutedAt.Local().Format("2006-01-02 15:04:05 MST"))
-	}
-	if status.Reason != "" {
-		fmt.Printf("   Reason : %s\n", status.Reason)
 	}
 	return nil
 }

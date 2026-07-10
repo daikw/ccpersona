@@ -171,9 +171,9 @@ func TestSpeakService_Speak_WithPersonaVoiceConfig(t *testing.T) {
 
 func TestSpeakService_Speak_SkipsWhenMuted(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	_, err := voice.Mute("test")
+	_, err := voice.Mute()
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = voice.Unmute() })
+	t.Cleanup(func() { _, _ = voice.Unmute() })
 
 	synth := &mockSynthesizer{returnPath: "/tmp/voice_test.mp3"}
 	player := &mockPlayer{}
